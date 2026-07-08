@@ -17,7 +17,9 @@ class Prospect:
     state: str | None = None
     classification: str = "generalist"      # "niched" | "generalist"
     match_param: tuple[str, str] | None = None
-    niche_phrase: str | None = None
+    niche_phrase: str | None = None          # their exact words (framing 5a)
+    niche_source: str = "site"               # "site" | "client_list" (framing 5a)
+    first_name: str | None = None            # contact first name for the greeting
     sent_lead_ids: list[str] = field(default_factory=list)
 
 
