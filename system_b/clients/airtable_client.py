@@ -47,6 +47,7 @@ PROSPECT_FIELDS: list[dict[str, Any]] = [
     {"name": "classification", "type": "singleSelect", "options": _select(["niched", "generalist"])},
     {"name": "match_param", "type": "singleLineText"},
     {"name": "niche_phrase", "type": "singleLineText"},
+    {"name": "niche_source", "type": "singleSelect", "options": _select(["site", "client_list"])},
     {"name": "evidence", "type": "multilineText"},
     {"name": "all_niche", "type": "checkbox", "options": _CHECKBOX},
     {"name": "geo_level", "type": "singleSelect", "options": _select(GEO_LEVELS)},
