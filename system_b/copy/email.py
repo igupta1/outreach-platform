@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts
-from system_b.copy.lex import city_display, state_display
+from system_b.copy.lex import city_display, fix_articles, state_display
 from system_b.copy.subject import build_subject, niche_claim
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -27,9 +27,6 @@ LEFT_FIELD: list[str] = [
     "totally out of the blue, but every fractional CFO I talk to says the same "
     "thing: the hard part isn't the work, it's finding companies at the exact "
     "moment they need you. that's what my feed is built to catch.",
-    "cold email, fair warning. I keep hearing from fractional CFOs that "
-    "sourcing is the worst part of the job, so I built a feed that catches "
-    "these signals the day they show up.",
 ]
 
 
@@ -56,19 +53,26 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
                 f"noticed you've worked with a bunch of {niche} companies, so I "
                 f"pulled {n} more showing they need finance help right now:"
             )
-        phrase = prospect.niche_phrase or niche
+        # Use the clean mapped niche word, NEVER the raw scraped phrase — the
+        # verbatim phrase is often a nav blob and can leak a dollar figure. The
+        # exact phrase stays in evidence / the review card, not the sent copy.
         return (
-            f"saw on your site you focus on {phrase}, so I pulled {n} {niche} "
+            f"saw on your site you focus on {niche}, so I pulled {n} {niche} "
             f"companies showing they need finance help right now:"
         )
-    if gift.geo_level == "city":
+    # geo (all_niche FALSE): open with where they're based ONLY when the leads
+    # are actually in their city or state. A geo-none gift's leads are
+    # scattered, so it makes no location claim — "saw you're based in [city],
+    # so I pulled..." would falsely imply the leads relate to that city.
+    based = city or state
+    if gift.geo_level == "city" and city:
         return (
-            f"saw you're based in {city}, so I pulled {n} local companies "
+            f"saw you're based in {city}, so I pulled {n} companies in {city} "
             f"showing they need finance help right now:"
         )
-    if gift.geo_level == "state":
+    if gift.geo_level == "state" and based:
         return (
-            f"saw you're based in {city}, so I pulled {n} {state} companies "
+            f"saw you're based in {based}, so I pulled {n} {state} companies "
             f"showing they need finance help right now:"
         )
     return f"I pulled {n} companies showing they need finance help right now:"
@@ -91,16 +95,31 @@ def _cta(gift: Gift, prospect: Prospect) -> str:
     return "want me to keep an eye out and send new ones your way?"
 
 
+def _funding_phrase(lead: Lead) -> str:
+    """Canonical, code-templated raise description (#10): consistent across the
+    batch, never a dollar amount. Crowdfunding vs a filed private raise; a
+    double_signal also names the hiring half (its confluence value)."""
+    raw = " ".join((s.plain_words_description or "") for s in lead.signals).lower()
+    base = ("just raised via crowdfunding"
+            if any(k in raw for k in ("reg cf", "regulation crowdfunding", "form c", "crowdfund"))
+            else "just filed to raise")
+    if lead.signal_type == "double_signal":
+        base += " and is hiring finance leadership"
+    return base
+
+
 def _lead_line(lead: Lead, description: str, today: date, geo_level: str) -> tuple[str, list[str]]:
     flags: list[str] = []
-    text = (description or "").strip()
 
     if is_raise(lead):
-        text, stripped = strip_dollar_amounts(text)
+        text = _funding_phrase(lead)                     # #10: ALL raises templated
+    else:
+        text = (description or "").strip().lower()
+        text, stripped = strip_dollar_amounts(text)      # safety net on any LLM $ figure
+        text = fix_articles(text)                        # #11: a/an correction
         if stripped:
             flags.append(
-                f"stripped a dollar amount from {lead.company}'s line — a raise "
-                "is a filing target, never state an amount"
+                f"stripped a dollar amount from {lead.company}'s line — never state a figure"
             )
 
     suffix = date_suffix(lead, today)          # '' when low-confidence / undated

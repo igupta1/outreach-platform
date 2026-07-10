@@ -14,7 +14,7 @@ from system_b.copy.email import build_email_1
 from system_b.gift.engine import build_gift
 from system_b.gift.models import Prospect
 from system_b.research.classifier import appears_verbatim, classify, evidence_covers, locate
-from system_b.research.fetcher import discover_links, html_to_text
+from system_b.research.fetcher import discover_links, fetch_site, html_to_text
 from system_b.research.models import Evidence, ResearchResult, to_airtable_fields
 from system_b.tests.test_copy import TODAY
 from system_b.tests.test_gift import FakeScraper, mk
@@ -122,6 +122,25 @@ def test_classify_niched_client_list():
 # code enforcement — a fact not verbatim on the site is REJECTED
 # --------------------------------------------------------------------------
 
+def test_classify_client_list_accepts_string_names():
+    # the model sometimes returns clients as bare strings, not {"name": ...}
+    site = {"https://d.com/clients":
+            f"clients: Bright Smile Dental, Cedar Dental Group, Happy Teeth Dental. {_PAD}"}
+    llm = llm_const({"classification": "niched", "path": "client_list", "niche_guess": "dental",
+                     "clients": ["Bright Smile Dental", "Cedar Dental Group", "Happy Teeth Dental"]})
+    r = classify(site, TAXONOMY, llm=llm)
+    assert r.classification == "niched"
+    assert r.match_param == ("niche", "dental")
+    assert [e.text for e in r.evidence] == ["Bright Smile Dental", "Cedar Dental Group", "Happy Teeth Dental"]
+
+
+def test_fetch_site_rejects_non_url_without_crashing():
+    # a Website column that's actually an email must not raise (-> {} -> thin)
+    assert fetch_site("info@krs-accounting.com") == {}
+    assert fetch_site("") == {}
+    assert fetch_site("ftp://x.com") == {}
+
+
 def test_hallucinated_phrase_rejected_to_generalist():
     site = {"https://g.com": f"we are an accounting and advisory firm. {_PAD}"}
     llm = llm_const({"classification": "niched", "path": "statement",
@@ -227,7 +246,8 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
     gift = build_gift(prospect, FakeScraper(leads))
     draft = build_email_1(gift, prospect, {"h1": "closed a round"}, today=TODAY)
 
-    # the framing quotes the prospect's exact phrase...
-    assert "you focus on healthcare startups" in draft.body
-    # ...and that quoted phrase is backed word-for-word by saved evidence.
+    # framing uses the clean mapped niche word, not the raw phrase (#7)...
+    assert "you focus on healthcare" in draft.body
+    assert "healthcare startups" not in draft.body        # raw phrase stays out of the copy
+    # ...and the exact phrase is retained in evidence, backing the classification.
     assert evidence_covers("healthcare startups", r)

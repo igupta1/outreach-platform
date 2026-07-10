@@ -101,7 +101,13 @@ def classify(
     if path == "client_list":
         verified: list[Evidence] = []
         for c in raw.get("clients") or []:
-            name = str((c or {}).get("name", "")).strip()
+            # the model returns client entries as {"name": ...} OR bare strings
+            if isinstance(c, str):
+                name = c.strip()
+            elif isinstance(c, dict):
+                name = str(c.get("name", "")).strip()
+            else:
+                name = ""
             url = locate(name, site) if name else None
             if url:
                 verified.append(Evidence("client", name, url))

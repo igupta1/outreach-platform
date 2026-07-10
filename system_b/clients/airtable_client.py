@@ -57,6 +57,7 @@ PROSPECT_FIELDS: list[dict[str, Any]] = [
     {"name": "connection_accepted", "type": "checkbox", "options": _CHECKBOX},
     {"name": "review_status", "type": "singleSelect", "options": _select(REVIEW_STATUSES)},
     {"name": "queued_message", "type": "multilineText"},
+    {"name": "review_card", "type": "multilineText"},
 ]
 
 

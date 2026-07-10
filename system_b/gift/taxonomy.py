@@ -35,26 +35,32 @@ def map_prospect(
     if not pw:
         return "generalist", None
 
-    # Most specific child whose tokens are all present in the phrase.
+    # Track which distinct parent industries the phrase touches (via the parent
+    # word or any of its children) and the single most-specific child overall.
+    matched_parents: set[str] = set()
     best_child: str | None = None
     best_len = 0
     for parent, children in taxonomy.items():
         if parent in _FALLBACK_PARENTS:
             continue
+        hit = _token_words(parent) <= pw
         for child in children:
             if child in _FALLBACK_PARENTS:
                 continue
             cw = _token_words(child)
-            if cw and cw <= pw and len(cw) > best_len:
-                best_child, best_len = child, len(cw)
+            if cw and cw <= pw:
+                hit = True
+                if len(cw) > best_len:
+                    best_child, best_len = child, len(cw)
+        if hit:
+            matched_parents.add(parent)
+
+    # A phrase spanning two or more industries can't be honestly narrowed to
+    # one — treat as generalist (keep the leads, drop the false niche claim).
+    if len(matched_parents) >= 2:
+        return "generalist", None
     if best_child is not None:
         return "niched", ("niche", best_child)
-
-    # Else a coarse parent.
-    for parent in taxonomy:
-        if parent in _FALLBACK_PARENTS:
-            continue
-        if _token_words(parent) <= pw:
-            return "niched", ("industry", parent)
-
+    if len(matched_parents) == 1:
+        return "niched", ("industry", next(iter(matched_parents)))
     return "generalist", None

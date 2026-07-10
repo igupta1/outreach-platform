@@ -64,10 +64,12 @@ def discover_links(source: str, base_url: str) -> list[str]:
 
 
 def fetch_site(url: str) -> dict[str, str]:
-    """Best-effort {url: text} for the homepage + discovered subpages.
-    Network errors are swallowed per-page; a fully unreachable site returns
-    {} (which the classifier treats as a thin site -> generalist)."""
+    """Best-effort {url: text} for the homepage + discovered subpages. Any
+    failure (bad URL, network error, unreachable site) yields {} or a partial
+    map, which the classifier treats as a thin site -> generalist. Never raises."""
     site: dict[str, str] = {}
+    if not url or not url.lower().startswith(("http://", "https://")):
+        return site  # e.g. an email address in the Website column
     try:
         with httpx.Client(
             timeout=_FETCH_TIMEOUT, follow_redirects=True, headers={"User-Agent": _UA}
@@ -81,8 +83,8 @@ def fetch_site(url: str) -> dict[str, str]:
                     r = client.get(sub)
                     r.raise_for_status()
                     site[sub] = html_to_text(r.text)
-                except httpx.HTTPError:
+                except Exception:
                     continue
-    except httpx.HTTPError:
+    except Exception:
         return site
     return site

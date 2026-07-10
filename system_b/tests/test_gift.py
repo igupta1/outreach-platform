@@ -438,6 +438,9 @@ def test_example_13_taxonomy_mapping():
     assert map_prospect("we serve healthcare startups", taxonomy) == ("niched", ("industry", "healthcare"))
     # no match -> generalist (phrase saved elsewhere, never claimed)
     assert map_prospect("we serve credit unions", taxonomy) == ("generalist", None)
+    # #8: a phrase spanning 2+ industries can't be honestly narrowed -> generalist
+    assert map_prospect("we serve healthcare and fintech clients", taxonomy) == ("generalist", None)
+    assert map_prospect("dental practices and payments companies", taxonomy) == ("generalist", None)
 
 
 # --------------------------------------------------------------------------
