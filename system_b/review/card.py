@@ -47,6 +47,10 @@ def build_card(
         )
         label = prospect.niche_phrase or val
         L.append(f'2. CLASSIFICATION: niched — "{label}" → {kind}={val}  (how we know: {how})')
+        verb = {"sole": "work with", "one_of_several": "work with"}.get(
+            prospect.niche_exclusivity, ""
+        )
+        L.append(f'   niche_exclusivity: {prospect.niche_exclusivity}  → framing verb: "{verb}"')
     else:
         L.append("2. CLASSIFICATION: generalist")
         if prospect.niche_phrase:
@@ -74,8 +78,8 @@ def build_card(
 
     # 5. Honesty values
     L.append(
-        f"5. HONESTY: all_niche={gift.all_niche}  geo_level={gift.geo_level}  "
-        f"subject_shape={gift.subject_shape}  what={gift.what_category}"
+        f"5. HONESTY: all_niche={gift.all_niche}  niche_exclusivity={prospect.niche_exclusivity}  "
+        f"geo_level={gift.geo_level}  subject_shape={gift.subject_shape}  what={gift.what_category}"
     )
 
     # 6. Flags
@@ -88,6 +92,9 @@ def build_card(
 
     # 7. The exact message about to send
     L.append("7. QUEUED MESSAGE:")
+    variant = getattr(draft, "left_field_variant", "")
+    if variant:
+        L.append(f"   left-field variant: {variant}")
     L.append(f"   Subject: {draft.subject}")
     for line in draft.body.split("\n"):
         L.append(f"   {line}" if line else "")

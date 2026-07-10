@@ -32,8 +32,7 @@ from system_b.clients.airtable_client import AirtableClient
 from system_b.clients.scraper_client import ScraperClient, SnapshotScraper
 from system_b.copy.email import build_email_1
 from system_b.copy.llm import describe_leads
-from system_b.gift.engine import build_gift
-from system_b.gift.models import Prospect
+from system_b.gift.tiering import resolve_gift
 from system_b.research.service import research_and_write
 from system_b.review import assemble_review
 
@@ -136,18 +135,15 @@ def process_one(at: AirtableClient, sc: SnapshotScraper, taxonomy: dict, row: di
     Raises on failure (caller records it as an error)."""
     rid = row["record_id"]
     research = research_and_write(rid, row["website"], taxonomy, at)
-    prospect = Prospect(
-        firm_name=row["firm_name"], city=row.get("city"), state=row.get("state"),
-        classification=research.classification, match_param=research.match_param,
-        niche_phrase=research.niche_phrase, niche_source=research.niche_source or "site",
-        first_name=row.get("first_name"),
-    )
+    # Change 2: the tiering resolver picks the tier (Gate B) and builds the gift;
+    # the final prospect carries the claimed niche + niche_exclusivity.
+    prospect, gift = resolve_gift(research, row, sc)
     base = {
-        "firm": row["firm_name"], "classification": research.classification,
-        "niche_source": research.niche_source, "match_param": research.match_param,
+        "firm": row["firm_name"], "classification": prospect.classification,
+        "niche_source": research.niche_source, "match_param": prospect.match_param,
         "niche_phrase": research.niche_phrase,
+        "niche_exclusivity": prospect.niche_exclusivity,
     }
-    gift = build_gift(prospect, sc)
     if gift is None:
         return {**base, "status": "no_gift", "gift_size": 0, "flags": []}
     descriptions = describe_leads(gift, prospect)
@@ -158,6 +154,7 @@ def process_one(at: AirtableClient, sc: SnapshotScraper, taxonomy: dict, row: di
         **base, "status": "ok", "gift_size": gift.gift_size,
         "best_signal": gift.best_lead.signal_type, "geo": gift.geo_level,
         "shape": gift.subject_shape, "all_niche": gift.all_niche, "subject": draft.subject,
+        "variant": draft.left_field_variant,
         "flags": [f for f in fields["flags"].split("\n") if f],
         "card": fields["review_card"], "queued": fields["queued_message"],
     }
@@ -189,9 +186,9 @@ def print_compact(r: dict[str, Any]) -> None:
         print(f"  ✗ {firm:30} ERROR: {str(r['error'])[:60]}"); return
     if r["status"] == "no_gift":
         print(f"  – {firm:30} {r['classification']:10} NO GIFT"); return
-    print(f"  ✓ {firm:30} {r['classification']:10} {_niche(r):22} "
-          f"gift={r['gift_size']} best={r['best_signal']:13} geo={r['geo']:5} "
-          f"{r['shape']:8} flags={len(r['flags'])}")
+    print(f"  ✓ {firm:30} {r['classification']:10} {r.get('niche_exclusivity','-'):14} "
+          f"{_niche(r):22} gift={r['gift_size']} best={r['best_signal']:13} geo={r['geo']:5} "
+          f"{r['shape']:8} var={r.get('variant','-')} flags={len(r['flags'])}")
 
 
 _FLAG_BUCKETS = [
@@ -236,11 +233,13 @@ def print_report(results: list[dict[str, Any]]) -> None:
     print("#" * 76)
 
     dist("Classification", Counter(r["classification"] for r in results))
+    dist("Niche exclusivity", Counter(r.get("niche_exclusivity", "-") for r in ok))
     dist("Niche (mapped)", Counter(_niche(r) for r in ok if r.get("match_param")))
     dist("Gift size", Counter(r["gift_size"] for r in ok))
     dist("Geo level", Counter(r["geo"] for r in ok))
     dist("Subject shape", Counter(r["shape"] for r in ok))
     dist("Best-lead signal", Counter(r["best_signal"] for r in ok))
+    dist("Left-field variant", Counter(r.get("variant", "-") for r in ok))
 
     flag_counter: Counter = Counter()
     for r in ok:

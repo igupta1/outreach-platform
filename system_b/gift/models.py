@@ -20,6 +20,11 @@ class Prospect:
     niche_phrase: str | None = None          # their exact words (framing 5a)
     niche_source: str = "site"               # "site" | "client_list" (framing 5a)
     first_name: str | None = None            # contact first name for the greeting
+    # Three-tier honesty (Change 2): "sole" (single stated focus, verb "focus
+    # on"), "one_of_several" (one of several stated industries, verb "work
+    # with"), "none" (generalist, no industry claimed). Set by the tiering
+    # resolver after Gate B, NOT by research alone.
+    niche_exclusivity: str = "none"
     sent_lead_ids: list[str] = field(default_factory=list)
 
 

@@ -124,7 +124,7 @@ def compute_match_level(lead: Lead, prospect: Prospect) -> int | None:
     return None
 
 
-def _levels_for(p: Prospect) -> list[tuple[int, dict[str, Any]]]:
+def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dict[str, Any]]]:
     levels: list[tuple[int, dict[str, Any]]] = []
     if p.classification == "niched" and p.match_param:
         kind, val = p.match_param
@@ -134,6 +134,11 @@ def _levels_for(p: Prospect) -> list[tuple[int, dict[str, Any]]]:
         if p.state:
             levels.append((2, {**base, "state": p.state}))
         levels.append((3, dict(base)))
+        # niche_only (Change 2 / Gate B): stop at L3 so the gift is entirely
+        # on-niche leads. Dropping the L4/L5 geo fallback means the gift is
+        # either all_niche or empty — never padded with off-niche leads.
+        if niche_only:
+            return levels
         if p.city:
             levels.append((4, {"city": p.city}))
         if p.state:
@@ -147,7 +152,7 @@ def _levels_for(p: Prospect) -> list[tuple[int, dict[str, Any]]]:
 
 
 def _find_cfo_wanted(
-    prospect: Prospect, scraper: _Scraper, excluded: set[str]
+    prospect: Prospect, scraper: _Scraper, excluded: set[str], *, niche_only: bool = False
 ) -> Lead | None:
     """3a: cfo_wanted via match_param, then city, then state (fresh).
     First query with a hit wins; its best (re-sorted) lead is returned."""
@@ -155,10 +160,12 @@ def _find_cfo_wanted(
     if prospect.classification == "niched" and prospect.match_param:
         kind, val = prospect.match_param
         queries.append({kind: val})
-    if prospect.city:
-        queries.append({"city": prospect.city})
-    if prospect.state:
-        queries.append({"state": prospect.state})
+    # niche_only: don't fall back to a geo cfo_wanted — it would be off-niche.
+    if not niche_only:
+        if prospect.city:
+            queries.append({"city": prospect.city})
+        if prospect.state:
+            queries.append({"state": prospect.state})
     for kwargs in queries:
         leads = [
             l for l in scraper.leads(
@@ -175,10 +182,10 @@ def _find_cfo_wanted(
 
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
-    into: list[Lead],
+    into: list[Lead], niche_only: bool = False,
 ) -> None:
     """The two-round Level walk. Mutates `into` / `excluded` in place."""
-    levels = _levels_for(prospect)
+    levels = _levels_for(prospect, niche_only=niche_only)
     for freshness in ("fresh", "stale"):
         if len(into) >= target:
             return
@@ -200,17 +207,21 @@ def _pick_leads(
 
 
 def build_gift(
-    prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET
+    prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
+    niche_only: bool = False,
 ) -> Gift | None:
+    """Build the gift. `niche_only` (Change 2 / Gate B) restricts to on-niche
+    leads (levels 1-3): the returned gift is all_niche or None, never padded
+    with geo leads — so the tiering resolver can test a candidate niche."""
     gift: list[Lead] = []
     excluded: set[str] = set(prospect.sent_lead_ids)
 
-    cfo = _find_cfo_wanted(prospect, scraper, excluded)
+    cfo = _find_cfo_wanted(prospect, scraper, excluded, niche_only=niche_only)
     if cfo is not None:
         gift.append(cfo)
         excluded.add(cfo.id)
 
-    _pick_leads(prospect, scraper, excluded, target=target, into=gift)
+    _pick_leads(prospect, scraper, excluded, target=target, into=gift, niche_only=niche_only)
 
     if not gift:
         return None

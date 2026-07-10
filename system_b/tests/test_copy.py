@@ -15,6 +15,7 @@ from datetime import date
 
 from system_b.copy.email import (
     LEFT_FIELD,
+    LEFT_FIELD_LABELS,
     _cta,
     _framing,
     build_email_1,
@@ -52,6 +53,7 @@ def P(*, niched=True, niche="healthcare", city="Denver", state="CO", **kw) -> Pr
         match_param=("industry", niche) if niched else None,
         niche_phrase=kw.get("niche_phrase"),
         niche_source=kw.get("niche_source", "site"),
+        niche_exclusivity=kw.get("niche_exclusivity", "sole" if niched else "none"),
         first_name=kw.get("first_name", "alex"),
     )
 
@@ -144,33 +146,41 @@ def test_4c_an_before_vowel():
 # --------------------------------------------------------------------------
 
 def test_5a_framing_table():
-    p_site = P(niche_phrase="healthcare startups", niche_source="site")
-    # framing uses the clean niche word, NOT the raw scraped phrase (#7)
+    # TIER 1 — sole focus, still SOFT verb "work with" (never "focus on"). framing
+    # uses the clean niche word, NOT the raw scraped phrase (#7/Change 3).
+    p_site = P(niche_phrase="healthcare startups", niche_source="site", niche_exclusivity="sole")
     assert _framing(G(all_niche=True, geo="city"), p_site) == \
-        "saw on your site you focus on healthcare, so I pulled 3 healthcare companies showing they need finance help right now:"
+        "saw on your site you work with healthcare, so i pulled 3 healthcare companies showing they need finance help right now:"
+
+    # TIER 2 — one of several stated industries, verb "work with"; names ONLY
+    # the one niche we're gifting for.
+    p_multi = P(niche_phrase="WHO WE SERVE: healthcare, real estate, nonprofits",
+                niche_source="site", niche_exclusivity="one_of_several")
+    assert _framing(G(all_niche=True, geo="city"), p_multi) == \
+        "noticed you work with healthcare companies, so i pulled 3 more showing they need finance help right now:"
 
     p_list = P(niche_source="client_list")
     assert _framing(G(all_niche=True, geo="state"), p_list) == \
-        "noticed you've worked with a bunch of healthcare companies, so I pulled 3 more showing they need finance help right now:"
+        "noticed you've worked with a bunch of healthcare companies, so i pulled 3 more showing they need finance help right now:"
 
     p = P()
     # the "based in [city]" opener is used ONLY when the leads are in the
     # prospect's city or state; geo none makes no location claim.
     assert _framing(G(all_niche=False, geo="city"), p) == \
-        "saw you're based in denver, so I pulled 3 companies in denver showing they need finance help right now:"
+        "saw you're based in denver, so i pulled 3 companies in denver showing they need finance help right now:"
     assert _framing(G(all_niche=False, geo="state"), p) == \
-        "saw you're based in denver, so I pulled 3 colorado companies showing they need finance help right now:"
+        "saw you're based in denver, so i pulled 3 colorado companies showing they need finance help right now:"
     assert _framing(G(all_niche=False, geo="none"), p) == \
-        "I pulled 3 companies showing they need finance help right now:"
+        "i pulled 3 companies showing they need finance help right now:"
 
     # no city -> fall back to state in the intro
     p_nocity = P(city=None)
     assert _framing(G(all_niche=False, geo="state"), p_nocity) == \
-        "saw you're based in colorado, so I pulled 3 colorado companies showing they need finance help right now:"
+        "saw you're based in colorado, so i pulled 3 colorado companies showing they need finance help right now:"
     # no location at all -> plain open, no personalization
     p_none = P(city=None, state=None)
     assert _framing(G(all_niche=False, geo="none"), p_none) == \
-        "I pulled 3 companies showing they need finance help right now:"
+        "i pulled 3 companies showing they need finance help right now:"
 
 
 # --------------------------------------------------------------------------
@@ -194,18 +204,42 @@ def test_5c_cta_table():
 # --------------------------------------------------------------------------
 
 def test_5b_left_field_rotation():
-    assert len(LEFT_FIELD) == 2
-    assert len(set(LEFT_FIELD)) == 2
-    assert not any("cold email, fair warning" in line for line in LEFT_FIELD)
+    # five variants (A-E), all distinct, house style: all lowercase, no em dashes
+    assert len(LEFT_FIELD) == 5
+    assert len(set(LEFT_FIELD)) == 5
+    assert LEFT_FIELD_LABELS == ["A", "B", "C", "D", "E"]
+    assert LEFT_FIELD[0] == (
+        "most fractional cfos i talk to say referrals were great, till they "
+        "dried up. built this to catch companies the day they show a "
+        "finance-need signal."
+    )
+    assert all(line == line.lower() for line in LEFT_FIELD)
+    assert not any("—" in line for line in LEFT_FIELD)
     p = P(firm_name="Acme CFO")
     # deterministic + in range
     assert rotation_for(p) == rotation_for(P(firm_name="Acme CFO"))
     assert 0 <= rotation_for(p) < len(LEFT_FIELD)
-    # explicit rotation selects the exact line
+    # explicit rotation selects the exact line AND logs its label (A-E) on the draft
     for k in range(len(LEFT_FIELD)):
         g = build_gift(P(), FakeScraper([mk("a", "funding_only", industry="healthcare", city="Denver", state="CO")]))
         draft = build_email_1(g, P(), {"a": "closed a round"}, today=TODAY, rotation=k)
         assert LEFT_FIELD[k] in draft.body
+        assert draft.left_field_variant == LEFT_FIELD_LABELS[k]
+
+
+def test_greeting_lowercased_but_company_names_kept_cased():
+    # "hey dora," not "hey Dora," — lowercase prose, proper nouns intact.
+    p = P(first_name="Dora")
+    lead = mk("a", "hiring_only", industry="healthcare", city="Denver", state="CO",
+              date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
+    g = build_gift(p, FakeScraper([lead]))
+    draft = build_email_1(g, p, {"a": "posted a controller role"}, today=TODAY)
+    assert draft.body.startswith("hey dora,\n\n")
+    assert "hey Dora," not in draft.body
+    # ...but a lead company name (a proper noun, added by code) keeps its casing
+    assert "Acme BioLabs, denver:" in draft.body
+    # missing first name still falls back to "there"
+    assert build_email_1(g, P(first_name=None), {"a": "x"}, today=TODAY).body.startswith("hey there,")
 
 
 # --------------------------------------------------------------------------
@@ -356,7 +390,7 @@ def test_full_email_niched_example_1():
 
     assert draft.subject == "healthcare companies in denver that need finance help right now"
     assert draft.body.startswith("hey dana,\n\n")
-    assert "saw on your site you focus on healthcare, so I pulled 3 healthcare companies" in draft.body
+    assert "saw on your site you work with healthcare, so i pulled 3 healthcare companies" in draft.body
     assert "1. Acme Bio, denver: just filed to raise, 3 days ago" in draft.body    # funding templated
     assert "2. Nimbus Rx, denver: just filed to raise, 4 days ago" in draft.body
     assert "3. Vitals Co, denver: posted for a controller, 5 days ago" in draft.body
@@ -381,7 +415,7 @@ def test_full_email_generalist_example_8():
     draft = build_email_1(g, p, {"m1": "posted a VP of finance role", "m2": "posted a controller role"}, today=TODAY, rotation=1)
 
     assert draft.subject == "companies in miami hiring finance leadership right now"
-    assert "saw you're based in miami, so I pulled 2 companies in miami" in draft.body
+    assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
     assert "1. Palm Freight, miami: posted a vp of finance role, 2 days ago" in draft.body  # forced lowercase
     assert "2. Bay Foods, miami: posted a controller role, 3 days ago" in draft.body
     assert "want me to keep an eye out for miami ones and send them your way?" in draft.body
@@ -431,7 +465,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
 
     # ...but the copy is generalist, because the token has no label.
     assert draft.subject == "companies in denver that need finance help right now"
-    assert "saw you're based in denver, so I pulled 2 companies in denver" in draft.body
+    assert "saw you're based in denver, so i pulled 2 companies in denver" in draft.body
     assert "want me to keep an eye out for denver ones and send them your way?" in draft.body
     for banned in ("pet_grooming", "pet grooming", "pet grooming shops"):
         assert banned not in (draft.subject + "\n" + draft.body)

@@ -101,6 +101,47 @@ def test_classify_niched_statement():
 # classify — niched via a client list (3+ verified)
 # --------------------------------------------------------------------------
 
+def test_classify_multi_industry_statement_candidates():
+    # Change 2: a firm listing SEVERAL served industries -> every verbatim,
+    # mappable one becomes a candidate; exclusivity="multiple" -> "work with".
+    site = {"https://m.com": f"we serve healthcare startups and construction firms. {_PAD}"}
+    llm = llm_const({"classification": "niched", "focus": "multiple", "path": "statement",
+                     "industries": [{"phrase": "healthcare startups", "guess": "healthcare"},
+                                    {"phrase": "construction firms", "guess": "construction"}],
+                     "niche_phrase": "healthcare startups", "niche_guess": "healthcare"})
+    r = classify(site, TAXONOMY, llm=llm)
+    assert r.classification == "niched"
+    assert r.exclusivity == "multiple"
+    assert ("industry", "healthcare") in r.candidate_match_params
+    assert ("industry", "construction") in r.candidate_match_params
+    assert r.match_param == ("industry", "healthcare")          # first is primary
+
+
+def test_single_lumped_phrase_splits_into_candidates():
+    # one phrase naming several industries -> each becomes a candidate (not dropped),
+    # so the resolver can claim the best-supplied one. 2+ candidates => "multiple".
+    site = {"https://m.com": f"we serve healthcare startups and construction firms. {_PAD}"}
+    llm = llm_const({"classification": "niched", "focus": "single", "path": "statement",
+                     "industries": [{"phrase": "healthcare startups and construction firms",
+                                     "guess": "healthcare"}]})
+    r = classify(site, TAXONOMY, llm=llm)
+    assert set(r.candidate_match_params) == {("industry", "healthcare"), ("industry", "construction")}
+    assert r.exclusivity == "multiple"
+
+
+def test_multi_industry_gate_a_rejects_unstated_industry():
+    # Gate A: an industry the model lists but that is NOT verbatim on the site
+    # is dropped; the honest ones remain candidates. Still "multiple" (the site
+    # lists several client types even if only one maps).
+    site = {"https://m.com": f"we serve healthcare startups nationwide. {_PAD}"}
+    llm = llm_const({"classification": "niched", "focus": "multiple", "path": "statement",
+                     "industries": [{"phrase": "healthcare startups", "guess": "healthcare"},
+                                    {"phrase": "fintech scaleups", "guess": "fintech"}]})
+    r = classify(site, TAXONOMY, llm=llm)
+    assert r.candidate_match_params == [("industry", "healthcare")]   # fintech rejected
+    assert r.exclusivity == "multiple"
+
+
 def test_classify_niched_client_list():
     site = {"https://d.com/clients":
             f"our clients include Bright Smile Dental, Cedar Dental Group, and Happy Teeth Dental. {_PAD}"}
@@ -247,7 +288,7 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
     draft = build_email_1(gift, prospect, {"h1": "closed a round"}, today=TODAY)
 
     # framing uses the clean mapped niche word, not the raw phrase (#7)...
-    assert "you focus on healthcare" in draft.body
+    assert "you work with healthcare" in draft.body
     assert "healthcare startups" not in draft.body        # raw phrase stays out of the copy
     # ...and the exact phrase is retained in evidence, backing the classification.
     assert evidence_covers("healthcare startups", r)
