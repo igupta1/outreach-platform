@@ -78,7 +78,8 @@ def _singular_who(gift: Gift, prospect: Prospect) -> str:
     return apply_article(who)
 
 
-def build_subject(gift: Gift, prospect: Prospect) -> str:
+def _cfo_subject(gift: Gift, prospect: Prospect) -> str:
+    """The CFO subject body (the CFO pack's `subject`)."""
     if gift.subject_shape == "singular":
         who = _singular_who(gift, prospect)
         what = _SINGULAR_WHAT.get(gift.best_lead.signal_type, "")
@@ -86,3 +87,10 @@ def build_subject(gift: Gift, prospect: Prospect) -> str:
         who = _plural_who(gift, prospect)
         what = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])
     return f"{who} {what}".strip().lower()
+
+
+def build_subject(gift: Gift, prospect: Prospect, *, pack: object | None = None) -> str:
+    """Dispatch to the niche pack's subject builder (defaults to CFO)."""
+    from system_b.niches.base import default_pack
+
+    return (pack or default_pack()).subject(gift, prospect)

@@ -16,6 +16,14 @@ from system_b.copy.lex import city_display, fix_articles, state_display
 from system_b.copy.subject import build_subject, niche_claim
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
+from system_b.niches.base import default_pack
+
+# 5e flag emitted when a priority-signal (cfo_wanted) lead is in the gift — the
+# CFO pack's `priority_flag`.
+CFO_PRIORITY_FLAG = (
+    "cfo_wanted / low-confidence lead present — google the posting and "
+    "confirm it's still live before sending (no date in copy)"
+)
 
 # 5b — five left-field lines. Rotation is deterministic per prospect so a
 # redraft is stable and tests are reproducible. The chosen variant's LABEL is
@@ -134,11 +142,13 @@ def _funding_phrase(lead: Lead) -> str:
     return base
 
 
-def _lead_line(lead: Lead, description: str, today: date, geo_level: str) -> tuple[str, list[str]]:
+def _lead_line(
+    lead: Lead, description: str, today: date, geo_level: str, *, pack,
+) -> tuple[str, list[str]]:
     flags: list[str] = []
 
-    if is_raise(lead):
-        text = _funding_phrase(lead)                     # #10: ALL raises templated
+    if pack.funding_phrase is not None and is_raise(lead, pack.raise_signals):
+        text = pack.funding_phrase(lead)                 # #10: ALL raises templated
     else:
         text = (description or "").strip().lower()
         text, stripped = strip_dollar_amounts(text)      # safety net on any LLM $ figure
@@ -157,7 +167,7 @@ def _lead_line(lead: Lead, description: str, today: date, geo_level: str) -> tup
 
     if lead.domain is None:
         flags.append(f"domainless lead ({lead.company}) — google the name to confirm it's real")
-    if is_raise(lead) and geo_level == "city":
+    if is_raise(lead, pack.raise_signals) and geo_level == "city":
         flags.append(
             f"funding lead ({lead.company}) drives a city claim — its city may be "
             "a registered address, not HQ"
@@ -172,34 +182,41 @@ def build_email_1(
     *,
     today: date,
     rotation: int | None = None,
+    pack=None,
 ) -> EmailDraft:
     """Render Email #1. `descriptions` maps lead id -> the LLM's freeform
-    'what they did, plain words' (no dates, no dollar amounts)."""
+    'what they did, plain words' (no dates, no dollar amounts). The scaffolding
+    is niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
+    voice and the raise/priority-signal knobs."""
+    pack = pack or default_pack()
     flags: list[str] = []
-    subject = build_subject(gift, prospect)
-    framing = _framing(gift, prospect)
+    subject = build_subject(gift, prospect, pack=pack)
+    framing = pack.framing(gift, prospect)
 
     lines: list[str] = []
     numbered = gift.gift_size >= 2                     # 5d: 1 lead folds in, no numbers
     for i, lead in enumerate(gift.leads):
-        line, lf = _lead_line(lead, descriptions.get(lead.id, ""), today, gift.geo_level)
+        line, lf = _lead_line(lead, descriptions.get(lead.id, ""), today, gift.geo_level, pack=pack)
         flags.extend(lf)
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
-    idx = rotation if rotation is not None else rotation_for(prospect)
-    left_field = LEFT_FIELD[idx]
-    variant = LEFT_FIELD_LABELS[idx]
-    cta = _cta(gift, prospect)
+    n_lines = len(pack.left_field)
+    idx = rotation if rotation is not None else (
+        zlib.crc32(prospect.firm_name.encode("utf-8")) % n_lines
+    )
+    left_field = pack.left_field[idx]
+    variant = pack.left_field_labels[idx]
+    cta = pack.cta(gift, prospect)
     # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
     greeting = f"hey {(prospect.first_name or 'there').lower()},"
 
     body = "\n\n".join([greeting, framing, "\n".join(lines), left_field, cta, "best,\nishaan"])
 
-    # 5e / Step-10 copy flags tied to the honesty rules.
-    if any(l.signal_type == "cfo_wanted" for l in gift.leads):
-        flags.append(
-            "cfo_wanted / low-confidence lead present — google the posting and "
-            "confirm it's still live before sending (no date in copy)"
-        )
+    # 5e / Step-10 copy flag when a priority-signal lead is present.
+    if (
+        pack.priority_signal and pack.priority_flag
+        and any(l.signal_type == pack.priority_signal for l in gift.leads)
+    ):
+        flags.append(pack.priority_flag)
 
     return EmailDraft(subject=subject, body=body, flags=flags, left_field_variant=variant)

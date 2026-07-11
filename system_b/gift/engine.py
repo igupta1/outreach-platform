@@ -26,8 +26,12 @@ from typing import Any, Protocol
 
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
+from system_b.niches.base import NichePack, default_pack
 
-# Strongest -> weakest.
+# Strongest -> weakest. This is the CFO vocabulary and stays the module default
+# used by the niche-blind tiebreak sorts (sort_key / _best_lead); a lead whose
+# signal isn't in the map ranks last (9), which is exactly right for a
+# single-signal niche like trucking. Per-niche ranks live on the pack.
 SIGNAL_RANK: dict[str, int] = {
     "cfo_wanted": 0,
     "double_signal": 1,
@@ -151,16 +155,20 @@ def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dic
     return levels
 
 
-def _find_cfo_wanted(
-    prospect: Prospect, scraper: _Scraper, excluded: set[str], *, niche_only: bool = False
+def _find_priority_lead(
+    prospect: Prospect, scraper: _Scraper, excluded: set[str], *,
+    pack: NichePack, niche_only: bool = False,
 ) -> Lead | None:
-    """3a: cfo_wanted via match_param, then city, then state (fresh).
-    First query with a hit wins; its best (re-sorted) lead is returned."""
+    """3a: the pack's priority signal (CFO: cfo_wanted) via match_param, then
+    city, then state (fresh). First query with a hit wins; its best (re-sorted)
+    lead is returned. Packs with no priority signal (e.g. trucking) short-circuit."""
+    if not pack.priority_signal:
+        return None
     queries: list[dict[str, Any]] = []
     if prospect.classification == "niched" and prospect.match_param:
         kind, val = prospect.match_param
         queries.append({kind: val})
-    # niche_only: don't fall back to a geo cfo_wanted — it would be off-niche.
+    # niche_only: don't fall back to a geo priority lead — it would be off-niche.
     if not niche_only:
         if prospect.city:
             queries.append({"city": prospect.city})
@@ -169,7 +177,7 @@ def _find_cfo_wanted(
     for kwargs in queries:
         leads = [
             l for l in scraper.leads(
-                signal_type="cfo_wanted", freshness="fresh",
+                signal_type=pack.priority_signal, freshness="fresh",
                 exclude_ids=list(excluded), **kwargs,
             )
             if l.id not in excluded
@@ -208,18 +216,22 @@ def _pick_leads(
 
 def build_gift(
     prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
-    niche_only: bool = False,
+    niche_only: bool = False, pack: NichePack | None = None,
 ) -> Gift | None:
     """Build the gift. `niche_only` (Change 2 / Gate B) restricts to on-niche
     leads (levels 1-3): the returned gift is all_niche or None, never padded
-    with geo leads — so the tiering resolver can test a candidate niche."""
+    with geo leads — so the tiering resolver can test a candidate niche.
+
+    `pack` supplies the niche's priority signal and WHAT categorization;
+    defaults to the CFO pack so existing callers are unchanged."""
+    pack = pack or default_pack()
     gift: list[Lead] = []
     excluded: set[str] = set(prospect.sent_lead_ids)
 
-    cfo = _find_cfo_wanted(prospect, scraper, excluded, niche_only=niche_only)
-    if cfo is not None:
-        gift.append(cfo)
-        excluded.add(cfo.id)
+    lead = _find_priority_lead(prospect, scraper, excluded, pack=pack, niche_only=niche_only)
+    if lead is not None:
+        gift.append(lead)
+        excluded.add(lead.id)
 
     _pick_leads(prospect, scraper, excluded, target=target, into=gift, niche_only=niche_only)
 
@@ -228,8 +240,10 @@ def build_gift(
 
     best = _best_lead(gift, prospect)
     all_niche, geo = _honesty(gift, prospect)
-    has_cfo = any(l.signal_type == "cfo_wanted" for l in gift)
-    shape = "singular" if (len(gift) == 1 or has_cfo) else "plural"
+    has_priority = bool(pack.priority_signal) and any(
+        l.signal_type == pack.priority_signal for l in gift
+    )
+    shape = "singular" if (len(gift) == 1 or has_priority) else "plural"
     return Gift(
         leads=gift,
         best_lead=best,
@@ -237,16 +251,18 @@ def build_gift(
         all_niche=all_niche,
         geo_level=geo,
         subject_shape=shape,
-        what_category=_what_category(gift),
+        what_category=pack.what_category(gift),
         best_lead_level=compute_match_level(best, prospect),
     )
 
 
-def pull_one_lead(prospect: Prospect, scraper: _Scraper) -> Lead | None:
+def pull_one_lead(
+    prospect: Prospect, scraper: _Scraper, *, pack: NichePack | None = None
+) -> Lead | None:
     """Follow-up pull (Steps 6/7): ONE new lead, same levels, exclude_ids
-    already sent. cfo_wanted (3a) still leads. Copy layer decides
+    already sent. The priority signal (3a) still leads. Copy layer decides
     value/fallback; this returns the lead."""
-    gift = build_gift(prospect, scraper, target=1)
+    gift = build_gift(prospect, scraper, target=1, pack=pack)
     return gift.leads[0] if gift else None
 
 
@@ -282,7 +298,9 @@ def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
     return all_niche, geo
 
 
-def _what_category(gift: list[Lead]) -> str:
+def _cfo_what_category(gift: list[Lead]) -> str:
+    """CFO subject WHAT category. Lives here (not the pack module) because it's
+    pure signal logic; the CFO pack references it by name."""
     def raised(l: Lead) -> bool:
         return l.signal_type in ("funding_only", "double_signal")
 

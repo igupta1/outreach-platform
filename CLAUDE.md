@@ -5,8 +5,16 @@ Cold-outreach engine. Python, isolated from the website and the lead pipelines
 
 ## Layout
 
-- `system_b/` — the current engine, built for fractional CFOs. This is the
-  reference pack for the planned `core/` + `niches/<buyer>/` split.
+- `system_b/` — the engine. The gift builder (`gift/`) and copy scaffolding
+  (`copy/`) are niche-blind; every buyer-specific knob (signal vocabulary,
+  priority signal, copy voice) lives in a `NichePack` under `system_b/niches/`.
+  Core functions take `pack=None` and lazily default to the CFO pack, so a new
+  buyer is added purely as a new pack — no edits to core logic.
+- `system_b/niches/` — the packs: `cfo.py` (fractional CFO, the default) and
+  `trucking.py` (commercial trucking insurance; also holds the adapter that maps
+  the insurance pipeline's `trucking-leads.json` onto the outreach `Lead`).
+  Trucking matches on geography only (agents are state-licensed) via the engine's
+  existing generalist path — no site research needed.
 - Conventions: see `system_b/` — everything structural is deterministic code;
   the LLM only proposes (site classification, lead-fit check, per-lead
   descriptions) and code re-verifies. Honesty is enforced in code, never left

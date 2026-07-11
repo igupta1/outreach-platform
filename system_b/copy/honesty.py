@@ -29,8 +29,8 @@ _MONEY_RE = re.compile(
 )
 
 
-def is_raise(lead: Lead) -> bool:
-    return lead.signal_type in RAISE_SIGNALS
+def is_raise(lead: Lead, raise_signals: frozenset[str] = RAISE_SIGNALS) -> bool:
+    return lead.signal_type in raise_signals
 
 
 def relative_date(iso: str, today: date) -> str:
