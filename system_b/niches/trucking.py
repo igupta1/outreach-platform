@@ -28,6 +28,7 @@ from system_b.copy.lex import city_display, state_display
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead, Signal
 from system_b.niches.base import NichePack
+from system_b.niches.text import noun
 
 _AUTHORITY_SIGNAL = "new_motor_carrier_authority"
 
@@ -59,13 +60,14 @@ def _trucking_framing(gift: Gift, prospect: Prospect) -> str:
     where = _where(gift, prospect)
     # Soft, location-honest opener: only claim a place when the leads are
     # actually there (geo_level), never overclaim the agent's book of business.
+    carrier = noun(n, "carrier")
     if where:
         return (
             f"saw you're based in {where}, so i pulled {n} new {where} "
-            f"carriers that just got their authority and need coverage:"
+            f"{carrier} that just got their authority and need coverage:"
         )
     return (
-        f"i pulled {n} new carriers that just got their authority and "
+        f"i pulled {n} new {carrier} that just got their authority and "
         f"need coverage:"
     )
 

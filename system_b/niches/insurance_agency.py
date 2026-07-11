@@ -46,3 +46,16 @@ def route(subniche: str):
     """Return (pack, snapshot_fn, descriptions_fn) for a subniche.
     Unknown subniche → P&C."""
     return _ROUTES.get(subniche, _ROUTES[PC])
+
+
+def detect_subniche_from_site(url: str, *, fetch=None) -> str:
+    """Fetch the agency's site and keyword-classify its sub-niche (trucking|pc).
+    `fetch` (default the research fetcher) is injectable for tests. Any fetch
+    failure falls back to P&C, the safe default."""
+    if fetch is None:
+        from system_b.research.fetcher import fetch_site as fetch
+    try:
+        site = fetch(url)
+    except Exception:
+        return PC
+    return classify_subniche(" ".join(site.values()))

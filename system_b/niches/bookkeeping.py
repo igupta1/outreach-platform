@@ -28,6 +28,7 @@ from system_b.copy.lex import city_display, state_display
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead, Signal
 from system_b.niches.base import NichePack
+from system_b.niches.text import noun
 
 _BOOKKEEPING_SIGNAL = "job_posted_bookkeeping"
 
@@ -56,13 +57,14 @@ def _bookkeeping_subject(gift: Gift, prospect: Prospect) -> str:
 def _bookkeeping_framing(gift: Gift, prospect: Prospect) -> str:
     n = gift.gift_size
     where = _where(gift, prospect)
+    companies = noun(n, "company", "companies")
     if where:
         return (
-            f"saw you're based in {where}, so i pulled {n} {where} companies that "
+            f"saw you're based in {where}, so i pulled {n} {where} {companies} that "
             f"just posted a junior finance role and could use bookkeeping help:"
         )
     return (
-        f"i pulled {n} companies that just posted a junior finance role and "
+        f"i pulled {n} {companies} that just posted a junior finance role and "
         f"could use bookkeeping help:"
     )
 

@@ -30,6 +30,7 @@ from system_b.copy.lex import city_display, state_display
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead, Signal
 from system_b.niches.base import NichePack
+from system_b.niches.text import noun
 
 _HIRING_SIGNAL = "hiring_volume"
 
@@ -69,13 +70,14 @@ def _recruiter_framing(gift: Gift, prospect: Prospect) -> str:
     n = gift.gift_size
     func = _function_word(gift, prospect)
     where = _where(gift, prospect)
+    companies = noun(n, "company", "companies")
     if func and where:
-        return f"saw you recruit {func}, so i pulled {n} {where} companies hiring {func} heavily right now:"
+        return f"saw you recruit {func}, so i pulled {n} {where} {companies} hiring {func} heavily right now:"
     if func:
-        return f"saw you recruit {func}, so i pulled {n} companies hiring {func} heavily right now:"
+        return f"saw you recruit {func}, so i pulled {n} {companies} hiring {func} heavily right now:"
     if where:
-        return f"saw you're based in {where}, so i pulled {n} {where} companies hiring heavily right now:"
-    return f"i pulled {n} companies hiring heavily right now:"
+        return f"saw you're based in {where}, so i pulled {n} {where} {companies} hiring heavily right now:"
+    return f"i pulled {n} {companies} hiring heavily right now:"
 
 
 def _recruiter_cta(gift: Gift, prospect: Prospect) -> str:
@@ -206,6 +208,43 @@ def recruiter_descriptions(leads: list[Lead]) -> dict[str, str]:
         )
         out[l.id] = desc
     return out
+
+
+# Recruiter self-description → function they place for. Ordered like the
+# lead-side classifier (narrow before broad) so "security" wins over "engineering".
+_SPECIALTY_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("security", ("security recruit", "cybersecurity", "infosec", "security talent")),
+    ("data", ("data science", "data recruit", "analytics talent", "machine learning talent")),
+    ("finance", ("finance recruit", "accounting recruit", "finance talent", "fp&a", "controller", "cfo search")),
+    ("sales", ("sales recruit", "sales talent", "gtm talent", "revenue talent", "account executive")),
+    ("marketing", ("marketing recruit", "growth talent", "marketing talent")),
+    ("product", ("product recruit", "product talent", "product management search")),
+    ("design", ("design recruit", "design talent", "ux talent")),
+    ("engineering", ("tech recruit", "technical recruit", "software talent", "engineering talent",
+                     "developer", "swe", "it staffing")),
+)
+
+
+def detect_function(text: str | None) -> str | None:
+    """Keyword-detect a recruiter's specialty function from site/description
+    text; None when nothing specific appears (→ generalist)."""
+    t = (text or "").lower()
+    for func, kws in _SPECIALTY_KEYWORDS:
+        if any(k in t for k in kws):
+            return func
+    return None
+
+
+def detect_function_from_site(url: str, *, fetch=None) -> str | None:
+    """Fetch the agency's site and detect its specialty function; None (→
+    generalist) on any failure. `fetch` is injectable for tests."""
+    if fetch is None:
+        from system_b.research.fetcher import fetch_site as fetch
+    try:
+        site = fetch(url)
+    except Exception:
+        return None
+    return detect_function(" ".join(site.values()))
 
 
 def recruiter_prospect(

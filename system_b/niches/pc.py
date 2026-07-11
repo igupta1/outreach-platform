@@ -25,6 +25,7 @@ from system_b.copy.lex import city_display, state_display
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead, Signal
 from system_b.niches.base import NichePack
+from system_b.niches.text import noun
 
 # Trigger -> honest plain-words line. Never a dollar amount on a raise (the
 # copy honesty layer also strips figures as a backstop).
@@ -62,12 +63,13 @@ def _pc_subject(gift: Gift, prospect: Prospect) -> str:
 def _pc_framing(gift: Gift, prospect: Prospect) -> str:
     n = gift.gift_size
     where = _where(gift, prospect)
+    companies = noun(n, "company", "companies")
     if where:
         return (
-            f"saw you're based in {where}, so i pulled {n} {where} companies whose "
+            f"saw you're based in {where}, so i pulled {n} {where} {companies} whose "
             f"insurance needs probably just changed:"
         )
-    return f"i pulled {n} companies whose insurance needs probably just changed:"
+    return f"i pulled {n} {companies} whose insurance needs probably just changed:"
 
 
 def _pc_cta(gift: Gift, prospect: Prospect) -> str:

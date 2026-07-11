@@ -23,6 +23,7 @@ from system_b.copy.email import build_email_1
 from system_b.gift.engine import build_gift
 from system_b.niches.recruiter import (
     RECRUITER_PACK,
+    detect_function_from_site,
     recruiter_descriptions,
     recruiter_prospect,
     recruiter_snapshot,
@@ -53,9 +54,13 @@ def main(argv: list[str] | None = None) -> int:
 
     built = 0
     for row in agencies:
+        # explicit function wins; else auto-detect from the agency's website.
+        function = (row.get("function") or "").strip() or None
+        if not function and row.get("website"):
+            function = detect_function_from_site(row["website"])
         prospect = recruiter_prospect(
             row["firm_name"], city=row.get("city") or None, state=row.get("state") or None,
-            function=row.get("function") or None, first_name=row.get("first_name") or "there",
+            function=function, first_name=row.get("first_name") or "there",
         )
         gift = build_gift(prospect, snap, pack=RECRUITER_PACK)
         print("=" * 72)

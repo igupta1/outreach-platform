@@ -37,7 +37,14 @@ def load_agencies(csv_path: str | None) -> list[dict[str, str]]:
 
 
 def _subniche(row: dict[str, Any]) -> str:
-    return (row.get("subniche") or "").strip().lower() or router.classify_subniche(row.get("focus"))
+    explicit = (row.get("subniche") or "").strip().lower()
+    if explicit:
+        return explicit
+    if row.get("focus"):
+        return router.classify_subniche(row["focus"])
+    if row.get("website"):
+        return router.detect_subniche_from_site(row["website"])   # fetch + classify
+    return router.PC
 
 
 def main(argv: list[str] | None = None) -> int:
