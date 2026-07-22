@@ -19,7 +19,9 @@ from datetime import date
 
 from system_b.models import Lead
 
-RAISE_SIGNALS = frozenset({"funding_only", "double_signal"})
+# A "raise" = a SEC funding filing (Form D/C). Copy templates a raise line for
+# these (no dollar amount — the filing figure is a target, not money raised).
+RAISE_SIGNALS = frozenset({"funding_form_d", "funding_form_c"})
 
 # Currency figures: "$2M", "$1,500,000", "$500k", or bare "2M" / "1.5 million".
 _MONEY_RE = re.compile(
@@ -70,3 +72,33 @@ def strip_dollar_amounts(text: str) -> tuple[str, bool]:
     cleaned = re.sub(r"\bof\s+(?=[,.;:]|$)", "", cleaned)  # "raise of ," -> "raise ,"
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
     return cleaned, True
+
+
+# Relative/absolute date phrases a human edit might introduce. We can't know the
+# lead's date_confidence from free text, so we WARN (not strip) — dates are only
+# safe for high-confidence signals, and the reviewer must confirm.
+_DATE_RE = re.compile(
+    r"\b(today|yesterday|last week|last month|this week|\d+\s+days?\s+ago"
+    r"|\d+\s+weeks?\s+ago|a week ago|\d{1,2}/\d{1,2}(?:/\d{2,4})?"
+    r"|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b",
+    re.IGNORECASE,
+)
+
+
+def lint_free_text(text: str) -> tuple[str, list[str]]:
+    """Re-run the copy honesty guarantees over human-edited text (build-plan H
+    edit action): STRIP any dollar amount (a raise figure is never money raised)
+    and WARN on any date phrase (dates are only honest for high-confidence
+    signals). Returns (cleaned_text, warnings)."""
+    warnings: list[str] = []
+    cleaned, stripped = strip_dollar_amounts(text)
+    if stripped:
+        warnings.append(
+            "removed a dollar amount — a raise figure is a filing target, never state it"
+        )
+    if _DATE_RE.search(cleaned):
+        warnings.append(
+            "contains a date/recency phrase — only high-confidence signals may carry a "
+            "date; verify the lead before sending or remove it"
+        )
+    return cleaned, warnings

@@ -110,9 +110,9 @@ def test_tier1_sole_focus_construction():
                          phrases=["managing construction operations"],
                          niche_phrase="managing construction operations")
     leads = [
-        mk("c1", "hiring_only", industry="construction", city="Denver", state="CO", date="2026-07-05", company="BuildCo", finance_grade="medium"),
-        mk("c2", "funding_only", industry="construction", city="Denver", state="CO", date="2026-07-04", company="Framers LLC"),
-        mk("c3", "hiring_only", industry="construction", city="Denver", state="CO", date="2026-07-03", company="Rebar Inc", finance_grade="strong"),
+        mk("c1", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-05", company="BuildCo", finance_grade="medium"),
+        mk("c2", "funding_form_d", industry="construction", city="Denver", state="CO", date="2026-07-04", company="Framers LLC"),
+        mk("c3", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-03", company="Rebar Inc", finance_grade="strong"),
     ]
     prospect, gift = resolve_gift(research, _row(firm_name="Absolute Business Solutions"),
                                   FakeScraper(leads), fit=_FIT_YES)
@@ -134,9 +134,9 @@ def test_tier2_one_of_several_real_estate():
         phrases=["real estate investors", "nonprofits"],
     )
     leads = [
-        mk("r1", "funding_only", industry="real_estate", city="Denver", state="CO", date="2026-07-05", company="Mesa Realty"),
-        mk("r2", "hiring_only", industry="real_estate", city="Denver", state="CO", date="2026-07-04", company="Vista Homes", finance_grade="medium"),
-        mk("r3", "funding_only", industry="real_estate", city="Denver", state="CO", date="2026-07-03", company="Peak Estates"),
+        mk("r1", "funding_form_d", industry="real_estate", city="Denver", state="CO", date="2026-07-05", company="Mesa Realty"),
+        mk("r2", "job_finance_lead", industry="real_estate", city="Denver", state="CO", date="2026-07-04", company="Vista Homes", finance_grade="medium"),
+        mk("r3", "funding_form_d", industry="real_estate", city="Denver", state="CO", date="2026-07-03", company="Peak Estates"),
     ]
     prospect, gift = resolve_gift(research, _row(firm_name="Abrisma Accounting"),
                                   FakeScraper(leads), fit=_FIT_YES)
@@ -154,8 +154,8 @@ def test_tier2_single_mapped_industry_still_one_of_several():
                          phrases=["real estate investors"],
                          niche_phrase="business owners, founders, real estate investors")
     leads = [
-        mk("r1", "funding_only", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
-        mk("r2", "hiring_only", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
+        mk("r1", "funding_form_d", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
+        mk("r2", "job_finance_lead", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(first_name="Akansha"), FakeScraper(leads), fit=_FIT_YES)
     assert prospect.niche_exclusivity == "one_of_several"
@@ -170,10 +170,10 @@ def test_picks_best_supplied_candidate():
     research = _research([("industry", "real_estate"), ("industry", "construction")],
                          exclusivity="multiple", phrases=["real estate", "construction"])
     leads = [
-        mk("r1", "funding_only", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
-        mk("c1", "funding_only", industry="construction", city="Denver", state="CO", date="2026-07-05"),
-        mk("c2", "hiring_only", industry="construction", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
-        mk("c3", "funding_only", industry="construction", city="Denver", state="CO", date="2026-07-03"),
+        mk("r1", "funding_form_d", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
+        mk("c1", "funding_form_d", industry="construction", city="Denver", state="CO", date="2026-07-05"),
+        mk("c2", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
+        mk("c3", "funding_form_d", industry="construction", city="Denver", state="CO", date="2026-07-03"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
     assert prospect.match_param == ("industry", "construction")
@@ -188,8 +188,8 @@ def test_gate_b_taxonomy_drops_when_no_niche_leads():
     research = _research([("industry", "real_estate")], exclusivity="single",
                          phrases=["real estate investors"])
     leads = [
-        mk("s1", "funding_only", industry="software_saas", city="Denver", state="CO", date="2026-07-05", company="Bitly Co"),
-        mk("s2", "hiring_only", industry="software_saas", city="Denver", state="CO", date="2026-07-04", company="Cloudy Inc", finance_grade="medium"),
+        mk("s1", "funding_form_d", industry="software_saas", city="Denver", state="CO", date="2026-07-05", company="Bitly Co"),
+        mk("s2", "job_finance_lead", industry="software_saas", city="Denver", state="CO", date="2026-07-04", company="Cloudy Inc", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
     assert prospect.niche_exclusivity == "none"
@@ -209,9 +209,9 @@ def test_gate_b_fit_drops_mistagged_lead():
     research = _research([("industry", "manufacturing")], exclusivity="single",
                          phrases=["manufacturing"])
     leads = [
-        mk("it", "cfo_wanted", industry="manufacturing", city="Denver", state="CO", date="2026-07-05", company="Iq Sig"),
-        mk("m2", "hiring_only", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", company="Real Mfg", finance_grade="medium"),
-        mk("m3", "funding_only", industry="manufacturing", city="Denver", state="CO", date="2026-07-03", company="Also Mfg"),
+        mk("it", "job_fractional_cfo", industry="manufacturing", city="Denver", state="CO", date="2026-07-05", company="Iq Sig"),
+        mk("m2", "job_finance_lead", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", company="Real Mfg", finance_grade="medium"),
+        mk("m3", "funding_form_d", industry="manufacturing", city="Denver", state="CO", date="2026-07-03", company="Also Mfg"),
     ]
     # taxonomy says all 3 are manufacturing, but the fit-check says the IT co isn't
     fit = _fit(per_id={"it": False, "m2": True, "m3": True})
@@ -225,8 +225,8 @@ def test_gate_b_fit_all_pass_keeps_claim():
     research = _research([("industry", "manufacturing")], exclusivity="single",
                          phrases=["manufacturing"])
     leads = [
-        mk("m1", "funding_only", industry="manufacturing", city="Denver", state="CO", date="2026-07-05"),
-        mk("m2", "hiring_only", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
+        mk("m1", "funding_form_d", industry="manufacturing", city="Denver", state="CO", date="2026-07-05"),
+        mk("m2", "job_finance_lead", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
     assert prospect.classification == "niched"
@@ -239,7 +239,7 @@ def test_gate_b_fit_all_pass_keeps_claim():
 
 def test_no_leads_at_all_is_no_gift():
     research = _research([("industry", "real_estate")], exclusivity="single", phrases=["real estate"])
-    leads = [mk("x", "funding_only", industry="fintech", city="Austin", state="TX")]
+    leads = [mk("x", "funding_form_d", industry="fintech", city="Austin", state="TX")]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
     assert gift is None
     assert prospect.classification == "generalist"
@@ -256,8 +256,8 @@ def test_raw_phrase_blob_never_leaks_into_copy():
         niche_phrase="WHO WE SERVE: real estate investors, nonprofits, designed for: growth",
     )
     leads = [
-        mk("r1", "funding_only", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
-        mk("r2", "hiring_only", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
+        mk("r1", "funding_form_d", industry="real_estate", city="Denver", state="CO", date="2026-07-05"),
+        mk("r2", "job_finance_lead", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
     draft = build_email_1(gift, prospect, {l.id: "did a thing" for l in gift.leads}, today=TODAY)

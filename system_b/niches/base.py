@@ -15,6 +15,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from system_b.cadence import DEFAULT_CADENCE, Step
+
 
 @dataclass(frozen=True)
 class NichePack:
@@ -35,6 +37,13 @@ class NichePack:
     funding_phrase: Callable[..., str] | None   # (lead) -> templated raise line, or None
     priority_flag: str | None               # review/copy flag when a priority-signal lead is present
 
+    # --- Track F (LinkedIn + unified cadence) ---
+    # cadence is the ordered email+LinkedIn step list (tunable per pack). The DM
+    # builders are LIFTED templates (not LLM-generated); None -> the CFO defaults.
+    cadence: tuple[Step, ...] = DEFAULT_CADENCE
+    li_dm_1: Callable[..., str] | None = None   # (prospect, ctx) -> DM #1 text
+    li_dm_2: Callable[..., str] | None = None   # (prospect) -> DM #2 text
+
 
 def default_pack() -> NichePack:
     """The CFO pack, imported at call time so core modules never import a pack
@@ -42,3 +51,22 @@ def default_pack() -> NichePack:
     from system_b.niches.cfo import CFO_PACK
 
     return CFO_PACK
+
+
+def pack_for(key: str | None) -> NichePack:
+    """Resolve a pack by key (the row's `niche_pack`). Lazy imports keep this a
+    leaf module. Unknown / blank -> the CFO default."""
+    k = (key or "cfo").strip().lower()
+    if k in ("accounting", "bookkeeping"):   # bookkeeping kept as a legacy alias
+        from system_b.niches.accounting import ACCOUNTING_PACK
+        return ACCOUNTING_PACK
+    if k == "msp":
+        from system_b.niches.it_provider import MSP_PACK
+        return MSP_PACK
+    if k == "mssp":
+        from system_b.niches.it_provider import MSSP_PACK
+        return MSSP_PACK
+    if k == "cloud":
+        from system_b.niches.it_provider import CLOUD_PACK
+        return CLOUD_PACK
+    return default_pack()

@@ -90,10 +90,10 @@ def review_flags(prospect: Prospect, gift: Gift, research=None, draft=None) -> l
         for f in research.flags:
             add(f)
 
-    # cfo_wanted / low-confidence date -> mandatory live-posting check.
-    if any(l.signal_type == "cfo_wanted" for l in gift.leads):
-        add("cfo_wanted / low-confidence lead present — MANDATORY: google the "
-            "posting and confirm it's still live (copy carries no date)")
+    # fractional-CFO posting / low-confidence date -> mandatory live-posting check.
+    if any(l.signal_type == "job_fractional_cfo" for l in gift.leads):
+        add("fractional-CFO posting / low-confidence lead present — MANDATORY: google "
+            "the posting and confirm it's still live (copy carries no date)")
 
     # The niche came from the LLM classifier -> spot-check value_prop.
     if prospect.classification == "niched":
@@ -115,12 +115,15 @@ def review_flags(prospect: Prospect, gift: Gift, research=None, draft=None) -> l
         elif not domain_matches_company(l.company, l.domain):
             add(f"domain {l.domain} may not belong to {l.company} — verify the "
                 "value_prop describes the right company (possible mis-resolution)")
-        if l.signal_type in ("funding_only", "double_signal") and gift.geo_level == "city":
+        if l.signal_type in ("funding_form_d", "funding_form_c") and gift.geo_level == "city":
             add(f"funding lead ({l.company}) drives a city claim — its city may be "
                 "a registered address, not HQ")
-        if l.signal_type == "double_signal":
-            add(f"double_signal lead ({l.company}) — sanity-check both signals are "
-                "the same company")
+        _sig_types = {s.type for s in l.signals}
+        _has_raise = bool(_sig_types & {"funding_form_d", "funding_form_c"})
+        _has_hire = any(t and t.startswith("job_") for t in _sig_types)
+        if _has_raise and _has_hire:
+            add(f"multi-signal lead ({l.company}) — raised AND hiring; sanity-check "
+                "both signals are the same company")
         if l.finance_grade == "weak":
             add(f"weak finance_grade lead ({l.company}) used")
         if l.freshness == "stale":

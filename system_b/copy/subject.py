@@ -18,12 +18,12 @@ _PLURAL_WHAT = {
     "mixed": "that need finance help right now",
 }
 
-# 4c WHAT (singular), from the best lead's signal type.
+# 4c WHAT (singular), from the best lead's signal type (leadgen raw vocab).
 _SINGULAR_WHAT = {
-    "cfo_wanted": "is hiring a fractional cfo",
-    "double_signal": "just raised",
-    "funding_only": "just raised",
-    "hiring_only": "is hiring finance leadership",
+    "job_fractional_cfo": "is hiring a fractional cfo",
+    "funding_form_d": "just raised",
+    "funding_form_c": "just raised",
+    "job_finance_lead": "is hiring finance leadership",
 }
 
 
@@ -87,6 +87,18 @@ def _cfo_subject(gift: Gift, prospect: Prospect) -> str:
         who = _plural_who(gift, prospect)
         what = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])
     return f"{who} {what}".strip().lower()
+
+
+def build_who_what(
+    gift: Gift, prospect: Prospect, *, singular_what: str, plural_what: str
+) -> str:
+    """Generic WHO+WHAT subject for the non-CFO packs. Reuses the niche-agnostic
+    WHO builders (`_singular_who` / `_plural_who`), which already claim a vertical
+    ONLY when the gift is all-niche (via `niche_claim`) and otherwise fall back to
+    a geography-only WHO. The pack supplies its own value-prop WHAT strings."""
+    if gift.subject_shape == "singular":
+        return f"{_singular_who(gift, prospect)} {singular_what}".strip().lower()
+    return f"{_plural_who(gift, prospect)} {plural_what}".strip().lower()
 
 
 def build_subject(gift: Gift, prospect: Prospect, *, pack: object | None = None) -> str:

@@ -39,6 +39,10 @@ PROSPECT_FIELDS: list[dict[str, Any]] = [
     {"name": "stage", "type": "singleSelect", "options": _select(STAGES)},
     {"name": "next_action", "type": "singleLineText"},
     {"name": "due_date", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
+    {"name": "first_name", "type": "singleLineText"},
+    # HARD send-safety gate (defaults OFF): NOTHING pushes to Smartlead / the
+    # LinkedIn queue for a prospect until the operator flips this on.
+    {"name": "eligible_for_send", "type": "checkbox", "options": _CHECKBOX},
     {"name": "city", "type": "singleLineText"},
     {"name": "state", "type": "singleLineText"},
     {"name": "email", "type": "email"},
@@ -61,6 +65,25 @@ PROSPECT_FIELDS: list[dict[str, Any]] = [
     {"name": "review_status", "type": "singleSelect", "options": _select(REVIEW_STATUSES)},
     {"name": "queued_message", "type": "multilineText"},
     {"name": "review_card", "type": "multilineText"},
+    {"name": "card_json", "type": "multilineText"},        # structured card for the Track H UI
+    # --- Track B (sending / sequence) ---
+    {"name": "niche_pack", "type": "singleLineText"},        # which NichePack + Smartlead campaign
+    {"name": "smartlead_campaign_id", "type": "singleLineText"},
+    {"name": "smartlead_lead_id", "type": "singleLineText"},
+    {"name": "current_step", "type": "singleLineText"},      # 1|2|3 — sequence step last drafted/sent
+    {"name": "pending_lead_ids", "type": "multilineText"},   # gift lead ids in the queued draft (-> sent on send)
+    {"name": "frozen", "type": "checkbox", "options": _CHECKBOX},   # reply-freeze: scheduler skips
+    {"name": "replied_at", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
+    {"name": "last_reply", "type": "multilineText"},
+    # --- Track F (LinkedIn track — parallel to the email track) ---
+    {"name": "sequence_started_at", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
+    {"name": "li_connect_pending", "type": "checkbox", "options": _CHECKBOX},   # Day-0 connect to send by hand
+    {"name": "li_progress", "type": "singleLineText"},      # last LinkedIn step done: connect|dm_1|dm_2
+    {"name": "li_step", "type": "singleLineText"},          # pending DM step: dm_1|dm_2
+    {"name": "li_review_status", "type": "singleSelect", "options": _select(REVIEW_STATUSES)},
+    {"name": "li_card_json", "type": "multilineText"},      # structured LinkedIn card for the UI
+    {"name": "li_message", "type": "multilineText"},        # the queued DM text
+    {"name": "li_best_cfo", "type": "singleLineText"},      # email-#1 best lead company IF cfo_wanted
 ]
 
 
@@ -142,6 +165,15 @@ class AirtableClient:
     def find_by_firm(self, firm_name: str) -> dict[str, Any] | None:
         safe = firm_name.replace("'", "\\'")
         rows = self.table.all(formula=f"{{firm_name}} = '{safe}'", max_records=1)
+        return rows[0] if rows else None
+
+    def find_by_email(self, email: str) -> dict[str, Any] | None:
+        """Look up a prospect by contact email — the key the Smartlead reply
+        webhook carries (to_email). Case-insensitive."""
+        safe = email.replace("'", "\\'")
+        rows = self.table.all(
+            formula=f"LOWER({{email}}) = '{safe.lower()}'", max_records=1
+        )
         return rows[0] if rows else None
 
     def close(self) -> None:

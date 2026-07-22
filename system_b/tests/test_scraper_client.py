@@ -103,11 +103,11 @@ def test_cache_short_circuits_second_call():
 
 def _universe():
     return [
-        mk("a", "funding_only", industry="healthcare", city="Denver", state="CO", freshness="fresh", date="2026-07-05"),
-        mk("b", "hiring_only", industry="healthcare", city="Denver", state="CO", freshness="fresh", date="2026-07-06"),
-        mk("c", "funding_only", industry="healthcare", city="Boulder", state="CO", freshness="stale", date="2026-06-01"),
-        mk("d", "cfo_wanted", industry="fintech", city="Denver", state="CO", freshness="fresh", date="2026-07-04"),
-        mk("e", "funding_only", industry="healthcare", city="Miami", state="FL", freshness="fresh", date="2026-07-07"),
+        mk("a", "funding_form_d", industry="healthcare", city="Denver", state="CO", freshness="fresh", date="2026-07-05"),
+        mk("b", "job_finance_lead", industry="healthcare", city="Denver", state="CO", freshness="fresh", date="2026-07-06"),
+        mk("c", "funding_form_d", industry="healthcare", city="Boulder", state="CO", freshness="stale", date="2026-06-01"),
+        mk("d", "job_fractional_cfo", industry="fintech", city="Denver", state="CO", freshness="fresh", date="2026-07-04"),
+        mk("e", "funding_form_d", industry="healthcare", city="Miami", state="FL", freshness="fresh", date="2026-07-07"),
     ]
 
 
@@ -119,7 +119,7 @@ def test_snapshot_matches_fake_scraper_filtering():
         {"industry": "healthcare", "city": "Denver", "freshness": "fresh"},
         {"industry": "healthcare", "state": "CO"},
         {"city": "Denver"},
-        {"signal_type": "cfo_wanted", "freshness": "fresh"},
+        {"signal_type": "job_fractional_cfo", "freshness": "fresh"},
         {"state": "co", "exclude_ids": ["a", "b"]},   # state abbrev/normalization
         {"industry": "healthcare", "freshness": "stale"},
     ]

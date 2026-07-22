@@ -12,16 +12,18 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts
-from system_b.copy.lex import city_display, fix_articles, state_display
+from system_b.copy.lex import city_display, fix_articles, niche_display, state_display
 from system_b.copy.subject import build_subject, niche_claim
+from system_b.gift.engine import compute_match_level
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import default_pack
+from system_b.niches.text import noun
 
-# 5e flag emitted when a priority-signal (cfo_wanted) lead is in the gift — the
-# CFO pack's `priority_flag`.
+# 5e flag emitted when a priority-signal (job_fractional_cfo) lead is in the gift
+# — the CFO pack's `priority_flag`.
 CFO_PRIORITY_FLAG = (
-    "cfo_wanted / low-confidence lead present — google the posting and "
+    "job_fractional_cfo / low-confidence lead present — google the posting and "
     "confirm it's still live before sending (no date in copy)"
 )
 
@@ -112,6 +114,38 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     return f"i pulled {n} companies showing they need finance help right now:"
 
 
+def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
+    """Vertical-aware opener with a geo fallback — the shared framing body for the
+    non-CFO packs (accounting, msp, mssp, cloud). Mirrors the CFO `_framing`
+    structure exactly: it claims a customer vertical ONLY when the gift is
+    all-niche (`niche_claim`, which is gated on `prospect.classification=="niched"`
+    upstream), otherwise opens on geography, otherwise makes no location claim.
+
+    `need` is the pack's value-prop clause, appended after the companies noun —
+    e.g. "that just posted an it support role" or "showing they need bookkeeping
+    help right now". Verb stays soft ("work with"), never "focus on"."""
+    n = gift.gift_size
+    niche = niche_claim(gift, prospect)
+    city = city_display(prospect.city)
+    state = state_display(prospect.state)
+    companies = noun(n, "company", "companies")
+    if niche:
+        if prospect.niche_source == "client_list":
+            return (
+                f"noticed you've worked with a bunch of {niche} companies, so i "
+                f"pulled {n} more {need}:"
+            )
+        if prospect.niche_exclusivity == "one_of_several":
+            return f"noticed you work with {niche} companies, so i pulled {n} more {need}:"
+        return f"saw on your site you work with {niche}, so i pulled {n} {niche} {companies} {need}:"
+    based = city or state
+    if gift.geo_level == "city" and city:
+        return f"saw you're based in {city}, so i pulled {n} {companies} in {city} {need}:"
+    if gift.geo_level == "state" and based:
+        return f"saw you're based in {based}, so i pulled {n} {state} {companies} {need}:"
+    return f"i pulled {n} {companies} {need}:"
+
+
 def _cta(gift: Gift, prospect: Prospect) -> str:
     niche = niche_claim(gift, prospect)
     if niche:
@@ -131,15 +165,22 @@ def _cta(gift: Gift, prospect: Prospect) -> str:
 
 def _funding_phrase(lead: Lead) -> str:
     """Canonical, code-templated raise description (#10): consistent across the
-    batch, never a dollar amount. Crowdfunding vs a filed private raise; a
-    double_signal also names the hiring half (its confluence value)."""
+    batch, never a dollar amount. A Form C filing is crowdfunding (Reg CF); a
+    Form D is a filed private raise. Shared by every pack whose `raise_signals`
+    cover the SEC funding types (cfo, accounting, cloud)."""
+    if lead.signal_type == "funding_form_c":
+        return "just raised via crowdfunding"
     raw = " ".join((s.plain_words_description or "") for s in lead.signals).lower()
-    base = ("just raised via crowdfunding"
-            if any(k in raw for k in ("reg cf", "regulation crowdfunding", "form c", "crowdfund"))
-            else "just filed to raise")
-    if lead.signal_type == "double_signal":
-        base += " and is hiring finance leadership"
-    return base
+    if any(k in raw for k in ("reg cf", "regulation crowdfunding", "form c", "crowdfund")):
+        return "just raised via crowdfunding"
+    return "just filed to raise"
+
+
+def _has_funding_signal(lead: Lead, raise_signals) -> bool:
+    """True if the lead carries a funding signal ANYWHERE (not just as its
+    primary signal_type). A hire-primary lead that also raised is a "double" —
+    the highest-intent gift."""
+    return any(s.type in raise_signals for s in lead.signals)
 
 
 def _lead_line(
@@ -157,6 +198,11 @@ def _lead_line(
             flags.append(
                 f"stripped a dollar amount from {lead.company}'s line — never state a figure"
             )
+        # Multi-signal ("double"): a hire-primary lead that ALSO raised — mention
+        # both. The raise stays code-templated (honest, never a dollar amount).
+        if pack.funding_phrase is not None and _has_funding_signal(lead, pack.raise_signals):
+            raise_txt = pack.funding_phrase(lead)
+            text = f"{text} and {raise_txt}" if text else raise_txt
 
     suffix = date_suffix(lead, today)          # '' when low-confidence / undated
     if suffix:
@@ -183,11 +229,15 @@ def build_email_1(
     today: date,
     rotation: int | None = None,
     pack=None,
+    include_signoff: bool = True,
 ) -> EmailDraft:
     """Render Email #1. `descriptions` maps lead id -> the LLM's freeform
     'what they did, plain words' (no dates, no dollar amounts). The scaffolding
     is niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
-    voice and the raise/priority-signal knobs."""
+    voice and the raise/priority-signal knobs.
+
+    `include_signoff=False` (the platform send path, B4a) omits the trailing
+    'best, ishaan' so Smartlead's per-mailbox signature owns the signoff."""
     pack = pack or default_pack()
     flags: list[str] = []
     subject = build_subject(gift, prospect, pack=pack)
@@ -210,7 +260,14 @@ def build_email_1(
     # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
     greeting = f"hey {(prospect.first_name or 'there').lower()},"
 
-    body = "\n\n".join([greeting, framing, "\n".join(lines), left_field, cta, "best,\nishaan"])
+    # B4a: on the platform send path the signoff is owned by each Smartlead
+    # mailbox's signature field ("best, mason" etc.), so the copy engine adds
+    # NONE — otherwise the send gets a double signoff. include_signoff stays
+    # True for the legacy Airtable-review flow (m4_walkthrough).
+    parts = [greeting, framing, "\n".join(lines), left_field, cta]
+    if include_signoff:
+        parts.append("best,\nishaan")
+    body = "\n\n".join(parts)
 
     # 5e / Step-10 copy flag when a priority-signal lead is present.
     if (
@@ -220,3 +277,93 @@ def build_email_1(
         flags.append(pack.priority_flag)
 
     return EmailDraft(subject=subject, body=body, flags=flags, left_field_variant=variant)
+
+
+def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
+    """An HONEST qualifier for a follow-up lead ("dental ", "in denver ", ...),
+    used only when the lead genuinely matches that facet of the prospect. Empty
+    when nothing matches, so we never imply a relationship that isn't there."""
+    lvl = compute_match_level(lead, prospect)
+    if prospect.classification == "niched" and lvl is not None and lvl <= 3:
+        niche = niche_display(prospect.match_param)
+        if niche:
+            return f"{niche} "
+    city = city_display(prospect.city)
+    state = state_display(prospect.state)
+    if city and lead.city and city_display(lead.city) == city:
+        return f"in {city} "
+    if state and lead.state and state_display(lead.state) == state:
+        return f"in {state} "
+    return ""
+
+
+def build_followup_email(
+    lead: Lead | None,
+    prospect: Prospect,
+    description: str,
+    *,
+    step: int,
+    today: date,
+    pack=None,
+    include_signoff: bool = False,
+) -> EmailDraft:
+    """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
+    (Smartlead sends a blank-subject step as a reply on the same thread).
+
+    Two shapes:
+      * value    — a genuinely NEW lead surfaced (`lead` given): one honest lead
+                   line + a soft continue-CTA.
+      * fallback — no new lead (`lead is None`): a light bump, no fabricated lead.
+
+    Honesty is identical to Email #1: dates only for high-confidence signals,
+    raises templated with no dollar figure, all via `_lead_line`. Signoff is
+    owned by the Smartlead mailbox signature (B4a) → default include_signoff=False."""
+    if step not in (2, 3):
+        raise ValueError(f"follow-up step must be 2 or 3, got {step!r}")
+    pack = pack or default_pack()
+    flags: list[str] = []
+    final = step == 3
+
+    if lead is not None:
+        line, lf = _lead_line(lead, description, today, "none", pack=pack)
+        flags.extend(lf)
+        qual = _followup_qualifier(lead, prospect)
+        opener = "last one from me —" if final else f"found one more {qual}showing the same signal:"
+        tail = (
+            "if leads like these are useful i'll keep them coming; if not, no "
+            "worries, i'll stop here."
+            if final else
+            "still happy to keep sending these as they surface — want me to?"
+        )
+        core = f"{opener}\n\n{line}\n\n{tail}"
+        if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
+            flags.append(pack.priority_flag)
+    else:
+        niche = niche_claim_or_geo(prospect)
+        if final:
+            core = (
+                f"last nudge from me — happy to keep surfacing {niche} companies "
+                "the moment they show a finance-need signal. just say the word."
+            )
+        else:
+            core = (
+                f"circling back — still keeping an eye out for {niche} companies "
+                "showing a finance-need signal. want me to send them your way as "
+                "they come up?"
+            )
+
+    parts = [core]
+    if include_signoff:
+        parts.append("best,\nishaan")
+    body = "\n\n".join(parts)
+    return EmailDraft(subject="", body=body, flags=flags, left_field_variant="")
+
+
+def niche_claim_or_geo(prospect: Prospect) -> str:
+    """Bare descriptor for the fallback follow-up ('dental', 'denver', or a
+    neutral default) — no lead to anchor a claim, so keep it soft/geographic."""
+    if prospect.classification == "niched":
+        niche = niche_display(prospect.match_param)
+        if niche:
+            return niche
+    return city_display(prospect.city) or state_display(prospect.state) or "these kinds of"

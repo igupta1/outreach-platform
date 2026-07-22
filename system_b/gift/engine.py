@@ -28,16 +28,18 @@ from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
 
-# Strongest -> weakest. This is the CFO vocabulary and stays the module default
-# used by the niche-blind tiebreak sorts (sort_key / _best_lead); a lead whose
-# signal isn't in the map ranks last (9), which is exactly right for a
-# single-signal niche like trucking. Per-niche ranks live on the pack.
+# Strongest -> weakest, in leadgen's raw signal-type vocabulary. This is the CFO
+# pack's rank (imported by niches/cfo.py); every pack now supplies its own
+# `signal_rank`, which the tiebreak sorts read via the `rank` arg. A lead whose
+# signal isn't in the active rank map ranks last (9).
 SIGNAL_RANK: dict[str, int] = {
-    "cfo_wanted": 0,
-    "double_signal": 1,
-    "funding_only": 2,
-    "hiring_only": 3,
+    "job_fractional_cfo": 0,
+    "job_finance_lead": 1,
+    "funding_form_d": 2,
 }
+# Funding signal types (SEC Form D/C) — a lead whose primary signal is one of
+# these is a "raise" for copy/what-category purposes.
+FUNDING_SIGNALS: frozenset[str] = frozenset({"funding_form_d", "funding_form_c"})
 GIFT_TARGET = 3
 
 _US_STATES = {
@@ -81,11 +83,12 @@ def _recency(lead: Lead) -> float:
         return float("-inf")
 
 
-def sort_key(lead: Lead) -> tuple[int, float, int]:
-    """Within-level re-sort: strongest signal, then freshest, then
-    high-confidence date before low."""
+def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, float, int]:
+    """Within-level re-sort: strongest signal (per the active pack's
+    `signal_rank`), then freshest, then high-confidence date before low."""
+    rank = rank if rank is not None else SIGNAL_RANK
     return (
-        SIGNAL_RANK.get(lead.signal_type, 9),
+        rank.get(lead.signal_type, 9),
         # <-- score slots here: -(lead.score or 0), once System A serves it
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
@@ -183,14 +186,14 @@ def _find_priority_lead(
             if l.id not in excluded
         ]
         if leads:
-            leads.sort(key=sort_key)
+            leads.sort(key=lambda l: sort_key(l, pack.signal_rank))
             return leads[0]
     return None
 
 
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
-    into: list[Lead], niche_only: bool = False,
+    into: list[Lead], rank: dict[str, int], niche_only: bool = False,
 ) -> None:
     """The two-round Level walk. Mutates `into` / `excluded` in place."""
     levels = _levels_for(prospect, niche_only=niche_only)
@@ -206,7 +209,7 @@ def _pick_leads(
                 )
                 if l.id not in excluded
             ]
-            leads.sort(key=sort_key)
+            leads.sort(key=lambda l: sort_key(l, rank))
             for lead in leads:
                 if len(into) >= target:
                     break
@@ -225,6 +228,7 @@ def build_gift(
     `pack` supplies the niche's priority signal and WHAT categorization;
     defaults to the CFO pack so existing callers are unchanged."""
     pack = pack or default_pack()
+    rank = dict(pack.signal_rank)
     gift: list[Lead] = []
     excluded: set[str] = set(prospect.sent_lead_ids)
 
@@ -233,12 +237,12 @@ def build_gift(
         gift.append(lead)
         excluded.add(lead.id)
 
-    _pick_leads(prospect, scraper, excluded, target=target, into=gift, niche_only=niche_only)
+    _pick_leads(prospect, scraper, excluded, target=target, into=gift, rank=rank, niche_only=niche_only)
 
     if not gift:
         return None
 
-    best = _best_lead(gift, prospect)
+    best = _best_lead(gift, prospect, rank)
     all_niche, geo = _honesty(gift, prospect)
     has_priority = bool(pack.priority_signal) and any(
         l.signal_type == pack.priority_signal for l in gift
@@ -266,10 +270,11 @@ def pull_one_lead(
     return gift.leads[0] if gift else None
 
 
-def _best_lead(gift: list[Lead], prospect: Prospect) -> Lead:
+def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None = None) -> Lead:
+    rank = rank if rank is not None else SIGNAL_RANK
     def key(lead: Lead) -> tuple[int, int, int]:
         return (
-            SIGNAL_RANK.get(lead.signal_type, 9),
+            rank.get(lead.signal_type, 9),
             # <-- score slots here: -(lead.score or 0), once System A serves it
             0 if lead.freshness == "fresh" else 1,
             compute_match_level(lead, prospect) or 99,
@@ -300,12 +305,14 @@ def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
 
 def _cfo_what_category(gift: list[Lead]) -> str:
     """CFO subject WHAT category. Lives here (not the pack module) because it's
-    pure signal logic; the CFO pack references it by name."""
+    pure signal logic; the CFO pack references it by name. In leadgen's vocab a
+    lead's primary signal is either a funding filing (a raise) or a job post (a
+    hire)."""
     def raised(l: Lead) -> bool:
-        return l.signal_type in ("funding_only", "double_signal")
+        return l.signal_type in FUNDING_SIGNALS
 
     def hiring(l: Lead) -> bool:
-        return l.signal_type in ("hiring_only", "double_signal")
+        return l.signal_type not in FUNDING_SIGNALS
 
     if all(raised(l) for l in gift):
         return "raised"

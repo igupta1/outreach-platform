@@ -23,7 +23,7 @@ from system_b.niches.base import NichePack
 CFO_PACK = NichePack(
     key="cfo",
     signal_rank=SIGNAL_RANK,
-    priority_signal="cfo_wanted",
+    priority_signal="job_fractional_cfo",
     raise_signals=RAISE_SIGNALS,
     what_category=_cfo_what_category,
     subject=_cfo_subject,

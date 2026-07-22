@@ -59,20 +59,22 @@ def test_review_flags_kitchen_sink():
         match_param=("industry", "healthcare"), niche_source="site",
     )
     leads = [
-        mk("a", "double_signal", industry="healthcare", city="Denver", state="CO",
-           freshness="stale", domain=None, niche=None),
-        mk("b", "cfo_wanted", industry="healthcare", city="Denver", state="CO",
-           date_confidence="low", domain=None),
+        # a fractional-CFO posting: stale, domainless, null-niche, low-confidence
+        mk("a", "job_fractional_cfo", industry="healthcare", city="Denver", state="CO",
+           freshness="stale", date_confidence="low", domain=None, niche=None),
+        # a funding lead that ALSO shows a hire (a "double") in a city-claim gift
+        mk("b", "funding_form_d", also_signal="job_finance_lead",
+           industry="healthcare", city="Denver", state="CO", niche="dental"),
     ]
     g = _gift(leads, p, all_niche=True, geo="city", shape="singular", what="raised")
     flags = review_flags(p, g)
     joined = "\n".join(flags)
-    assert "cfo_wanted" in joined                        # low-confidence live check
+    assert "fractional-CFO posting" in joined            # low-confidence live check
     assert "LLM-classified" in joined                    # niche came from the model
-    assert "null-niche" in joined                        # niche is None
-    assert "domainless" in joined                        # domain None
-    assert "registered address" in joined                # funding/double + geo city
-    assert "double_signal" in joined                     # same-company check
+    assert "null-niche" in joined                        # lead a's niche is None
+    assert "domainless" in joined                        # lead a's domain None
+    assert "registered address" in joined                # funding primary + geo city
+    assert "raised AND hiring" in joined                 # multi-signal same-company check
     assert "stale lead" in joined                        # stale used
     assert "only 2 lead" in joined                       # gift < 3
 
@@ -96,7 +98,7 @@ def test_domain_matcher_conservative():
 
 def test_domain_mismatch_flag_fires():
     p = Prospect(firm_name="G", city="Denver", state="CO", classification="generalist", match_param=None)
-    lead = mk("x", "funding_only", city="Denver", state="CO", company="Poaster Technologies Inc.", domain="warp.co")
+    lead = mk("x", "funding_form_d", city="Denver", state="CO", company="Poaster Technologies Inc.", domain="warp.co")
     g = _gift([lead], p, all_niche=False, geo="city")
     flags = review_flags(p, g)
     assert any("may not belong to" in f for f in flags)
@@ -105,8 +107,8 @@ def test_domain_mismatch_flag_fires():
 def test_review_flags_bare_companies_and_generalist():
     p = Prospect(firm_name="G", city="Boise", state="ID", classification="generalist", match_param=None)
     leads = [
-        mk("x", "funding_only", city="Reno", state="NV"),
-        mk("y", "hiring_only", city="Austin", state="TX", finance_grade="weak"),
+        mk("x", "funding_form_d", city="Reno", state="NV"),
+        mk("y", "job_finance_lead", city="Austin", state="TX", finance_grade="weak"),
     ]
     g = _gift(leads, p, all_niche=False, geo="none", shape="plural", what="mixed")
     flags = review_flags(p, g)
@@ -119,7 +121,7 @@ def test_review_flags_bare_companies_and_generalist():
 def test_review_flags_fold_research_and_dollar():
     p = Prospect(firm_name="H", city="Denver", state="CO", classification="niched",
                  match_param=("industry", "healthcare"), niche_source="client_list")
-    lead = mk("f", "hiring_only", industry="healthcare", city="Denver", state="CO", finance_grade="medium")
+    lead = mk("f", "job_finance_lead", industry="healthcare", city="Denver", state="CO", finance_grade="medium")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, {"f": "posted a $200k finance role"}, today=TODAY)
     research = ResearchResult("niched", ("industry", "healthcare"), None, "client_list",
@@ -141,8 +143,8 @@ def test_build_card_has_all_sections():
                  classification="niched", match_param=("industry", "healthcare"),
                  niche_phrase="healthcare startups", niche_source="site", first_name="dana")
     leads = [
-        mk("h1", "funding_only", industry="healthcare", city="Denver", state="CO", company="Acme Bio", domain=None),
-        mk("h2", "hiring_only", industry="healthcare", city="Denver", state="CO", company="Vitals Co", finance_grade="medium"),
+        mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO", company="Acme Bio", domain=None),
+        mk("h2", "job_finance_lead", industry="healthcare", city="Denver", state="CO", company="Vitals Co", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
     draft = build_email_1(g, p, {"h1": "closed a round", "h2": "posted a controller"}, today=TODAY)
@@ -203,7 +205,7 @@ def test_assemble_review_writes_row():
     fa = FakeAirtable()
     p = Prospect(firm_name="H", city="Denver", state="CO", classification="niched",
                  match_param=("industry", "healthcare"), niche_source="site", first_name="dana")
-    lead = mk("h1", "funding_only", industry="healthcare", city="Denver", state="CO")
+    lead = mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, {"h1": "closed a round"}, today=TODAY)
     assemble_review(fa, "rec9", p, g, draft)
@@ -233,15 +235,15 @@ def test_end_to_end_queue_and_approve():
                  classification=research.classification, match_param=research.match_param,
                  niche_phrase=research.niche_phrase, niche_source=research.niche_source, first_name="dana")
     leads = [
-        mk("h1", "cfo_wanted", industry="healthcare", city="Denver", state="CO", date_confidence="low", domain=None),
-        mk("h2", "funding_only", industry="healthcare", city="Denver", state="CO"),
+        mk("h1", "job_fractional_cfo", industry="healthcare", city="Denver", state="CO", date_confidence="low", domain=None),
+        mk("h2", "funding_form_d", industry="healthcare", city="Denver", state="CO"),
     ]
     g = build_gift(p, FakeScraper(leads))
     draft = build_email_1(g, p, {l.id: "did a thing" for l in g.leads}, today=TODAY)
 
     fields = assemble_review(fa, "rec10", p, g, draft, research)
-    # the complete card shows applicable flags (cfo_wanted live-check + domainless)
-    assert "cfo_wanted" in fields["flags"]
+    # the complete card shows applicable flags (fractional-CFO live-check + domainless)
+    assert "fractional-CFO posting" in fields["flags"]
     assert "domainless" in fields["flags"]
     assert fa.records["rec10"]["review_status"] == "pending"
 

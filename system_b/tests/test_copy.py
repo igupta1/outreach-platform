@@ -59,7 +59,7 @@ def P(*, niched=True, niche="healthcare", city="Denver", state="CO", **kw) -> Pr
 
 
 def G(*, all_niche, geo, shape="plural", what="mixed", best_level=None,
-      best_signal="funding_only", gift_size=3) -> Gift:
+      best_signal="funding_form_d", gift_size=3) -> Gift:
     bl = mk("best", best_signal)
     return Gift(
         leads=[bl], best_lead=bl, gift_size=gift_size,
@@ -94,23 +94,23 @@ def test_4b_plural_who_what_table():
 
 def test_4c_singular_who_table_niched():
     p = P()
-    assert build_subject(G(all_niche=True, geo="city", shape="singular", best_level=1, best_signal="funding_only"), p) == \
+    assert build_subject(G(all_niche=True, geo="city", shape="singular", best_level=1, best_signal="funding_form_d"), p) == \
         "a healthcare company in denver just raised"
-    assert build_subject(G(all_niche=True, geo="state", shape="singular", best_level=2, best_signal="cfo_wanted"), p) == \
+    assert build_subject(G(all_niche=True, geo="state", shape="singular", best_level=2, best_signal="job_fractional_cfo"), p) == \
         "a healthcare company in colorado is hiring a fractional cfo"
-    assert build_subject(G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="hiring_only"), p) == \
+    assert build_subject(G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="job_finance_lead"), p) == \
         "a healthcare company is hiring finance leadership"
-    assert build_subject(G(all_niche=False, geo="city", shape="singular", best_level=4, best_signal="funding_only"), p) == \
+    assert build_subject(G(all_niche=False, geo="city", shape="singular", best_level=4, best_signal="funding_form_d"), p) == \
         "a company in denver just raised"
-    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=5, best_signal="hiring_only"), p) == \
+    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=5, best_signal="job_finance_lead"), p) == \
         "a colorado company is hiring finance leadership"
 
 
 def test_4c_singular_who_table_generalist():
     p = P(niched=False)
-    assert build_subject(G(all_niche=False, geo="city", shape="singular", best_level=1, best_signal="funding_only"), p) == \
+    assert build_subject(G(all_niche=False, geo="city", shape="singular", best_level=1, best_signal="funding_form_d"), p) == \
         "a company in denver just raised"
-    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="hiring_only"), p) == \
+    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="job_finance_lead"), p) == \
         "a colorado company is hiring finance leadership"
 
 
@@ -118,7 +118,7 @@ def test_child_niche_keeps_its_word_in_subject():
     # #9: a mapped child niche must keep its label, not degrade to "a company"
     p = Prospect(firm_name="Legal CFO", city="Denver", state="CO",
                  classification="niched", match_param=("niche", "law_firm"))
-    g = G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="cfo_wanted")
+    g = G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="job_fractional_cfo")
     assert build_subject(g, p) == "a legal company is hiring a fractional cfo"
     p2 = Prospect(firm_name="Consult CFO", city="Austin", state="TX",
                   classification="niched", match_param=("niche", "consulting"))
@@ -129,15 +129,15 @@ def test_child_niche_keeps_its_word_in_subject():
 def test_4c_an_before_vowel():
     # niche starting with a vowel sound
     p_ec = P(niche="ecommerce_retail", state="TN")
-    assert build_subject(G(all_niche=True, geo="state", shape="singular", best_level=2, best_signal="funding_only"), p_ec) == \
+    assert build_subject(G(all_niche=True, geo="state", shape="singular", best_level=2, best_signal="funding_form_d"), p_ec) == \
         "an ecommerce company in tennessee just raised"
     # state starting with a vowel sound (generalist L2)
     p_az = P(niched=False, state="AZ")
-    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="hiring_only"), p_az) == \
+    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="job_finance_lead"), p_az) == \
         "an arizona company is hiring finance leadership"
     # vowel LETTER but consonant SOUND -> "a utah", never "an utah"
     p_ut = P(niched=False, state="UT")
-    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="cfo_wanted"), p_ut) == \
+    assert build_subject(G(all_niche=False, geo="state", shape="singular", best_level=2, best_signal="job_fractional_cfo"), p_ut) == \
         "a utah company is hiring a fractional cfo"
 
 
@@ -221,7 +221,7 @@ def test_5b_left_field_rotation():
     assert 0 <= rotation_for(p) < len(LEFT_FIELD)
     # explicit rotation selects the exact line AND logs its label (A-E) on the draft
     for k in range(len(LEFT_FIELD)):
-        g = build_gift(P(), FakeScraper([mk("a", "funding_only", industry="healthcare", city="Denver", state="CO")]))
+        g = build_gift(P(), FakeScraper([mk("a", "funding_form_d", industry="healthcare", city="Denver", state="CO")]))
         draft = build_email_1(g, P(), {"a": "closed a round"}, today=TODAY, rotation=k)
         assert LEFT_FIELD[k] in draft.body
         assert draft.left_field_variant == LEFT_FIELD_LABELS[k]
@@ -230,7 +230,7 @@ def test_5b_left_field_rotation():
 def test_greeting_lowercased_but_company_names_kept_cased():
     # "hey dora," not "hey Dora," — lowercase prose, proper nouns intact.
     p = P(first_name="Dora")
-    lead = mk("a", "hiring_only", industry="healthcare", city="Denver", state="CO",
+    lead = mk("a", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, {"a": "posted a controller role"}, today=TODAY)
@@ -255,9 +255,9 @@ def test_relative_date():
 
 
 def test_5e_high_confidence_date_appended():
-    # hiring_only keeps its LLM description (funding is templated), so this
+    # job_finance_lead keeps its LLM description (funding is templated), so this
     # exercises the date recompute on a real freeform line.
-    lead = mk("hc", "hiring_only", industry="healthcare", city="Denver", state="CO",
+    lead = mk("hc", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", date_confidence="high", finance_grade="strong")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
@@ -267,8 +267,8 @@ def test_5e_high_confidence_date_appended():
 
 def test_funding_lines_are_templated_not_llm():
     # funding descriptions are code-templated + consistent (#10), never the LLM's
-    fd = mk("fd", "funding_only", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
-    cf = mk("cf", "funding_only", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
+    fd = mk("fd", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
+    cf = mk("cf", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
     cf.signals[0].plain_words_description = "raised via Reg CF equity crowdfunding"
     p = P()
     gfd = build_gift(p, FakeScraper([fd]))
@@ -280,17 +280,21 @@ def test_funding_lines_are_templated_not_llm():
     assert "$" not in dfd.body and "9M" not in dfd.body
     assert "just raised via crowdfunding, 3 days ago" in dcf.body
 
-    # double_signal is templated too, and names its hiring (confluence) half
-    ds = mk("ds", "double_signal", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
+    # a "double" lead (a hire that ALSO filed a raise) is the highest-intent gift:
+    # its PRIMARY signal is the hire (kept from the LLM description), and the raise
+    # is appended via the honest code template — mentioned, but never a $ figure.
+    ds = mk("ds", "job_finance_lead", also_signal="funding_form_d",
+            industry="healthcare", city="Denver", state="CO", date="2026-07-05")
     gds = build_gift(p, FakeScraper([ds]))
-    dds = build_email_1(gds, p, {"ds": "raised $5M and hired a cfo"}, today=TODAY)
-    assert "just filed to raise and is hiring finance leadership, 3 days ago" in dds.body
-    assert "$" not in dds.body and "5M" not in dds.body
+    dds = build_email_1(gds, p, {"ds": "hiring a senior controller"}, today=TODAY)
+    assert "hiring a senior controller" in dds.body       # the hire, from the description
+    assert "and just filed to raise" in dds.body          # the raise, code-templated
+    assert "$" not in dds.body
 
 
 def test_5e_low_confidence_date_suppressed():
-    # cfo_wanted from fractionaljobs.io => date_confidence low => NO date in copy
-    lead = mk("cw", "cfo_wanted", industry="healthcare", city="Denver", state="CO",
+    # job_fractional_cfo from fractionaljobs.io => date_confidence low => NO date in copy
+    lead = mk("cw", "job_fractional_cfo", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", date_confidence="low", domain=None)
     p = P()
     g = build_gift(p, FakeScraper([lead]))
@@ -314,7 +318,7 @@ def test_strip_dollar_amounts():
 def test_5e_dollar_amount_stripped_and_flagged():
     # all raises are templated now, so the $-strip safety net runs on the LLM
     # path (hiring/cfo) — e.g. a salary figure the model slips into a role line.
-    lead = mk("f", "hiring_only", industry="healthcare", city="Denver", state="CO",
+    lead = mk("f", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", date_confidence="high", finance_grade="medium")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
@@ -329,8 +333,8 @@ def test_5e_dollar_amount_stripped_and_flagged():
 # --------------------------------------------------------------------------
 
 def test_lead_description_forced_lowercase_company_kept_cased():
-    # hiring_only keeps its LLM description (funding is templated)
-    lead = mk("f", "hiring_only", industry="healthcare", city="Denver", state="CO",
+    # job_finance_lead keeps its LLM description (funding is templated)
+    lead = mk("f", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
@@ -344,7 +348,7 @@ def test_lead_description_forced_lowercase_company_kept_cased():
 
 def test_fix_articles_in_lead_lines():
     # a/an corrected in the freeform lead line (#11)
-    lead = mk("g", "hiring_only", industry="healthcare", city="Denver", state="CO",
+    lead = mk("g", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", finance_grade="medium")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
@@ -353,7 +357,7 @@ def test_fix_articles_in_lead_lines():
 
 
 def test_5e_domainless_flag():
-    lead = mk("dl", "hiring_only", city="Denver", state="CO", domain=None, finance_grade="medium")
+    lead = mk("dl", "job_finance_lead", city="Denver", state="CO", domain=None, finance_grade="medium")
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, {"dl": "posted a controller role"}, today=TODAY)
@@ -361,7 +365,7 @@ def test_5e_domainless_flag():
 
 
 def test_5e_odd_city_funding_flag():
-    lead = mk("fc", "funding_only", city="Denver", state="CO")  # geo will be city
+    lead = mk("fc", "funding_form_d", city="Denver", state="CO")  # geo will be city
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
     assert g.geo_level == "city"
@@ -376,9 +380,9 @@ def test_5e_odd_city_funding_flag():
 def test_full_email_niched_example_1():
     p = P(niche_phrase="healthcare startups", first_name="dana")
     leads = [
-        mk("h1", "funding_only", industry="healthcare", city="Denver", state="CO", date="2026-07-05", company="Acme Bio"),
-        mk("h2", "funding_only", industry="healthcare", city="Denver", state="CO", date="2026-07-04", company="Nimbus Rx"),
-        mk("h3", "hiring_only", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium"),
+        mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05", company="Acme Bio"),
+        mk("h2", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-04", company="Nimbus Rx"),
+        mk("h3", "job_finance_lead", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
     descriptions = {
@@ -391,9 +395,11 @@ def test_full_email_niched_example_1():
     assert draft.subject == "healthcare companies in denver that need finance help right now"
     assert draft.body.startswith("hey dana,\n\n")
     assert "saw on your site you work with healthcare, so i pulled 3 healthcare companies" in draft.body
-    assert "1. Acme Bio, denver: just filed to raise, 3 days ago" in draft.body    # funding templated
-    assert "2. Nimbus Rx, denver: just filed to raise, 4 days ago" in draft.body
-    assert "3. Vitals Co, denver: posted for a controller, 5 days ago" in draft.body
+    # a finance-lead hire (rank 1) now outranks the funding leads (rank 2) in the
+    # within-level re-sort, so the hiring line is #1 and the two raises follow.
+    assert "1. Vitals Co, denver: posted for a controller, 5 days ago" in draft.body   # hire outranks funding
+    assert "2. Acme Bio, denver: just filed to raise, 3 days ago" in draft.body        # funding templated
+    assert "3. Nimbus Rx, denver: just filed to raise, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
     assert "want me to keep an eye out for healthcare ones and send them your way?" in draft.body
     assert draft.body.endswith("best,\nishaan")
@@ -408,8 +414,8 @@ def test_full_email_niched_example_1():
 def test_full_email_generalist_example_8():
     p = P(niched=False, city="Miami", state="FL", first_name="sam")
     leads = [
-        mk("m1", "hiring_only", city="Miami", state="FL", date="2026-07-06", company="Palm Freight", finance_grade="strong"),
-        mk("m2", "hiring_only", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium"),
+        mk("m1", "job_finance_lead", city="Miami", state="FL", date="2026-07-06", company="Palm Freight", finance_grade="strong"),
+        mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
     draft = build_email_1(g, p, {"m1": "posted a VP of finance role", "m2": "posted a controller role"}, today=TODAY, rotation=1)
@@ -424,12 +430,12 @@ def test_full_email_generalist_example_8():
 
 
 # --------------------------------------------------------------------------
-# Single-lead gift folds in (no numbering); cfo_wanted date suppressed (Ex 5/7)
+# Single-lead gift folds in (no numbering); job_fractional_cfo date suppressed (Ex 5/7)
 # --------------------------------------------------------------------------
 
 def test_single_lead_not_numbered():
     p = P(niche="ecommerce_retail", city="Nashville", state="TN", first_name="lee")
-    lead = mk("mem", "funding_only", industry="ecommerce_retail", city="Memphis", state="TN", date="2026-07-05", company="River Goods")
+    lead = mk("mem", "funding_form_d", industry="ecommerce_retail", city="Memphis", state="TN", date="2026-07-05", company="River Goods")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, {"mem": "just filed a raise"}, today=TODAY)
     assert g.gift_size == 1
@@ -456,8 +462,8 @@ def test_unmapped_niche_renders_generalist_not_a_token():
         niche_phrase="pet grooming shops", niche_source="site", first_name="jo",
     )
     leads = [
-        mk("p1", "funding_only", niche="pet_grooming", city="Denver", state="CO", date="2026-07-05", company="Fluff Co"),
-        mk("p2", "hiring_only", niche="pet_grooming", city="Denver", state="CO", date="2026-07-04", company="Shear Joy", finance_grade="medium"),
+        mk("p1", "funding_form_d", niche="pet_grooming", city="Denver", state="CO", date="2026-07-05", company="Fluff Co"),
+        mk("p2", "job_finance_lead", niche="pet_grooming", city="Denver", state="CO", date="2026-07-04", company="Shear Joy", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
     assert g.all_niche is True                       # gift really is on-niche...
@@ -475,9 +481,9 @@ def test_unmapped_niche_renders_generalist_not_a_token():
 def test_cfo_wanted_gift_flags_live_check():
     p = P(niched=False, city="Chicago", state="IL", first_name="ray")
     leads = [
-        mk("cfo", "cfo_wanted", city="Chicago", state="IL", date="2026-06-20", date_confidence="low", domain=None, company="Loop Labs"),
-        mk("c1", "funding_only", city="Chicago", state="IL", date="2026-07-05", company="Windy Co"),
-        mk("c2", "hiring_only", city="Chicago", state="IL", date="2026-07-04", company="Deep Dish Inc", finance_grade="medium"),
+        mk("cfo", "job_fractional_cfo", city="Chicago", state="IL", date="2026-06-20", date_confidence="low", domain=None, company="Loop Labs"),
+        mk("c1", "funding_form_d", city="Chicago", state="IL", date="2026-07-05", company="Windy Co"),
+        mk("c2", "job_finance_lead", city="Chicago", state="IL", date="2026-07-04", company="Deep Dish Inc", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
     draft = build_email_1(g, p, {"cfo": "is hiring a fractional cfo right now", "c1": "closed a round", "c2": "posted a controller role"}, today=TODAY)

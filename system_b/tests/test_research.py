@@ -282,7 +282,7 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
         classification=r.classification, match_param=r.match_param,
         niche_phrase=r.niche_phrase, niche_source=r.niche_source, first_name="dana",
     )
-    leads = [mk("h1", "funding_only", industry="healthcare", city="Denver", state="CO",
+    leads = [mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO",
                 date="2026-07-05", company="Acme Bio")]
     gift = build_gift(prospect, FakeScraper(leads))
     draft = build_email_1(gift, prospect, {"h1": "closed a round"}, today=TODAY)

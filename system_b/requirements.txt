@@ -4,3 +4,6 @@ python-dotenv>=1.0
 pydantic>=2.6
 pytest>=8.0
 openai>=1.40
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
