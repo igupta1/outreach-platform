@@ -196,9 +196,9 @@ def descriptions_for(leads: list[Lead]) -> dict[str, str]:
     fallback}. Mirrors the old `it_descriptions` / `bookkeeping_descriptions`
     so callers that want a static per-lead line have one."""
     out: dict[str, str] = {}
-    for l in leads:
-        out[l.id] = next(
-            (s.plain_words_description for s in l.signals if s.plain_words_description),
+    for lead in leads:
+        out[lead.id] = next(
+            (s.plain_words_description for s in lead.signals if s.plain_words_description),
             _DEFAULT_DESCRIPTION,
         )
     return out

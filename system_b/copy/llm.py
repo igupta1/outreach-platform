@@ -73,15 +73,15 @@ def describe_leads(
     # Seed every lead with its grounded fallback so a line exists even if the
     # model omits a lead (or the call is skipped entirely).
     out: dict[str, str] = {}
-    for l in gift.leads:
-        fallback = _raw_signal(l)
+    for lead in gift.leads:
+        fallback = _raw_signal(lead)
         if fallback:
-            out[l.id] = fallback
+            out[lead.id] = fallback
 
     config.require("OPENAI_API_KEY")
     client = OpenAI(api_key=config.OPENAI_API_KEY)
 
-    briefs = [_lead_brief(l) for l in gift.leads]
+    briefs = [_lead_brief(lead) for lead in gift.leads]
     user = (
         "Write a description clause for each lead, grounded in its raw_signal. "
         'Return JSON {"descriptions": [{"id": "...", "text": "..."}]}.\n\n'

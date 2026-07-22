@@ -272,7 +272,7 @@ def build_email_1(
     # 5e / Step-10 copy flag when a priority-signal lead is present.
     if (
         pack.priority_signal and pack.priority_flag
-        and any(l.signal_type == pack.priority_signal for l in gift.leads)
+        and any(lead.signal_type == pack.priority_signal for lead in gift.leads)
     ):
         flags.append(pack.priority_flag)
 

@@ -124,14 +124,14 @@ def test_snapshot_matches_fake_scraper_filtering():
         {"industry": "healthcare", "freshness": "stale"},
     ]
     for q in queries:
-        assert [l.id for l in snap.leads(**q)] == [l.id for l in fake.leads(**q)], q
+        assert [lead.id for lead in snap.leads(**q)] == [lead.id for lead in fake.leads(**q)], q
 
 
 def test_snapshot_sorts_freshest_first_and_limits():
     snap = SnapshotScraper(_universe(), {})
     got = snap.leads(industry="healthcare")
-    assert [l.id for l in got] == ["e", "b", "a", "c"]     # by newest signal date desc
-    assert [l.id for l in snap.leads(industry="healthcare", limit=2)] == ["e", "b"]
+    assert [lead.id for lead in got] == ["e", "b", "a", "c"]     # by newest signal date desc
+    assert [lead.id for lead in snap.leads(industry="healthcare", limit=2)] == ["e", "b"]
 
 
 def test_snapshot_niches_no_calls():

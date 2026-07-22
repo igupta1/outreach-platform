@@ -105,7 +105,6 @@ def test_find_due_linkedin_gating():
         "done": _li_row(li_progress="dm_2"),                       # sequence complete
         "not_due": _li_row(sequence_started_at="2026-07-06"),      # dm_1 would be 07-11 > today
     }
-    at = FakeAirtable(recs)
     due = find_due_linkedin([{"id": k, "fields": v} for k, v in recs.items()], TODAY)
     assert [r["id"] for r, _ in due] == ["due"]
     assert due[0][1] == "dm_1"

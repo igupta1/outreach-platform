@@ -71,12 +71,15 @@ def ingest_csv(at: Any, data: bytes, niche_pack: str) -> dict[str, Any]:
     for p in _rows_from_csv(data):
         firm = p["firm_name"] or "(unnamed)"
         if not p["website"]:
-            skipped.append({"firm": firm, "reason": "no website"}); continue
+            skipped.append({"firm": firm, "reason": "no website"})
+            continue
         if p["headcount"] is not None and p["headcount"] > 10:
-            skipped.append({"firm": firm, "reason": f"headcount {p['headcount']} > 10"}); continue
+            skipped.append({"firm": firm, "reason": f"headcount {p['headcount']} > 10"})
+            continue
         dom = domain_of(p["website"])
         if dom and dom in seen:
-            skipped.append({"firm": firm, "reason": f"duplicate domain {dom}"}); continue
+            skipped.append({"firm": firm, "reason": f"duplicate domain {dom}"})
+            continue
         if dom:
             seen.add(dom)
         fields = {"firm_name": p["firm_name"], "website": p["website"], "stage": "researched",

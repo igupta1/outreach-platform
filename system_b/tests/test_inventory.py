@@ -182,15 +182,15 @@ def test_snapshot_for_niche_stub_serves_adapted_leads_and_taxonomy(tmp_path, mon
     snap = snapshot_for_niche("cfo", today=TODAY)
 
     leads = snap.leads()                                     # adapted Lead objects
-    assert all(isinstance(l, Lead) for l in leads)
-    assert {l.id for l in leads} == {"l1", "l2"}
-    by_id = {l.id: l for l in leads}
+    assert all(isinstance(lead, Lead) for lead in leads)
+    assert {lead.id for lead in leads} == {"l1", "l2"}
+    by_id = {lead.id: lead for lead in leads}
     assert by_id["l1"].company == "Acme"                     # company <- name (adapted)
     assert by_id["l2"].value_prop == "growing fast, could use finance help"  # <- insight
     assert by_id["l2"].signal_type == "funding_form_d"
 
     # .leads(**params) filters the adapted inventory
-    assert [l.id for l in snap.leads(signal_type="funding_form_d")] == ["l2"]
+    assert [lead.id for lead in snap.leads(signal_type="funding_form_d")] == ["l2"]
 
     # .niches() returns the taxonomy from taxonomy.json
     assert snap.niches() == taxonomy

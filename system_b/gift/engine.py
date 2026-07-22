@@ -179,14 +179,14 @@ def _find_priority_lead(
             queries.append({"state": prospect.state})
     for kwargs in queries:
         leads = [
-            l for l in scraper.leads(
+            lead for lead in scraper.leads(
                 signal_type=pack.priority_signal, freshness="fresh",
                 exclude_ids=list(excluded), **kwargs,
             )
-            if l.id not in excluded
+            if lead.id not in excluded
         ]
         if leads:
-            leads.sort(key=lambda l: sort_key(l, pack.signal_rank))
+            leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank))
             return leads[0]
     return None
 
@@ -204,12 +204,12 @@ def _pick_leads(
             if len(into) >= target:
                 return
             leads = [
-                l for l in scraper.leads(
+                lead for lead in scraper.leads(
                     freshness=freshness, exclude_ids=list(excluded), **kwargs,
                 )
-                if l.id not in excluded
+                if lead.id not in excluded
             ]
-            leads.sort(key=lambda l: sort_key(l, rank))
+            leads.sort(key=lambda lead: sort_key(lead, rank))
             for lead in leads:
                 if len(into) >= target:
                     break
@@ -245,7 +245,7 @@ def build_gift(
     best = _best_lead(gift, prospect, rank)
     all_niche, geo = _honesty(gift, prospect)
     has_priority = bool(pack.priority_signal) and any(
-        l.signal_type == pack.priority_signal for l in gift
+        lead.signal_type == pack.priority_signal for lead in gift
     )
     shape = "singular" if (len(gift) == 1 or has_priority) else "plural"
     return Gift(
@@ -284,19 +284,21 @@ def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None
 
 def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
     if prospect.classification == "niched":
-        all_niche = all((compute_match_level(l, prospect) or 99) <= 3 for l in gift)
+        all_niche = all((compute_match_level(lead, prospect) or 99) <= 3 for lead in gift)
     else:
         all_niche = False
 
-    def city_ok(l: Lead) -> bool:
-        return bool(l.city and prospect.city and norm_loc(l.city) == norm_loc(prospect.city))
+    def city_ok(lead: Lead) -> bool:
+        return bool(lead.city and prospect.city and norm_loc(lead.city) == norm_loc(prospect.city))
 
-    def state_ok(l: Lead) -> bool:
-        return bool(l.state and prospect.state and norm_state(l.state) == norm_state(prospect.state))
+    def state_ok(lead: Lead) -> bool:
+        return bool(
+            lead.state and prospect.state and norm_state(lead.state) == norm_state(prospect.state)
+        )
 
-    if all(city_ok(l) for l in gift):
+    if all(city_ok(lead) for lead in gift):
         geo = "city"
-    elif all(state_ok(l) for l in gift):
+    elif all(state_ok(lead) for lead in gift):
         geo = "state"
     else:
         geo = "none"
@@ -308,14 +310,14 @@ def _cfo_what_category(gift: list[Lead]) -> str:
     pure signal logic; the CFO pack references it by name. In leadgen's vocab a
     lead's primary signal is either a funding filing (a raise) or a job post (a
     hire)."""
-    def raised(l: Lead) -> bool:
-        return l.signal_type in FUNDING_SIGNALS
+    def raised(lead: Lead) -> bool:
+        return lead.signal_type in FUNDING_SIGNALS
 
-    def hiring(l: Lead) -> bool:
-        return l.signal_type not in FUNDING_SIGNALS
+    def hiring(lead: Lead) -> bool:
+        return lead.signal_type not in FUNDING_SIGNALS
 
-    if all(raised(l) for l in gift):
+    if all(raised(lead) for lead in gift):
         return "raised"
-    if all(hiring(l) for l in gift):
+    if all(hiring(lead) for lead in gift):
         return "hiring"
     return "mixed"

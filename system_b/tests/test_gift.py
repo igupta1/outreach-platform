@@ -102,26 +102,26 @@ class FakeScraper:
         excluded = set(excl)
 
         out: list[Lead] = []
-        for l in self._leads:
-            if l.id in excluded:
+        for lead in self._leads:
+            if lead.id in excluded:
                 continue
-            if p.get("niche") is not None and l.niche != p["niche"]:
+            if p.get("niche") is not None and lead.niche != p["niche"]:
                 continue
-            if p.get("industry") is not None and l.industry != p["industry"]:
+            if p.get("industry") is not None and lead.industry != p["industry"]:
                 continue
-            if p.get("city") is not None and norm_loc(l.city) != norm_loc(p["city"]):
+            if p.get("city") is not None and norm_loc(lead.city) != norm_loc(p["city"]):
                 continue
-            if p.get("state") is not None and norm_state(l.state) != norm_state(p["state"]):
+            if p.get("state") is not None and norm_state(lead.state) != norm_state(p["state"]):
                 continue
-            if p.get("signal_type") is not None and l.signal_type != p["signal_type"]:
+            if p.get("signal_type") is not None and lead.signal_type != p["signal_type"]:
                 continue
-            if p.get("finance_grade") is not None and l.finance_grade != p["finance_grade"]:
+            if p.get("finance_grade") is not None and lead.finance_grade != p["finance_grade"]:
                 continue
-            if p.get("freshness") is not None and l.freshness != p["freshness"]:
+            if p.get("freshness") is not None and lead.freshness != p["freshness"]:
                 continue
-            out.append(l)
+            out.append(lead)
 
-        out.sort(key=lambda l: l.newest_date, reverse=True)  # freshest-first
+        out.sort(key=lambda lead: lead.newest_date, reverse=True)  # freshest-first
         limit = p.get("limit")
         if limit:
             out = out[:limit]
@@ -129,7 +129,7 @@ class FakeScraper:
 
 
 def ids(gift: Any) -> set[str]:
-    return {l.id for l in gift.leads}
+    return {lead.id for lead in gift.leads}
 
 
 # --------------------------------------------------------------------------
@@ -533,7 +533,7 @@ def test_example_16_confluence_hire_outranks_fresher_raise():
 
     # the re-sort itself: the hire (rank 1) sorts before the fresher raise (rank 2)
     ordered = sorted(leads, key=sort_key)
-    assert [l.id for l in ordered] == ["confluence", "fresh_raise"]
+    assert [lead.id for lead in ordered] == ["confluence", "fresh_raise"]
 
 
 # --------------------------------------------------------------------------

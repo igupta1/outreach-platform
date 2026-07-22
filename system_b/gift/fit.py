@@ -42,8 +42,8 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o-mini"
     client = OpenAI(api_key=config.OPENAI_API_KEY)
 
     items = [
-        {"id": l.id, "company": l.company, "description": l.value_prop or ""}
-        for l in leads
+        {"id": lead.id, "company": lead.company, "description": lead.value_prop or ""}
+        for lead in leads
     ]
     user = f"industry label: {niche_label}\ncompanies: {json.dumps(items)}"
     resp = client.chat.completions.create(
@@ -57,4 +57,4 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o-mini"
     for v in data.get("verdicts", []):
         if isinstance(v, dict) and v.get("id") is not None:
             by_id[str(v["id"])] = bool(v.get("fits"))
-    return [by_id.get(l.id, False) for l in leads]
+    return [by_id.get(lead.id, False) for lead in leads]

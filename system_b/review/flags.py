@@ -91,7 +91,7 @@ def review_flags(prospect: Prospect, gift: Gift, research=None, draft=None) -> l
             add(f)
 
     # fractional-CFO posting / low-confidence date -> mandatory live-posting check.
-    if any(l.signal_type == "job_fractional_cfo" for l in gift.leads):
+    if any(lead.signal_type == "job_fractional_cfo" for lead in gift.leads):
         add("fractional-CFO posting / low-confidence lead present — MANDATORY: google "
             "the posting and confirm it's still live (copy carries no date)")
 
@@ -107,27 +107,27 @@ def review_flags(prospect: Prospect, gift: Gift, research=None, draft=None) -> l
             "(not logos / partners) and SMBs")
 
     # Per-lead caveats.
-    for l in gift.leads:
-        if not l.niche or l.niche == "unknown":
-            add(f"null-niche lead ({l.company}) — matched by geography only")
-        if l.domain is None:
-            add(f"domainless lead ({l.company}) — google the name to confirm it's real")
-        elif not domain_matches_company(l.company, l.domain):
-            add(f"domain {l.domain} may not belong to {l.company} — verify the "
+    for lead in gift.leads:
+        if not lead.niche or lead.niche == "unknown":
+            add(f"null-niche lead ({lead.company}) — matched by geography only")
+        if lead.domain is None:
+            add(f"domainless lead ({lead.company}) — google the name to confirm it's real")
+        elif not domain_matches_company(lead.company, lead.domain):
+            add(f"domain {lead.domain} may not belong to {lead.company} — verify the "
                 "value_prop describes the right company (possible mis-resolution)")
-        if l.signal_type in ("funding_form_d", "funding_form_c") and gift.geo_level == "city":
-            add(f"funding lead ({l.company}) drives a city claim — its city may be "
+        if lead.signal_type in ("funding_form_d", "funding_form_c") and gift.geo_level == "city":
+            add(f"funding lead ({lead.company}) drives a city claim — its city may be "
                 "a registered address, not HQ")
-        _sig_types = {s.type for s in l.signals}
+        _sig_types = {s.type for s in lead.signals}
         _has_raise = bool(_sig_types & {"funding_form_d", "funding_form_c"})
         _has_hire = any(t and t.startswith("job_") for t in _sig_types)
         if _has_raise and _has_hire:
-            add(f"multi-signal lead ({l.company}) — raised AND hiring; sanity-check "
+            add(f"multi-signal lead ({lead.company}) — raised AND hiring; sanity-check "
                 "both signals are the same company")
-        if l.finance_grade == "weak":
-            add(f"weak finance_grade lead ({l.company}) used")
-        if l.freshness == "stale":
-            add(f"stale lead ({l.company}) used")
+        if lead.finance_grade == "weak":
+            add(f"weak finance_grade lead ({lead.company}) used")
+        if lead.freshness == "stale":
+            add(f"stale lead ({lead.company}) used")
 
     # Gift shape.
     if gift.gift_size < 3:

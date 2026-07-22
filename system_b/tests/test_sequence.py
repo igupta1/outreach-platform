@@ -265,7 +265,7 @@ def test_guard_pauses_unready_followups():
 def test_generate_followup_value_and_fallback(monkeypatch):
     import system_b.sequence.generate as gen
     monkeypatch.setattr(gen, "describe_leads",
-                        lambda gift, prospect, **kw: {l.id: "did a thing" for l in gift.leads})
+                        lambda gift, prospect, **kw: {lead.id: "did a thing" for lead in gift.leads})
 
     lead = mk("newlead", "job_fractional_cfo", city="Denver", state="CO")
     sc = FakeScraper([lead])

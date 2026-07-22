@@ -239,7 +239,7 @@ def test_end_to_end_queue_and_approve():
         mk("h2", "funding_form_d", industry="healthcare", city="Denver", state="CO"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, {l.id: "did a thing" for l in g.leads}, today=TODAY)
+    draft = build_email_1(g, p, {lead.id: "did a thing" for lead in g.leads}, today=TODAY)
 
     fields = assemble_review(fa, "rec10", p, g, draft, research)
     # the complete card shows applicable flags (fractional-CFO live-check + domainless)

@@ -53,7 +53,6 @@ def test_upload_creates_and_dedups(client):
     assert r.status_code == 200
     body = r.json()
     assert body["created"] == 1 and body["niche_pack"] == "cfo"
-    reasons = {s["reason"].split()[0] for s in body["skipped_rows"]}
     assert "headcount" in " ".join(s["reason"] for s in body["skipped_rows"])
     assert "no" in " ".join(s["reason"] for s in body["skipped_rows"])
 

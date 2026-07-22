@@ -65,7 +65,7 @@ def assemble_review(
         "review_status": "pending",
         "stage": stage,
         "current_step": "1",
-        "pending_lead_ids": "\n".join(l.id for l in gift.leads),
+        "pending_lead_ids": "\n".join(lead.id for lead in gift.leads),
         # F2: remember the email-#1 best lead company IF it's a fractional-CFO
         # posting — the LinkedIn DM #1 add-on names it ("X is even hiring a ...").
         "li_best_cfo": gift.best_lead.company if gift.best_lead.signal_type == "job_fractional_cfo" else "",

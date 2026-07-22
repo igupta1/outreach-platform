@@ -157,7 +157,7 @@ class ScraperClient:
             params["limit"] = int(limit)
 
         data = self._get_json("/api/leads", params)
-        return [Lead.model_validate(l) for l in (data.get("leads") or [])]
+        return [Lead.model_validate(lead) for lead in (data.get("leads") or [])]
 
     def close(self) -> None:
         self._client.close()
@@ -228,25 +228,25 @@ class SnapshotScraper:
 
         excluded = {str(x) for x in (exclude_ids or []) if x}
         out: list[Lead] = []
-        for l in self._all:
-            if l.id in excluded:
+        for lead in self._all:
+            if lead.id in excluded:
                 continue
-            if industry and l.industry != industry:
+            if industry and lead.industry != industry:
                 continue
-            if niche and l.niche != niche:
+            if niche and lead.niche != niche:
                 continue
-            if city and norm_loc(l.city) != norm_loc(city):
+            if city and norm_loc(lead.city) != norm_loc(city):
                 continue
-            if state and norm_state(l.state) != norm_state(state):
+            if state and norm_state(lead.state) != norm_state(state):
                 continue
-            if signal_type and l.signal_type != signal_type:
+            if signal_type and lead.signal_type != signal_type:
                 continue
-            if finance_grade and l.finance_grade != finance_grade:
+            if finance_grade and lead.finance_grade != finance_grade:
                 continue
-            if freshness and l.freshness != freshness:
+            if freshness and lead.freshness != freshness:
                 continue
-            out.append(l)
-        out.sort(key=lambda l: l.newest_date, reverse=True)   # freshest-first
+            out.append(lead)
+        out.sort(key=lambda lead: lead.newest_date, reverse=True)   # freshest-first
         if limit:
             out = out[:limit]
         return out

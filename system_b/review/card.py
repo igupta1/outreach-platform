@@ -67,7 +67,7 @@ def card_payload_email1(
         "left_field_variant": getattr(draft, "left_field_variant", ""),
         "sending_inbox": INBOX_NOTE,
         "signoff_note": "added by the sending mailbox's signature",
-        "gift_leads": [_lead_dict(l, prospect, gift.best_lead.id) for l in gift.leads],
+        "gift_leads": [_lead_dict(lead, prospect, gift.best_lead.id) for lead in gift.leads],
         "flags": list(flags),
         "history": [],
     }
@@ -168,15 +168,15 @@ def build_card(
 
     # 4. Gift / lead detail
     L.append(f"4. GIFT — {gift.gift_size} lead(s):")
-    for l in gift.leads:
-        best = " ★BEST" if l.id == gift.best_lead.id else ""
-        lvl = compute_match_level(l, prospect)
-        L.append(f"   • {l.company}{best}  [{l.signal_type}]  match L{lvl}")
-        if l.value_prop:
-            L.append(f"       value_prop: {l.value_prop}")
-        L.append(f"       domain: {l.domain or 'DOMAINLESS'}")
-        fg = f"  finance_grade={l.finance_grade}" if l.finance_grade else ""
-        L.append(f"       {l.freshness}  date={l.newest_date or '?'} ({l.effective_date_confidence}){fg}")
+    for lead in gift.leads:
+        best = " ★BEST" if lead.id == gift.best_lead.id else ""
+        lvl = compute_match_level(lead, prospect)
+        L.append(f"   • {lead.company}{best}  [{lead.signal_type}]  match L{lvl}")
+        if lead.value_prop:
+            L.append(f"       value_prop: {lead.value_prop}")
+        L.append(f"       domain: {lead.domain or 'DOMAINLESS'}")
+        fg = f"  finance_grade={lead.finance_grade}" if lead.finance_grade else ""
+        L.append(f"       {lead.freshness}  date={lead.newest_date or '?'} ({lead.effective_date_confidence}){fg}")
 
     # 5. Honesty values
     L.append(
