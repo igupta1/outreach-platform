@@ -13,3 +13,6 @@
 system_b/logs/
 system_b/apollo-contacts-export.csv
 system_b/review_cards.txt
+
+# OS junk
+**/.DS_Store
