@@ -149,6 +149,26 @@ def test_4c_singular_what_rotates_per_prospect():
     assert len(seen) >= 2, "rotation should vary the subject across prospects"
 
 
+def test_build_who_what_rotates_tuple_but_not_string():
+    """The non-CFO packs' subject WHAT rotates when given a tuple of equivalent
+    phrasings (per-prospect), and is left verbatim when given a plain string."""
+    from system_b.copy.subject import build_who_what
+    g = G(all_niche=False, geo="state", shape="singular", best_level=2,
+          best_signal="job_finance_lead")
+    variants = ("is hiring finance help", "is building out its finance function",
+                "is bringing on finance help")
+    # plain string -> used verbatim (back-compat)
+    assert build_who_what(g, P(), singular_what="is hiring finance help",
+                          plural_what="x") == "a colorado company is hiring finance help"
+    # tuple -> rotates, always an approved phrasing, deterministic, and varies
+    seen = set()
+    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
+        s = build_who_what(g, P(firm_name=name), singular_what=variants, plural_what="x")
+        assert any(s.endswith(v) for v in variants)
+        seen.add(next(v for v in variants if s.endswith(v)))
+    assert len(seen) >= 2
+
+
 def test_child_niche_keeps_its_word_in_subject():
     # #9: a mapped child niche must keep its label, not degrade to "a company"
     p = Prospect(firm_name="Legal CFO", city="Denver", state="CO",

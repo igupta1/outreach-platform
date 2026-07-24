@@ -72,6 +72,20 @@ def _primary_signal(row: dict[str, Any]) -> dict[str, Any]:
     return signals[0] if signals else {}
 
 
+_REG_ARTIFACT_RE = re.compile(r"\s*/\s*[A-Za-z]{2}\s*/\s*$")   # "Intermezzo Inc. / DE /"
+_MULTISPACE_RE = re.compile(r"\s{2,}")
+
+
+def _clean_company_name(name: str) -> str:
+    """Tidy raw leadgen company names that get listed verbatim in the email —
+    drop a trailing state-registration marker ("... / DE /"), stray separators,
+    and doubled whitespace. Conservative: only removes clear artifacts, never
+    guesses at truncated or oddly-cased names."""
+    name = _REG_ARTIFACT_RE.sub("", name)
+    name = name.replace(" / ", " ").strip(" /|-")
+    return _MULTISPACE_RE.sub(" ", name).strip()
+
+
 def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
     """Map one leadgen inventory row onto the outreach `Lead` shape.
 
@@ -88,7 +102,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
                               date_confidence="high",
                               plain_words_description=s.get("evidence_text"))
     """
-    company = row.get("name") or ""
+    company = _clean_company_name(row.get("name") or "")
     niche = row.get("niche")
 
     primary = _primary_signal(row)

@@ -204,3 +204,13 @@ def test_snapshot_for_niche_rejects_unknown_niche(tmp_path, monkeypatch):
 
 def test_valid_niches_are_the_five():
     assert VALID_NICHES == frozenset({"accounting", "cfo", "mssp", "msp", "cloud"})
+
+
+def test_clean_company_name_strips_artifacts_only():
+    from system_b.clients.inventory import _clean_company_name
+    # clear registration artifact + doubled whitespace get removed
+    assert _clean_company_name("Intermezzo Inc. / DE /") == "Intermezzo Inc."
+    assert _clean_company_name("Foo  Bar   Inc") == "Foo Bar Inc"
+    # conservative: real names (even short/odd ones) pass through untouched
+    for n in ["Morreale", "Good Trouble", "Acme LLC", "Optimus Property Management, LLC"]:
+        assert _clean_company_name(n) == n

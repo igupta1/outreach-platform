@@ -117,15 +117,24 @@ def _cfo_subject(gift: Gift, prospect: Prospect) -> str:
 
 
 def build_who_what(
-    gift: Gift, prospect: Prospect, *, singular_what: str, plural_what: str
+    gift: Gift,
+    prospect: Prospect,
+    *,
+    singular_what: str | tuple[str, ...],
+    plural_what: str | tuple[str, ...],
 ) -> str:
     """Generic WHO+WHAT subject for the non-CFO packs. Reuses the niche-agnostic
     WHO builders (`_singular_who` / `_plural_who`), which already claim a vertical
     ONLY when the gift is all-niche (via `niche_claim`) and otherwise fall back to
-    a geography-only WHO. The pack supplies its own value-prop WHAT strings."""
+    a geography-only WHO. The pack supplies its own value-prop WHAT — a plain
+    string, or a tuple of equivalent phrasings rotated per prospect (same idiom
+    as the CFO pack, so a pack's subjects vary across a domain instead of one
+    repeated line)."""
     if gift.subject_shape == "singular":
-        return f"{_singular_who(gift, prospect)} {singular_what}".strip().lower()
-    return f"{_plural_who(gift, prospect)} {plural_what}".strip().lower()
+        what = _what_variant(prospect, singular_what) if isinstance(singular_what, tuple) else singular_what
+        return f"{_singular_who(gift, prospect)} {what}".strip().lower()
+    what = _what_variant(prospect, plural_what) if isinstance(plural_what, tuple) else plural_what
+    return f"{_plural_who(gift, prospect)} {what}".strip().lower()
 
 
 def build_subject(gift: Gift, prospect: Prospect, *, pack: object | None = None) -> str:

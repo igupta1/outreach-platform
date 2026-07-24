@@ -28,10 +28,18 @@ from system_b.niches.base import NichePack
 # lead's leadgen signal type; plural WHAT keys off the gift's what_category
 # (raised / hiring / mixed).
 _SINGULAR_WHAT = {
-    "funding_form_d": "just raised",
-    "funding_form_c": "just raised",
-    "job_finance_lead": "is hiring finance help",
-    "job_junior_finance": "just posted a junior finance role",
+    "funding_form_d": ("just raised", "just closed a round", "just landed funding"),
+    "funding_form_c": ("just raised", "just closed a round", "just landed funding"),
+    "job_finance_lead": (
+        "is hiring finance help",
+        "is building out its finance function",
+        "is bringing on finance help",
+    ),
+    "job_junior_finance": (
+        "just posted a junior finance role",
+        "is hiring junior finance",
+        "just opened a junior finance seat",
+    ),
 }
 _PLURAL_WHAT = {
     "raised": "that just raised",

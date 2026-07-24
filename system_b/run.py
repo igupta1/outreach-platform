@@ -48,17 +48,18 @@ def main() -> None:
     scraper = snapshot_for_niche(args.pack, today=today)
 
     rows: list[dict[str, str]] = []
-    skipped = 0
+    skipped: list[tuple[str, str]] = []
     for p in prospects:
+        firm = p.get("firm_name", "?")
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
-            print(f"  · {p.get('firm_name', '?'):32} error: {exc!r}")
-            skipped += 1
+            print(f"  · {firm:32} error: {exc!r}")
+            skipped.append((firm, f"error: {exc!r}"))
             continue
         if res.get("status") != "ok":
-            print(f"  · {p.get('firm_name', '?'):32} {res.get('status')}")
-            skipped += 1
+            print(f"  · {firm:32} {res.get('status')}")
+            skipped.append((firm, res.get("status", "?")))
             continue
         rows.append({c: res.get(c, "") for c in COLUMNS})
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift)")
@@ -69,8 +70,11 @@ def main() -> None:
         w.writeheader()
         w.writerows(rows)
 
-    print(f"\n[done] wrote {len(rows)} sequence(s) to {args.out_path} "
-          f"({skipped} prospect(s) skipped: no gift / error)")
+    print(f"\n[done] wrote {len(rows)} sequence(s) to {args.out_path}")
+    if skipped:
+        print(f"[skipped] {len(skipped)} prospect(s) got no sequence:")
+        for firm, why in skipped:
+            print(f"  · {firm}  ({why})")
 
 
 if __name__ == "__main__":

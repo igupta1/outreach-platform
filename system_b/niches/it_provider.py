@@ -30,8 +30,16 @@ _LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 # MSP — managed IT / help desk -------------------------------------------------
 
 _MSP_SINGULAR_WHAT = {
-    "job_it_support": "that just posted an it support role",
-    "job_it_leadership": "that just posted an it leadership role",
+    "job_it_support": (
+        "that just posted an it support role",
+        "that's hiring for it support",
+        "that just opened an it support seat",
+    ),
+    "job_it_leadership": (
+        "that just posted an it leadership role",
+        "that's hiring it leadership",
+        "that just opened an it leadership seat",
+    ),
 }
 
 
@@ -78,8 +86,16 @@ MSSP_PRIORITY_FLAG = (
 )
 
 _MSSP_SINGULAR_WHAT = {
-    "breach_disclosed": "that just disclosed a breach",
-    "job_security": "that just started hiring for security",
+    "breach_disclosed": (
+        "that just disclosed a breach",
+        "that just reported a breach",
+        "that just had a security incident",
+    ),
+    "job_security": (
+        "that just started hiring for security",
+        "that's staffing up on security",
+        "that just opened a security role",
+    ),
 }
 
 
@@ -119,8 +135,12 @@ MSSP_LEFT_FIELD: tuple[str, ...] = (
 # Cloud — cloud / devops consultancy -------------------------------------------
 
 _CLOUD_SINGULAR_WHAT = {
-    "job_cloud_devops": "that just started building out cloud",
-    "funding_form_d": "that just raised",
+    "job_cloud_devops": (
+        "that just started building out cloud",
+        "that's staffing up on cloud",
+        "that just opened a cloud/devops role",
+    ),
+    "funding_form_d": ("that just raised", "that just closed a round", "that just landed funding"),
 }
 
 
