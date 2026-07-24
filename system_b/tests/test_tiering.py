@@ -213,11 +213,12 @@ def test_gate_b_taxonomy_drops_when_no_niche_leads():
 
 
 # --------------------------------------------------------------------------
-# GATE B (fit) — leads ARE bucketed to the niche, but a value_prop doesn't read
-# as it (mis-tagged) -> drop the whole niche -> generalist. (The Power CFO bug.)
+# GATE B (fit) + NICHE-LIFT — a mis-tagged lead is SWAPPED OUT (never listed) and
+# the niche is kept with the fitting leads; only when NOTHING fits do we drop to
+# generalist. (Still prevents the Power CFO bug: the bad lead is never claimed.)
 # --------------------------------------------------------------------------
 
-def test_gate_b_fit_drops_mistagged_lead():
+def test_niche_lift_swaps_out_mistagged_lead_keeps_claim():
     research = _research([("industry", "manufacturing")], exclusivity="single",
                          phrases=["manufacturing"])
     leads = [
@@ -228,7 +229,23 @@ def test_gate_b_fit_drops_mistagged_lead():
     # taxonomy says all 3 are manufacturing, but the fit-check says the IT co isn't
     fit = _fit(per_id={"it": False, "m2": True, "m3": True})
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=fit)
-    assert prospect.classification == "generalist"      # one bad lead kills the claim
+    assert prospect.classification == "niched"                   # claim recovered by swapping the lead out
+    assert prospect.match_param == ("industry", "manufacturing")
+    body = _body(prospect, gift)
+    assert "Iq Sig" not in body                                  # the mis-tagged lead is NEVER listed
+    assert "manufacturing" in body                               # niche claimed, honestly
+
+
+def test_niche_lift_drops_to_generalist_when_nothing_fits():
+    research = _research([("industry", "manufacturing")], exclusivity="single",
+                         phrases=["manufacturing"])
+    leads = [
+        mk("b1", "job_finance_lead", industry="manufacturing", city="Denver", state="CO", date="2026-07-05", company="Bad One", finance_grade="medium"),
+        mk("b2", "funding_form_d", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", company="Bad Two"),
+    ]
+    fit = _fit(per_id={"b1": False, "b2": False})                # no lead reads as the niche
+    prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=fit)
+    assert prospect.classification == "generalist"               # nothing fits -> honest generalist
     assert prospect.niche_exclusivity == "none"
     assert "manufacturing" not in _body(prospect, gift)
 

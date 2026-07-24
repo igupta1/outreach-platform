@@ -69,6 +69,35 @@ def _candidate_pairs(research: ResearchResult) -> list[tuple[tuple[str, str], st
     return out
 
 
+def _fitting_niche_gift(
+    trial: Prospect, scraper: _Scraper, pack: NichePack,
+    label: str, fit: FitFn, *, max_swaps: int = 3,
+) -> Gift | None:
+    """Build an all-niche gift whose leads ALL pass the fit check. A lead that
+    fails fit is excluded and a replacement pulled (up to `max_swaps` times), so
+    one mis-tagged lead no longer sinks the whole niche claim — the claim just
+    drops that lead and keeps the rest. Returns None (-> generalist) only if no
+    all-fitting niche gift can be assembled. A non-fitting lead is NEVER listed,
+    so the 'Power CFO bug' guarantee (never claim a niche a lead contradicts)
+    still holds — we drop the lead, not the honesty check."""
+    excluded: list[str] = []
+    for _ in range(max_swaps + 1):
+        trial.sent_lead_ids = list(excluded)
+        g = build_gift(trial, scraper, niche_only=True, pack=pack)   # GATE B (taxonomy)
+        if g is None or not g.all_niche:
+            return None
+        verdicts = fit(label, g.leads)                               # GATE B (genuine fit)
+        if not verdicts:
+            return None
+        if all(verdicts):
+            return g
+        bad = [lead.id for lead, ok in zip(g.leads, verdicts) if not ok]
+        if not bad:
+            return None
+        excluded.extend(bad)                                         # swap the mis-tagged lead(s) out
+    return None
+
+
 def resolve_gift(
     research: ResearchResult, row: dict[str, Any], scraper: _Scraper,
     *, fit: FitFn | None = None, pack: NichePack | None = None,
@@ -92,12 +121,10 @@ def resolve_gift(
         if not label:
             continue                                             # no clean word -> can't claim honestly
         trial = _base_prospect(row, research, classification="niched", match_param=mp)
-        g = build_gift(trial, scraper, niche_only=True, pack=pack)  # GATE B (taxonomy)
-        if g is None or not g.all_niche:
-            continue
-        verdicts = fit(label, g.leads)                           # GATE B (genuine fit)
-        if not (verdicts and all(verdicts)):
-            continue                                             # a lead doesn't read as the niche -> drop
+        # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):
+        g = _fitting_niche_gift(trial, scraper, pack, label, fit)
+        if g is None:
+            continue                                             # no all-fitting niche gift -> drop
         if best is None or _supply_key(g, rank) > _supply_key(best[0], rank):
             best = (g, mp, phrase)
 
