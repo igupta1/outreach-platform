@@ -11,7 +11,7 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import date
 
-from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts
+from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import city_display, fix_articles, niche_display, state_display
 from system_b.copy.subject import build_subject, niche_claim
 from system_b.gift.engine import compute_match_level
@@ -269,7 +269,8 @@ def build_email_1(
     parts = [greeting, framing, "\n".join(lines), left_field, cta]
     if include_signoff:
         parts.append("best,\nishaan")
-    body = "\n\n".join(parts)
+    body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
+    subject = strip_em_dashes(subject)
 
     # 5e / Step-10 copy flag when a priority-signal lead is present.
     if (
@@ -330,12 +331,12 @@ def build_followup_email(
         line, lf = _lead_line(lead, description, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
-        opener = "last one from me —" if final else f"found one more {qual}showing the same signal:"
+        opener = "last one from me." if final else f"found one more {qual}showing the same signal:"
         tail = (
             "if leads like these are useful i'll keep them coming; if not, no "
             "worries, i'll stop here."
             if final else
-            "still happy to keep sending these as they surface — want me to?"
+            "still happy to keep sending these as they surface, want me to?"
         )
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
@@ -345,12 +346,12 @@ def build_followup_email(
         sig = pack.followup_signal
         if final:
             core = (
-                f"last nudge from me — happy to keep surfacing {niche} companies "
+                f"last nudge from me, happy to keep surfacing {niche} companies "
                 f"the moment they show {sig}. just say the word."
             )
         else:
             core = (
-                f"circling back — still keeping an eye out for {niche} companies "
+                f"circling back, still keeping an eye out for {niche} companies "
                 f"showing {sig}. want me to send them your way as "
                 "they come up?"
             )
@@ -358,7 +359,7 @@ def build_followup_email(
     parts = [core]
     if include_signoff:
         parts.append("best,\nishaan")
-    body = "\n\n".join(parts)
+    body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
     return EmailDraft(subject="", body=body, flags=flags, left_field_variant="")
 
 

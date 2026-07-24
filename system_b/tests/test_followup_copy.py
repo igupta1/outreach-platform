@@ -5,9 +5,12 @@ from __future__ import annotations
 import pytest
 
 from system_b.copy.email import build_followup_email
+from system_b.copy.honesty import strip_em_dashes
 from system_b.gift.models import Prospect
 from system_b.tests.test_copy import TODAY
 from system_b.tests.test_gift import mk
+
+DASHES = "‒–—―"
 
 
 def _prospect(**kw):
@@ -15,6 +18,31 @@ def _prospect(**kw):
                 classification="generalist", first_name="dana")
     base.update(kw)
     return Prospect(**base)
+
+
+def test_strip_em_dashes_rules():
+    s = strip_em_dashes
+    # a real separator comma the dash didn't introduce is preserved verbatim
+    assert s("Lawson Co Inc., san francisco: x") == "Lawson Co Inc., san francisco: x"
+    # word -> comma; after existing punctuation -> just a space (no stacking)
+    assert s("surface — want me to?") == "surface, want me to?"
+    assert s("inc. — form d filed") == "inc. form d filed"
+    # en dash handled; hyphen-minus (dates) and paragraph breaks untouched
+    assert s("a–b") == "a, b"
+    assert s("filed 2026-07-17 ok") == "filed 2026-07-17 ok"
+    assert s("line one —\n\nline two") == "line one,\n\nline two"
+    assert not any(c in s("x — y – z ― w") for c in DASHES)
+    assert s(s("surface — want me to?")) == s("surface — want me to?")   # idempotent
+
+
+def test_followups_never_contain_em_dashes():
+    lead = mk("l1", "funding_form_d", city="Denver", state="CO")
+    lead.value_prop = "acme inc. — form d filed 2026-07-17 — offering"   # dashes from lead data
+    for step in (2, 3):
+        with_lead = build_followup_email(lead, _prospect(), lead.value_prop, step=step, today=TODAY)
+        dry = build_followup_email(None, _prospect(), "", step=step, today=TODAY)
+        assert not any(c in with_lead.body for c in DASHES)
+        assert not any(c in dry.body for c in DASHES)
 
 
 def test_followup_subject_is_blank_and_no_signoff():

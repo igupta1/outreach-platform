@@ -62,6 +62,35 @@ def date_suffix(lead: Lead, today: date) -> str:
     return relative_date(lead.newest_date, today)
 
 
+# House style: NO em dashes anywhere in sent copy. Beyond the templates (which
+# are authored comma-only), a dash can slip in from a lead's source data
+# (leadgen `insight` / `evidence_text`), so every rendered subject + body is
+# scrubbed. Covers figure/en/em/horizontal-bar dashes; the ASCII hyphen-minus
+# (dates like 2026-07-17, "AP/AR") is left untouched.
+# Only spaces/tabs around the dash — never newlines, so a dash at a line end
+# can't swallow a paragraph break ("\n\n").
+_DASH_RE = re.compile(r"[ \t]*[‒–—―][ \t]*")
+
+
+def strip_em_dashes(text: str) -> str:
+    """Replace any em/en dash (and its surrounding whitespace) with a comma, so
+    no dash reaches a sent email. Context-aware: if the dash already follows
+    clause punctuation ("inc. — form"), it collapses to a single space instead
+    of stacking punctuation ("inc., form"), and it never rewrites punctuation
+    the dash didn't introduce. Idempotent."""
+    if not text:
+        return text
+
+    def _repl(m: re.Match) -> str:
+        before = text[:m.start()].rstrip()
+        if before and before[-1] in ",.;:!?":     # already punctuated -> just space it
+            return " "
+        return ", "
+
+    out = _DASH_RE.sub(_repl, text)
+    return re.sub(r"[ \t]+(?=\n|$)", "", out)      # drop any trailing space a swap left
+
+
 def strip_dollar_amounts(text: str) -> tuple[str, bool]:
     """Remove any dollar figure and report whether one was found. Tidies the
     leftover whitespace/punctuation so the sentence still reads."""

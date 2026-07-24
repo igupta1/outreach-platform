@@ -56,6 +56,10 @@ they thread off email 1.
 - Soft verb ("work with"), never "focus on".
 - No dollar amounts on raises; relative dates only for high-confidence signals;
   lead company names keep their casing, all other prose is lowercase.
+- **No em dashes anywhere.** Templates are authored comma-only, and every
+  rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
+  dash from lead source data (`insight`/`evidence_text`) can't reach a sent
+  email either. Do not remove that scrub.
 - Nothing is ever sent — the tool only writes a CSV for you to review.
 
 ## Forbidden without explicit instruction
