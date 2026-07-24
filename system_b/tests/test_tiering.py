@@ -89,6 +89,18 @@ def test_map_industry_candidates_prefers_child_over_coarse_guess():
                                    "construction", TAXONOMY) == [("industry", "construction")]
 
 
+def test_map_industry_candidates_synonym_alias_fallback():
+    # a distinctive one-word synonym maps when the strict all-tokens match misses
+    # ("saas" alone never satisfies the `software_saas` key)...
+    assert map_industry_candidates("saas", None, TAXONOMY) == [("industry", "software_saas")]
+    # ...but the alias is a FALLBACK: when the phrase already names a real served
+    # vertical, the alias word is the prospect's own service, not a 2nd vertical.
+    assert map_industry_candidates("saas tools for dental practices", None, TAXONOMY) == \
+        [("niche", "dental")]
+    # a phrase with no vertical at all stays generalist (no alias, no guess)
+    assert map_industry_candidates("veteran led businesses", None, TAXONOMY) == []
+
+
 def test_map_industry_candidates_splits_multi_industry_phrase():
     # a phrase stating several industries -> ALL become candidates (children first)
     got = map_industry_candidates(

@@ -114,6 +114,41 @@ def test_4c_singular_who_table_generalist():
         "a colorado company is hiring finance leadership"
 
 
+def test_4c_singular_geo_follows_gift_not_best_lead():
+    """Regression: the singular subject's geo claim follows gift.geo_level, not
+    the best lead. If the best lead matches the prospect's city (best_level=1) but
+    the gift as a whole spans states (geo_level='none'), the subject must NOT claim
+    the city — the body lists leads elsewhere. Previously it emitted
+    'a healthcare company in denver ...' while showing out-of-city leads."""
+    p = P()  # niched healthcare, Denver CO
+    g = G(all_niche=True, geo="none", shape="singular", best_level=1,
+          best_signal="job_fractional_cfo")
+    assert build_subject(g, p) == "a healthcare company is hiring a fractional cfo"
+    # generalist mismatch: same guard, no city leaked
+    g2 = G(all_niche=False, geo="none", shape="singular", best_level=1,
+           best_signal="job_finance_lead")
+    assert build_subject(g2, P(niched=False)) == "a company is hiring finance leadership"
+
+
+def test_4c_singular_what_rotates_per_prospect():
+    """The singular WHAT rotates deterministically per prospect (crc32 of firm),
+    so a domain isn't sending one identical subject repeatedly — but always emits
+    an approved, equivalent phrasing. 'Test Firm' stays on the canonical wording."""
+    from system_b.copy.subject import _SINGULAR_WHAT
+    g = G(all_niche=False, geo="state", shape="singular", best_level=2,
+          best_signal="job_fractional_cfo")
+    # pinned fixture -> canonical variant 0
+    assert build_subject(g, P()).endswith("is hiring a fractional cfo")
+    approved = _SINGULAR_WHAT["job_fractional_cfo"]
+    seen = set()
+    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
+        s = build_subject(g, P(firm_name=name))
+        assert s == build_subject(g, P(firm_name=name))     # deterministic
+        assert any(s.endswith(v) for v in approved)         # only approved wording
+        seen.add(next(v for v in approved if s.endswith(v)))
+    assert len(seen) >= 2, "rotation should vary the subject across prospects"
+
+
 def test_child_niche_keeps_its_word_in_subject():
     # #9: a mapped child niche must keep its label, not degrade to "a company"
     p = Prospect(firm_name="Legal CFO", city="Denver", state="CO",
