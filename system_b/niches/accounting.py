@@ -49,7 +49,7 @@ def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
 def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
     # One opener for the whole batch — the per-lead lines carry the specifics
     # (a fresh finance hire or a raise), so the framing need stays neutral.
-    return framing_line(gift, prospect, need="that could use bookkeeping help right now")
+    return framing_line(gift, prospect, need="looking for bookkeeping help right now")
 
 
 # 5b — left-field rotation, accounting/bookkeeping-firm voice. Lowercase, no em
@@ -72,6 +72,7 @@ ACCOUNTING_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 ACCOUNTING_PACK = NichePack(
     key="accounting",
+    followup_signal="a finance-need signal",
     signal_rank={
         "job_finance_lead": 0,
         "job_junior_finance": 0,

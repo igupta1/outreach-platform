@@ -15,7 +15,7 @@ from system_b.gift.engine import build_gift
 from system_b.gift.models import Prospect
 from system_b.research.classifier import appears_verbatim, classify, evidence_covers, locate
 from system_b.research.fetcher import discover_links, fetch_site, html_to_text
-from system_b.research.models import Evidence, ResearchResult, to_airtable_fields
+from system_b.research.models import Evidence, ResearchResult
 from system_b.tests.test_copy import TODAY
 from system_b.tests.test_gift import FakeScraper, mk
 
@@ -243,28 +243,6 @@ def test_evidence_covers_guard():
     assert evidence_covers("healthcare startups", r)
     assert evidence_covers("Healthcare Startups", r)      # case-insensitive
     assert not evidence_covers("we made this up", r)
-
-
-# --------------------------------------------------------------------------
-# Airtable write payload
-# --------------------------------------------------------------------------
-
-def test_to_airtable_fields():
-    r = ResearchResult("niched", ("industry", "healthcare"), "healthcare startups", "site",
-                       [Evidence("phrase", "healthcare startups", "https://h.com")],
-                       flags=["a flag"])
-    f = to_airtable_fields(r)
-    assert f["classification"] == "niched"
-    assert f["match_param"] == "industry=healthcare"
-    assert f["niche_phrase"] == "healthcare startups"
-    assert f["niche_source"] == "site"
-    assert f["evidence"] == '[phrase] "healthcare startups" — https://h.com'
-    assert f["flags"] == "a flag"
-
-    g = to_airtable_fields(ResearchResult("generalist", None, None, "", []))
-    assert g["classification"] == "generalist"
-    assert g["match_param"] == "" and g["niche_phrase"] == "" and g["evidence"] == ""
-    assert "niche_source" not in g                       # nothing untrue stored
 
 
 # --------------------------------------------------------------------------

@@ -38,6 +38,13 @@ def _raw_signal(lead: Lead) -> str | None:
     )
 
 
+def grounded_description(lead: Lead) -> str:
+    """The lead's own precomputed plain-words line, with NO LLM call. Used for
+    follow-up leads (#2/#3): a single grounded clause is enough there, so it isn't
+    worth a per-lead model call (and the raise/date honesty layers still run)."""
+    return _raw_signal(lead) or ""
+
+
 def _lead_brief(lead: Lead) -> dict[str, str | None]:
     return {
         "id": lead.id,

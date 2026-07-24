@@ -47,7 +47,7 @@ def _msp_subject(gift: Gift, prospect: Prospect) -> str:
 def _msp_framing(gift: Gift, prospect: Prospect) -> str:
     return framing_line(
         gift, prospect,
-        need="that just posted an it role and might be weighing hire vs outsource",
+        need="looking for it help right now",
     )
 
 
@@ -93,7 +93,7 @@ def _mssp_subject(gift: Gift, prospect: Prospect) -> str:
 
 
 def _mssp_framing(gift: Gift, prospect: Prospect) -> str:
-    return framing_line(gift, prospect, need="that just signaled they need security help")
+    return framing_line(gift, prospect, need="looking for security help right now")
 
 
 def _mssp_what_category(leads: list[Lead]) -> str:
@@ -134,7 +134,7 @@ def _cloud_subject(gift: Gift, prospect: Prospect) -> str:
 
 
 def _cloud_framing(gift: Gift, prospect: Prospect) -> str:
-    return framing_line(gift, prospect, need="building out their cloud setup right now")
+    return framing_line(gift, prospect, need="looking for cloud help right now")
 
 
 def _cloud_what_category(leads: list[Lead]) -> str:
@@ -158,6 +158,7 @@ CLOUD_LEFT_FIELD: tuple[str, ...] = (
 
 MSP_PACK = NichePack(
     key="msp",
+    followup_signal="an it-need signal",
     signal_rank={"job_it_support": 0, "job_it_leadership": 0},
     priority_signal=None,             # geo-matched, no lead-first signal
     raise_signals=frozenset(),        # no raises → lead lines use the plain description
@@ -173,6 +174,7 @@ MSP_PACK = NichePack(
 
 MSSP_PACK = NichePack(
     key="mssp",
+    followup_signal="a security-need signal",
     signal_rank={"breach_disclosed": 0, "job_security": 1},
     priority_signal="breach_disclosed",   # a disclosed breach is the lead-first signal
     raise_signals=frozenset(),
@@ -188,6 +190,7 @@ MSSP_PACK = NichePack(
 
 CLOUD_PACK = NichePack(
     key="cloud",
+    followup_signal="a cloud-need signal",
     signal_rank={"job_cloud_devops": 0, "funding_form_d": 1},
     priority_signal=None,
     raise_signals=frozenset({"funding_form_d"}),   # a raise line is templated (no $)

@@ -185,6 +185,7 @@ def _has_funding_signal(lead: Lead, raise_signals) -> bool:
 
 def _lead_line(
     lead: Lead, description: str, today: date, geo_level: str, *, pack,
+    with_date: bool = True,
 ) -> tuple[str, list[str]]:
     flags: list[str] = []
 
@@ -204,9 +205,10 @@ def _lead_line(
             raise_txt = pack.funding_phrase(lead)
             text = f"{text} and {raise_txt}" if text else raise_txt
 
-    suffix = date_suffix(lead, today)          # '' when low-confidence / undated
-    if suffix:
-        text = f"{text}, {suffix}" if text else suffix
+    if with_date:                              # follow-ups pass False (Option A):
+        suffix = date_suffix(lead, today)      # they send days later, so a baked-in
+        if suffix:                             # relative date would drift by send time.
+            text = f"{text}, {suffix}" if text else suffix
 
     loc = city_display(lead.city) or state_display(lead.state)
     line = f"{lead.company}, {loc}: {text}" if loc else f"{lead.company}: {text}"
@@ -325,7 +327,7 @@ def build_followup_email(
     final = step == 3
 
     if lead is not None:
-        line, lf = _lead_line(lead, description, today, "none", pack=pack)
+        line, lf = _lead_line(lead, description, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
         opener = "last one from me —" if final else f"found one more {qual}showing the same signal:"
@@ -340,15 +342,16 @@ def build_followup_email(
             flags.append(pack.priority_flag)
     else:
         niche = niche_claim_or_geo(prospect)
+        sig = pack.followup_signal
         if final:
             core = (
                 f"last nudge from me — happy to keep surfacing {niche} companies "
-                "the moment they show a finance-need signal. just say the word."
+                f"the moment they show {sig}. just say the word."
             )
         else:
             core = (
                 f"circling back — still keeping an eye out for {niche} companies "
-                "showing a finance-need signal. want me to send them your way as "
+                f"showing {sig}. want me to send them your way as "
                 "they come up?"
             )
 

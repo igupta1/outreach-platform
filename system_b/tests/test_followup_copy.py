@@ -37,11 +37,13 @@ def test_step_must_be_2_or_3():
         build_followup_email(None, _prospect(), "", step=1, today=TODAY)
 
 
-def test_high_confidence_lead_carries_a_date():
+def test_followup_lead_carries_no_date_even_high_confidence():
+    # Option A: follow-ups (#2/#3) send days later on Smartlead's timers, so a
+    # baked-in relative date would drift — the copy never dates a follow-up lead.
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
               date="2026-07-01", date_confidence="high")
     d = build_followup_email(lead, _prospect(), "hired a controller", step=2, today=TODAY)
-    assert "week ago" in d.body
+    assert "ago" not in d.body and "week" not in d.body
 
 
 def test_low_confidence_lead_gets_no_date():

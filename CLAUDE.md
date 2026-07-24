@@ -1,28 +1,46 @@
 # CLAUDE.md
 
-Cold-outreach engine. Python, isolated from the website and the lead platform
-(reads the lead inventory over HTTP, writes Airtable).
+Cold-outreach copy generator. Python, isolated from the website and the lead
+platform (reads the lead inventory over HTTP / from local JSON). One job:
 
-## Layout
+    Apollo CSV in → a 3-email sequence per prospect → review CSV out.
 
-- `system_b/` — the engine. The gift builder (`gift/`), copy scaffolding
-  (`copy/`), research (`research/`), and sequencing (`sequence/`) are
-  **niche-blind**; every buyer-specific knob (signal preference, priority
-  signal, copy voice) lives in a `NichePack` under `system_b/niches/`.
-- **One unified pipeline for all five niches** (`accounting`, `cfo`, `mssp`,
-  `msp`, `cloud`): research the prospect's site → classify the customer vertical
-  they serve (verbatim, Gate A) → `resolve_gift` builds a vertical-matched gift
-  (Gate B) or falls back to a generalist geo gift → LLM per-lead descriptions →
-  a pending review card. A niche differs ONLY in its pack (lead preference,
-  priority signal, copy voice) — same engine, same gates, same cadence.
-- `system_b/niches/` — the five packs: `cfo.py` (default), `accounting.py`,
-  `it_provider.py` (`msp`/`mssp`/`cloud`). Resolved by `base.pack_for(key)`.
-- `system_b/clients/inventory.py` — the single adapter from the `leadgen`
-  per-niche inventory (`snapshot_for_niche`) onto the outreach `Lead`. Signal
-  types are leadgen's raw vocabulary (`job_fractional_cfo`, `job_finance_lead`,
-  `job_junior_finance`, `job_it_support`, `job_it_leadership`, `job_security`,
-  `job_cloud_devops`, `funding_form_d`, `funding_form_c`, `breach_disclosed`).
-  Stub mode: env `LEADGEN_INVENTORY_DIR` → local JSON; else the live endpoint.
+Nothing is sent. You upload the output CSV to Smartlead yourself.
+
+## The one command
+
+```bash
+cd system_b
+python3.11 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # fill in OPENAI_API_KEY
+
+# run from the repo ROOT (running inside system_b/ shadows stdlib `copy`):
+cd .. && system_b/.venv/bin/python -m system_b.run \
+    --in system_b/apollo-contacts-export.csv --out sequences.csv --pack cfo
+```
+
+Output columns (one row per prospect): `email, first_name, company, subject,
+email_1, email_2, email_3`. In Smartlead, build a 3-step sequence whose bodies
+are `{{email_1}}`, `{{email_2}}`, `{{email_3}}`, and add your signature + the
+CAN-SPAM footer ONCE in the sequence editor. Follow-ups have a blank subject so
+they thread off email 1.
+
+## Layout (`system_b/`)
+
+- `run.py` — the whole pipeline CLI (CSV → CSV). One niche pack per run (`--pack`).
+- `prospects.py` — reads the Apollo export into the flat prospect row.
+- `sequence/generate.py` — `generate_sequence(row, …)`: research → gift → the
+  full 3-email sequence, returned as a plain dict. **Pure** — no store, no send.
+- The engine is **niche-blind**; every buyer-specific knob (signal preference,
+  priority signal, copy voice) lives in a `NichePack` under `niches/`.
+  - `gift/` builds a vertical-matched gift from the lead inventory (or a
+    generalist geo gift).
+  - `copy/` writes the emails; `research/` classifies the prospect's site;
+    `sequence/` assembles the 3 emails.
+- `clients/inventory.py` — the single adapter from the `leadgen` per-niche
+  inventory (`snapshot_for_niche`) onto the outreach `Lead`. Stub mode: env
+  `LEADGEN_INVENTORY_DIR` → local JSON; else the live endpoint.
 - Conventions: everything structural is deterministic code; the LLM only
   proposes (site classification, lead-fit check, per-lead descriptions) and code
   re-verifies. Honesty is enforced in code, never left to the model.
@@ -38,13 +56,14 @@ Cold-outreach engine. Python, isolated from the website and the lead platform
 - Soft verb ("work with"), never "focus on".
 - No dollar amounts on raises; relative dates only for high-confidence signals;
   lead company names keep their casing, all other prose is lowercase.
-- Nothing is ever sent automatically — every card is `review_status=pending`.
+- Nothing is ever sent — the tool only writes a CSV for you to review.
 
 ## Forbidden without explicit instruction
 
-- Committing `.env`, `apollo-contacts-export.csv`, or `review_cards.txt`.
+- Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).
+- Re-adding sending (Smartlead), Airtable/CRM state, the operator web UI/API,
+  reply webhooks, or notifications — all removed; this is a CSV→CSV batch tool.
 - Re-adding an insurance/trucking/pc niche, an `exec_hired` signal, or the old
-  `cfo_wanted`/`funding_only`/`hiring_only` collapsed signal vocabulary (all
-  removed in the leadgen migration).
+  `cfo_wanted`/`funding_only`/`hiring_only` collapsed signal vocabulary.
 - Wholesale-destructive ops (`rm -rf` of dirs, `git reset --hard`, force push,
   dropping/truncating data, mass file deletes). Single-file deletes are fine.

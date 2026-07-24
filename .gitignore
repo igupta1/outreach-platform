@@ -12,7 +12,9 @@
 **/.env
 system_b/logs/
 system_b/apollo-contacts-export.csv
-system_b/review_cards.txt
 
 # OS junk
 **/.DS_Store
+
+# exported outreach copy (prospect data — never commit)
+sequences*.csv
