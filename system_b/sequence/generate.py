@@ -30,7 +30,16 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     extra_ids: list[str] = []
     for step in (2, 3):
         prospect.sent_lead_ids = list(used)
-        g = build_gift(prospect, sc, target=1, pack=pack)   # excludes leads used so far
+        # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
+        # as Email #1 (build_gift excludes already-used leads via sent_lead_ids),
+        # falling back to a geo lead only when the niche well has run dry.
+        g = None
+        if prospect.classification == "niched":
+            gn = build_gift(prospect, sc, target=1, niche_only=True, pack=pack)
+            if gn is not None and gn.all_niche:
+                g = gn
+        if g is None:
+            g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
         lead = g.leads[0] if g else None
         description = ""
         if lead is not None:

@@ -118,3 +118,35 @@ def test_lint_free_text_clean_input_no_warnings():
 
     clean, warnings = lint_free_text("hey, thought this might be useful for you")
     assert warnings == [] and clean == "hey, thought this might be useful for you"
+
+
+def test_followups_prefer_same_niche_lead():
+    """A niched sequence stays on-theme: Email #2/#3 pull from the SAME niche as
+    Email #1, never the off-niche geo lead — even when that geo lead is fresher."""
+    from datetime import date
+
+    from system_b.gift.engine import build_gift
+    from system_b.niches.base import default_pack
+    from system_b.sequence.generate import _followup_drafts
+    from system_b.tests.test_gift import FakeScraper
+
+    pack = default_pack()
+    prospect = Prospect(firm_name="Acme CFOs", city="Denver", state="CO",
+                        classification="niched", match_param=("industry", "construction"),
+                        first_name="dana")
+    leads = [
+        mk("c1", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-06", finance_grade="medium"),
+        mk("c2", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-05", finance_grade="medium"),
+        mk("c3", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
+        mk("c4", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-03", finance_grade="medium"),
+        mk("c5", "job_finance_lead", industry="construction", city="Denver", state="CO", date="2026-07-02", finance_grade="medium"),
+        # off-niche but FRESHEST + same city -> the geo path would pick this first
+        mk("x1", "funding_form_d", industry="manufacturing", city="Denver", state="CO", date="2026-07-07"),
+    ]
+    sc = FakeScraper(leads)
+    gift = build_gift(prospect, sc, niche_only=True, pack=pack)      # Email #1: construction
+    assert gift is not None and gift.all_niche
+    _drafts, extra = _followup_drafts(prospect, gift, sc, pack, date(2026, 7, 8))
+    assert extra                                                     # follow-ups pulled leads
+    assert "x1" not in extra                                         # never the off-niche lead
+    assert all(eid.startswith("c") for eid in extra)                # all same-niche
