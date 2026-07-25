@@ -15,9 +15,17 @@ from system_b.gift.models import Gift, Prospect
 # 4b WHAT (plural), first match wins. `what_category` already encodes the
 # "double counts as both" rule from the engine.
 _PLURAL_WHAT = {
-    "raised": "that just raised",
-    "hiring": "hiring finance leadership right now",
-    "mixed": "that need finance help right now",
+    "raised": ("that just raised", "that just closed a round", "that just landed funding"),
+    "hiring": (
+        "hiring finance leadership right now",
+        "adding finance leadership right now",
+        "bringing on finance leadership right now",
+    ),
+    "mixed": (
+        "that need finance help right now",
+        "showing a finance need right now",
+        "signaling they need finance help right now",
+    ),
 }
 
 # 4c WHAT (singular), from the best lead's signal type (leadgen raw vocab). Each
@@ -112,7 +120,7 @@ def _cfo_subject(gift: Gift, prospect: Prospect) -> str:
         what = _what_variant(prospect, _SINGULAR_WHAT.get(gift.best_lead.signal_type, ()))
     else:
         who = _plural_who(gift, prospect)
-        what = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])
+        what = _what_variant(prospect, _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"]))
     return f"{who} {what}".strip().lower()
 
 

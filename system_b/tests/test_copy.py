@@ -130,6 +130,21 @@ def test_4c_singular_geo_follows_gift_not_best_lead():
     assert build_subject(g2, P(niched=False)) == "a company is hiring finance leadership"
 
 
+def test_4b_plural_what_rotates_per_prospect():
+    """The plural WHAT rotates per prospect too (not just singular), so plural-
+    skewing niches (e.g. msp) stop repeating one subject. 'Test Firm' -> canonical."""
+    from system_b.copy.subject import _PLURAL_WHAT
+    g = G(all_niche=False, geo="state", what="mixed")   # plural shape (G default)
+    approved = _PLURAL_WHAT["mixed"]
+    assert build_subject(g, P()).endswith(approved[0])  # canonical variant for the fixture
+    seen = set()
+    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
+        s = build_subject(g, P(firm_name=name, niched=False))
+        assert any(s.endswith(v) for v in approved)
+        seen.add(next(v for v in approved if s.endswith(v)))
+    assert len(seen) >= 2
+
+
 def test_4c_singular_what_rotates_per_prospect():
     """The singular WHAT rotates deterministically per prospect (crc32 of firm),
     so a domain isn't sending one identical subject repeatedly — but always emits
@@ -175,7 +190,9 @@ def test_child_niche_keeps_its_word_in_subject():
                  classification="niched", match_param=("niche", "law_firm"))
     g = G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="job_fractional_cfo")
     assert build_subject(g, p) == "a legal company is hiring a fractional cfo"
-    p2 = Prospect(firm_name="Consult CFO", city="Austin", state="TX",
+    # firm_name -> the canonical subject variant (crc32 % 3 == 0), since this test
+    # pins the exact WHAT wording; rotation itself is covered separately.
+    p2 = Prospect(firm_name="Test Firm", city="Austin", state="TX",
                   classification="niched", match_param=("niche", "consulting"))
     g2 = G(all_niche=True, geo="city", shape="plural", what="hiring")
     assert build_subject(g2, p2) == "consulting companies in austin hiring finance leadership right now"
@@ -512,7 +529,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     # genuinely all-niche (leads matched by the token), but copy must fall back
     # to generalist rather than print "pet_grooming"/"pet grooming".
     p = Prospect(
-        firm_name="Paws & Ledgers", city="Denver", state="CO",
+        firm_name="Test Firm", city="Denver", state="CO",   # crc32 % 3 == 0 -> canonical WHAT
         classification="niched", match_param=("niche", "pet_grooming"),
         niche_phrase="pet grooming shops", niche_source="site", first_name="jo",
     )

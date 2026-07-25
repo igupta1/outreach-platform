@@ -48,7 +48,11 @@ def _msp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="staffing up on it right now",
+        plural_what=(
+            "staffing up on it right now",
+            "adding to their it team right now",
+            "hiring for it right now",
+        ),
     )
 
 
@@ -104,7 +108,11 @@ def _mssp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="signaling they need security help right now",
+        plural_what=(
+            "signaling they need security help right now",
+            "showing a security need right now",
+            "flagging a security gap right now",
+        ),
     )
 
 
@@ -149,7 +157,11 @@ def _cloud_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="scaling their cloud team right now",
+        plural_what=(
+            "scaling their cloud team right now",
+            "building out their cloud team right now",
+            "growing their cloud team right now",
+        ),
     )
 
 

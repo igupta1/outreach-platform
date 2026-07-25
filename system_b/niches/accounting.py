@@ -42,9 +42,17 @@ _SINGULAR_WHAT = {
     ),
 }
 _PLURAL_WHAT = {
-    "raised": "that just raised",
-    "hiring": "hiring finance help right now",
-    "mixed": "that could use bookkeeping help right now",
+    "raised": ("that just raised", "that just closed a round", "that just landed funding"),
+    "hiring": (
+        "hiring finance help right now",
+        "adding finance help right now",
+        "bringing on finance help right now",
+    ),
+    "mixed": (
+        "that could use bookkeeping help right now",
+        "that could use accounting help right now",
+        "showing a bookkeeping need right now",
+    ),
 }
 
 
