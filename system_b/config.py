@@ -17,11 +17,16 @@ load_dotenv(_ENV_PATH)
 
 # --- Secrets (from system_b/.env) ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-# Live inventory source: the lead platform's per-niche endpoint. Only used when
-# LEADGEN_INVENTORY_DIR is unset (stub mode reads local JSON instead).
+# Retained only for the generic ScraperClient default; inventory no longer
+# routes through this website endpoint (it reads Vercel Blob directly).
 SCRAPER_BASE_URL = os.environ.get(
     "SCRAPER_BASE_URL", "https://www.ishaangpta.com"
 ).rstrip("/")
+
+# Lead inventory source env (read at call time in clients/inventory.py so tests
+# can monkeypatch them): LEADGEN_BLOB_BASE_URL (primary, the public Vercel Blob
+# base), LEADGEN_INVENTORY_DIR (offline folder fallback), LEADGEN_MAX_INVENTORY_AGE_DAYS
+# and LEADGEN_ALLOW_STALE (freshness guard).
 
 # --- Constants ---
 SCRAPER_CACHE_TTL_S = 120        # ~2 min per-response cache in the scraper client

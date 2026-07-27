@@ -14,6 +14,7 @@ from datetime import date, timedelta
 import pytest
 
 from system_b import config
+from system_b.clients import inventory as inv
 from system_b.clients.inventory import (
     VALID_NICHES,
     adapt_leadgen_lead,
@@ -214,3 +215,99 @@ def test_clean_company_name_strips_artifacts_only():
     # conservative: real names (even short/odd ones) pass through untouched
     for n in ["Morreale", "Good Trouble", "Acme LLC", "Optimus Property Management, LLC"]:
         assert _clean_company_name(n) == n
+
+
+# --------------------------------------------------------------------------
+# Blob mode (LEADGEN_BLOB_BASE_URL) + freshness guard
+# --------------------------------------------------------------------------
+
+_BLOB_BASE = "https://store.public.blob.vercel-storage.com"
+
+
+class _FakeResp:
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
+
+
+def _blob_doc(*, generated_at="2026-07-20", rows=None):
+    rows = rows if rows is not None else [_row(id="b1", name="Blobco")]
+    return {"generated_at": generated_at, "niche": "cfo", "count": len(rows), "leads": rows}
+
+
+def _fake_httpx(monkeypatch, *, leads_doc, taxonomy=None, record=None):
+    def fake_get(url, **kw):
+        if record is not None:
+            record.append(url)
+        if url.endswith("taxonomy.json"):
+            return _FakeResp({"taxonomy": taxonomy or {}})
+        return _FakeResp(leads_doc)
+    monkeypatch.setattr(inv.httpx, "get", fake_get)
+
+
+def test_blob_mode_reads_adapts_and_carries_source_url(monkeypatch):
+    urls: list[str] = []
+    doc = _blob_doc(rows=[_row(
+        id="b1", name="Blobco",
+        signals=[{"type": "job_finance_lead", "event_date": "2026-07-19",
+                  "evidence_text": "posted a controller role",
+                  "source_url": "https://jobs/blobco"}],
+    )])
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    _fake_httpx(monkeypatch, leads_doc=doc, taxonomy={"healthcare": ["dental"]}, record=urls)
+
+    snap = snapshot_for_niche("cfo", today=TODAY)
+    leads = snap.leads()
+    assert [lead.company for lead in leads] == ["Blobco"]
+    assert leads[0].primary_source_url == "https://jobs/blobco"     # source_url survives
+    assert snap.niches() == {"healthcare": ["dental"]}              # taxonomy from blob
+    assert any(u.endswith("cfo-leads.json") for u in urls)          # correct pathname fetched
+
+
+def test_freshness_refuses_stale_inventory(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    monkeypatch.delenv("LEADGEN_ALLOW_STALE", raising=False)
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))  # 19 days old
+    with pytest.raises(inv.StaleInventoryError):
+        snapshot_for_niche("cfo", today=TODAY)
+
+
+def test_freshness_allow_stale_bypasses(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    monkeypatch.setenv("LEADGEN_ALLOW_STALE", "1")
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))
+    snap = snapshot_for_niche("cfo", today=TODAY)                   # no raise
+    assert snap.leads()
+
+
+def test_freshness_missing_generated_at_is_allowed(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    doc = {"leads": [_row(id="b1", name="Blobco")]}                 # no generated_at
+    _fake_httpx(monkeypatch, leads_doc=doc)
+    assert snapshot_for_niche("cfo", today=TODAY).leads()           # warns, does not refuse
+
+
+def test_blob_takes_precedence_over_local_dir(monkeypatch, tmp_path):
+    # A leftover local dir must NOT win once the blob URL is set.
+    _write_inventory(tmp_path, "cfo", [_row(id="local1", name="LocalCo")], {})
+    monkeypatch.setenv("LEADGEN_INVENTORY_DIR", str(tmp_path))
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(rows=[_row(id="blob1", name="BlobCo")]))
+    ids = {lead.id for lead in snapshot_for_niche("cfo", today=TODAY).leads()}
+    assert ids == {"blob1"}                                         # blob, not local1
+
+
+def test_no_source_configured_raises(monkeypatch):
+    monkeypatch.delenv("LEADGEN_BLOB_BASE_URL", raising=False)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    with pytest.raises(RuntimeError):
+        snapshot_for_niche("cfo", today=TODAY)

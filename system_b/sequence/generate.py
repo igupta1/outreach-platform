@@ -20,14 +20,19 @@ from system_b.gift.engine import build_gift
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
 from system_b.research.service import research_prospect
+from system_b.review.payload import build_review
 
 
 def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     """Build Email #2 and #3 up front. Each pulls one fresh lead not already used
-    across the sequence (Option A: no recency date). Returns (drafts, extra_ids)."""
+    across the sequence (Option A: no recency date). Returns
+    (drafts, extra_ids, leads) where `leads` is aligned to steps 2 and 3 (each
+    entry is the lead used, or None when the well ran dry) — the review gate
+    surfaces those leads' evidence too."""
     used = [lead.id for lead in gift.leads]
     drafts: list[Any] = []
     extra_ids: list[str] = []
+    leads: list[Any] = []
     for step in (2, 3):
         prospect.sent_lead_ids = list(used)
         # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
@@ -47,11 +52,12 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
             description = grounded_description(lead)
             used.append(lead.id)
             extra_ids.append(lead.id)
+        leads.append(lead)
         drafts.append(build_followup_email(
             lead, prospect, description, step=step, today=today, pack=pack,
             include_signoff=False,
         ))
-    return drafts, extra_ids
+    return drafts, extra_ids, leads
 
 
 def generate_sequence(
@@ -78,7 +84,7 @@ def generate_sequence(
     email1 = build_email_1(
         gift, prospect, descriptions, today=today, pack=pack, include_signoff=False
     )
-    followups, _ = _followup_drafts(prospect, gift, sc, pack, today)
+    followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today)
     return {
         "firm": row.get("firm_name", ""),
         "status": "ok",
@@ -90,4 +96,9 @@ def generate_sequence(
         "email_1": email1.body,
         "email_2": followups[0].body if followups else "",
         "email_3": followups[1].body if len(followups) > 1 else "",
+        # Full evidence + copy for the review gate (run.py dumps this to the
+        # companion review JSON; the CSV writer ignores it).
+        "review": build_review(
+            prospect, gift, research, email1, followups, descriptions, followup_leads, row
+        ),
     }

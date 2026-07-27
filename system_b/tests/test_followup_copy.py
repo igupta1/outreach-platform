@@ -146,7 +146,8 @@ def test_followups_prefer_same_niche_lead():
     sc = FakeScraper(leads)
     gift = build_gift(prospect, sc, niche_only=True, pack=pack)      # Email #1: construction
     assert gift is not None and gift.all_niche
-    _drafts, extra = _followup_drafts(prospect, gift, sc, pack, date(2026, 7, 8))
+    _drafts, extra, leads = _followup_drafts(prospect, gift, sc, pack, date(2026, 7, 8))
     assert extra                                                     # follow-ups pulled leads
     assert "x1" not in extra                                         # never the off-niche lead
     assert all(eid.startswith("c") for eid in extra)                # all same-niche
+    assert [ld.id for ld in leads if ld] == extra                   # leads align with the pulled ids

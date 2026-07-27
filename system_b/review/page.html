@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>outreach review gate</title>
+<style>
+  :root { --line:#e2e2e6; --muted:#6b7280; --bg:#fafafa; --card:#fff; --flag:#fff7ed; --flagbd:#fdba74; --best:#eef6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:#111; background:var(--bg); padding-bottom:88px; }
+  header { padding:24px 20px 8px; max-width:960px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:14px; }
+  main { max-width:960px; margin:0 auto; padding:12px 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:14px 0; }
+  .chead { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; margin-bottom:10px; }
+  .chead .n { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .chead .co { font-weight:650; font-size:16px; }
+  .chead .who { color:var(--muted); font-size:13px; }
+  .sec { margin:12px 0; }
+  .lbl { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+  .niche { font-size:14px; }
+  .niche b { font-weight:650; }
+  .ev { margin:4px 0 0; padding-left:0; list-style:none; font-size:13px; }
+  .ev li { margin:3px 0; }
+  .ev .k { display:inline-block; min-width:52px; color:var(--muted); }
+  .quote { color:#374151; }
+  .flags { background:var(--flag); border:1px solid var(--flagbd); border-radius:8px; padding:8px 12px; font-size:13px; }
+  .flags ul { margin:4px 0 0; padding-left:18px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  tr.best td { background:var(--best); }
+  .pill { display:inline-block; padding:1px 7px; border-radius:99px; background:#f1f1f4; font-size:11px; color:#374151; }
+  .warn { color:#b45309; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration:underline; }
+  .fields { display:grid; gap:10px; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
+  input.f, textarea.f { width:100%; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; padding:8px 10px;
+        border:1px solid var(--line); border-radius:8px; background:#fff; resize:vertical; }
+  textarea.f { min-height:64px; overflow:hidden; }
+  details.skips { margin-top:8px; font-size:13px; color:var(--muted); }
+  details.skips td { border:none; padding:2px 10px 2px 0; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line);
+           padding:14px 20px; display:flex; justify-content:center; gap:14px; align-items:center; }
+  button { font-size:15px; font-weight:600; padding:10px 22px; border:0; border-radius:8px; background:#111; color:#fff; cursor:pointer; }
+  button:hover { background:#000; }
+  .foot-note { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="count">—</h1>
+  <div class="sub" id="meta"></div>
+  <details class="skips" id="skips" hidden>
+    <summary></summary>
+    <table id="skips-body"></table>
+  </details>
+</header>
+<main id="rows"></main>
+<footer>
+  <button id="download">Download CSV</button>
+  <span class="foot-note" id="foot"></span>
+</footer>
+
+<script>
+const REVIEW = __REVIEW_DATA__;
+const COLUMNS = ["email","first_name","company","subject","email_1","email_2","email_3"];
+
+const el = (tag, attrs={}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else if (v !== null && v !== undefined) n.setAttribute(k, v);
+  }
+  for (const kid of kids) if (kid !== null && kid !== undefined) n.append(kid);
+  return n;
+};
+const text = (t) => document.createTextNode(t == null ? "" : String(t));
+
+function link(url, label) {
+  if (!url) return text(label || "—");
+  return el("a", {href:url, target:"_blank", rel:"noopener"}, text(label || url));
+}
+
+function autosize(ta) {
+  ta.style.height = "auto";
+  ta.style.height = (ta.scrollHeight + 2) + "px";
+}
+
+function fieldsBlock(p, idx) {
+  const wrap = el("div", {class:"fields"});
+  const mk = (key, label, multiline) => {
+    const f = multiline
+      ? el("textarea", {class:"f", "data-key":key})
+      : el("input", {class:"f", type:"text", "data-key":key});
+    f.value = p[key] || "";
+    if (multiline) { f.addEventListener("input", () => autosize(f)); }
+    const box = el("div", {class:"field"}, el("label", {}, text(label)), f);
+    wrap.append(box);
+    return f;
+  };
+  mk("subject", "Subject");
+  mk("email_1", "Email 1", true);
+  mk("email_2", "Email 2 (follow-up, blank subject)", true);
+  mk("email_3", "Email 3 (follow-up, blank subject)", true);
+  return wrap;
+}
+
+function nicheLine(p) {
+  const box = el("div", {class:"niche"});
+  if (p.classification === "niched") {
+    box.append(text("niched → "), el("b", {}, text(p.niche || p.match_param || "?")));
+    if (p.niche_exclusivity) box.append(text("  ·  " + p.niche_exclusivity));
+    box.append(el("div", {class:"sub"}, text("how we know: " + (p.how_we_know || ""))));
+    if (p.niche_phrase) box.append(el("div", {class:"sub"}, text('their words: "' + p.niche_phrase + '"')));
+  } else {
+    box.append(el("b", {}, text("generalist")));
+    box.append(el("div", {class:"sub"}, text(p.how_we_know || "")));
+    if (p.niche_phrase) box.append(el("div", {class:"sub"}, text('stated (unclaimed): "' + p.niche_phrase + '"')));
+  }
+  return box;
+}
+
+function evidenceList(p) {
+  if (!p.evidence || !p.evidence.length) return null;
+  const ul = el("ul", {class:"ev"});
+  for (const e of p.evidence) {
+    ul.append(el("li", {},
+      el("span", {class:"k"}, text(e.kind)),
+      el("span", {class:"quote"}, text('"' + e.text + '"  ')),
+      link(e.url, "source")));
+  }
+  return ul;
+}
+
+function flagsBlock(p) {
+  if (!p.flags || !p.flags.length) return null;
+  const ul = el("ul");
+  for (const f of p.flags) ul.append(el("li", {}, text(f)));
+  return el("div", {class:"flags"},
+    el("b", {}, text("⚠ " + p.flags.length + " flag" + (p.flags.length>1?"s":"") + " to check")), ul);
+}
+
+function leadsTable(p) {
+  if (!p.leads || !p.leads.length) return null;
+  const head = el("tr", {},
+    ...["in","company","signal","match","when","evidence","links"].map(h => el("th",{},text(h))));
+  const rows = [head];
+  for (const L of p.leads) {
+    const when = [L.freshness, L.date].filter(Boolean).join(" · ");
+    const links = el("td");
+    links.append(link(L.domain ? ("http://"+L.domain) : null, L.domain || (L.domainless ? "" : "—")));
+    if (L.domainless) links.append(el("span", {class:"warn"}, text("no domain")));
+    if (L.source_url) { links.append(text("  ")); links.append(link(L.source_url, "signal")); }
+    const evid = [L.description || L.value_prop, ...(L.signals||[]).map(s=>s.evidence_text)]
+      .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(" — ");
+    rows.push(el("tr", {class: L.best ? "best" : ""},
+      el("td", {}, el("span", {class:"pill"}, text(L.used_in.replace("email ","#")))),
+      el("td", {}, text(L.company + (L.best ? "  ★" : ""))),
+      el("td", {}, text(L.signal_type || "—")),
+      el("td", {}, text(L.match_level == null ? "—" : ("L" + L.match_level))),
+      el("td", {}, text(when || "—")),
+      el("td", {}, text(evid || "—")),
+      links));
+  }
+  const t = el("table"); rows.forEach(r => t.append(r)); return t;
+}
+
+function card(p, idx) {
+  const c = el("div", {class:"card", "data-idx":idx});
+  const loc = [p.city, p.state].filter(Boolean).join(", ");
+  c.append(el("div", {class:"chead"},
+    el("span", {class:"n"}, text("#" + (idx+1))),
+    el("span", {class:"co"}, text(p.company || "(no name)")),
+    el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  ")))));
+
+  const sec = (label, node) => node ? el("div", {class:"sec"}, el("div",{class:"lbl"},text(label)), node) : null;
+  [
+    sec("who they serve", nicheLine(p)),
+    sec("niche evidence", evidenceList(p)),
+    flagsBlock(p) ? el("div",{class:"sec"}, flagsBlock(p)) : null,
+    sec("gift leads (the other evidence)", leadsTable(p)),
+    sec("copy", fieldsBlock(p, idx)),
+  ].forEach(s => { if (s) c.append(s); });
+  return c;
+}
+
+function render() {
+  const n = REVIEW.valid_count ?? (REVIEW.prospects||[]).length;
+  document.getElementById("count").textContent =
+    n + " valid prospect" + (n===1?"":"s") + " ready to email";
+  document.getElementById("meta").textContent =
+    "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
+  document.getElementById("foot").textContent =
+    "downloads: email, first_name, company, subject, email_1, email_2, email_3";
+
+  if (REVIEW.skipped && REVIEW.skipped.length) {
+    const d = document.getElementById("skips");
+    d.hidden = false;
+    d.querySelector("summary").textContent = REVIEW.skipped.length + " prospect(s) skipped (no sequence) — show";
+    const body = document.getElementById("skips-body");
+    for (const s of REVIEW.skipped)
+      body.append(el("tr", {}, el("td",{},text(s.firm||"?")), el("td",{},text(s.reason||"?"))));
+  }
+
+  const main = document.getElementById("rows");
+  (REVIEW.prospects||[]).forEach((p,i) => main.append(card(p,i)));
+  document.querySelectorAll("textarea.f").forEach(autosize);
+}
+
+function csvCell(v) {
+  v = v == null ? "" : String(v);
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+
+function buildCsv() {
+  const lines = [COLUMNS.join(",")];
+  document.querySelectorAll(".card").forEach(cardEl => {
+    const idx = +cardEl.getAttribute("data-idx");
+    const p = REVIEW.prospects[idx];
+    const edited = {};
+    cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
+    const row = {
+      email: p.email, first_name: p.first_name, company: p.company,
+      subject: edited.subject, email_1: edited.email_1,
+      email_2: edited.email_2, email_3: edited.email_3,
+    };
+    lines.push(COLUMNS.map(c => csvCell(row[c])).join(","));
+  });
+  return lines.join("\r\n") + "\r\n";
+}
+
+document.getElementById("download").addEventListener("click", () => {
+  const blob = new Blob([buildCsv()], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "sequences.csv";
+  document.body.append(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+});
+
+render();
+</script>
+</body>
+</html>

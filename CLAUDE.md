@@ -26,6 +26,23 @@ are `{{email_1}}`, `{{email_2}}`, `{{email_3}}`, and add your signature + the
 CAN-SPAM footer ONCE in the sequence editor. Follow-ups have a blank subject so
 they thread off email 1.
 
+## Review gate (optional, local, send-free)
+
+`run.py` also writes `<out>.review.json` — the evidence the CSV drops (niche
+classification + the verbatim phrase/URL it came from, each gift lead's signal /
+plain-words line / date / domain / **source_url**, and the honesty flags), plus
+the editable copy. Review it in the browser before Smartlead:
+
+```bash
+cd .. && system_b/.venv/bin/python -m system_b.review.serve --review sequences.review.json
+```
+
+One plain page: the count of valid prospects, each one's evidence, and editable
+subject/email_1/email_2/email_3 fields, with a client-side **Download CSV**
+button at the bottom that rebuilds the exact output CSV (byte-identical to
+`run.py`'s) from whatever you edited. It is read-only + client-side + send-free —
+it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
+
 ## Layout (`system_b/`)
 
 - `run.py` — the whole pipeline CLI (CSV → CSV). One niche pack per run (`--pack`).
@@ -39,8 +56,12 @@ they thread off email 1.
   - `copy/` writes the emails; `research/` classifies the prospect's site;
     `sequence/` assembles the 3 emails.
 - `clients/inventory.py` — the single adapter from the `leadgen` per-niche
-  inventory (`snapshot_for_niche`) onto the outreach `Lead`. Stub mode: env
-  `LEADGEN_INVENTORY_DIR` → local JSON; else the live endpoint.
+  inventory (`snapshot_for_niche`) onto the outreach `Lead`. Source: env
+  `LEADGEN_BLOB_BASE_URL` set → read `<base>/<niche>-leads.json` from the lead
+  platform's PUBLIC Vercel Blob (daily-fresh, no auth, no website); else
+  `LEADGEN_INVENTORY_DIR` → local JSON (offline). A freshness guard refuses
+  inventory older than `LEADGEN_MAX_INVENTORY_AGE_DAYS` (default 3) unless
+  `LEADGEN_ALLOW_STALE=1`, so a broken daily refresh can't ship stale gifts.
 - Conventions: everything structural is deterministic code; the LLM only
   proposes (site classification, lead-fit check, per-lead descriptions) and code
   re-verifies. Honesty is enforced in code, never left to the model.
@@ -67,6 +88,9 @@ they thread off email 1.
 - Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).
 - Re-adding sending (Smartlead), Airtable/CRM state, the operator web UI/API,
   reply webhooks, or notifications — all removed; this is a CSV→CSV batch tool.
+  (The local `system_b/review` gate is the one sanctioned exception: it is
+  read-only, client-side, and send-free — do NOT grow it into a sender, a CRM,
+  or a hosted service.)
 - Re-adding an insurance/trucking/pc niche, an `exec_hired` signal, or the old
   `cfo_wanted`/`funding_only`/`hiring_only` collapsed signal vocabulary.
 - Wholesale-destructive ops (`rm -rf` of dirs, `git reset --hard`, force push,
