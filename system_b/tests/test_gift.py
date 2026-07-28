@@ -50,6 +50,7 @@ def mk(
     domain: str | None = "example.com",
     finance_grade: str | None = None,
     also_signal: str | None = None,
+    evidence: str = "did a thing",
 ) -> Lead:
     """Build a Lead. `signal_type` is the PRIMARY (ranked) signal. `also_signal`
     adds a second entry to `signals[]` — how a "double" lead is expressed in
@@ -60,7 +61,7 @@ def mk(
             type=signal_type,
             date=date,
             date_confidence=date_confidence,
-            plain_words_description="did a thing",
+            plain_words_description=evidence,
         )
     ]
     if also_signal is not None:

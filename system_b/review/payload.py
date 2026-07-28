@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from system_b.copy.email import is_job_posting, job_phrase
 from system_b.copy.lex import niche_display
 from system_b.gift.engine import compute_match_level
 from system_b.gift.models import Gift, Prospect
@@ -54,6 +55,11 @@ def _lead_entry(
     lead: Any, prospect: Prospect, best_id: str | None, *,
     used_in: str, description: str,
 ) -> dict[str, Any]:
+    # Show the SAME line the email uses for a job posting (deterministic "is
+    # looking for a {role}"), not the raw LLM clause — so the review never
+    # contradicts the sent copy.
+    if is_job_posting(lead):
+        description = job_phrase(lead)
     return {
         "company": lead.company,
         "used_in": used_in,

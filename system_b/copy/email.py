@@ -183,6 +183,27 @@ def _has_funding_signal(lead: Lead, raise_signals) -> bool:
     return any(s.type in raise_signals for s in lead.signals)
 
 
+def is_job_posting(lead: Lead) -> bool:
+    """A hiring signal — the company POSTED a role, so the seat is OPEN (that's
+    the buying signal). Every leadgen job signal type is `job_*`."""
+    return (lead.signal_type or "").startswith("job_")
+
+
+def job_phrase(lead: Lead) -> str:
+    """Deterministic hiring line for a job-posting lead: `is looking for a
+    {role}`. `{role}` is the posting's title from the lead's evidence, stripped
+    of any `| location | salary` metadata (noise in copy; it stays in the review
+    evidence). NEVER says "hired" — the role is open, which is the whole point.
+    Templated (not LLM) for the same reason funding is: honesty lives in code."""
+    raw = next((s.plain_words_description for s in lead.signals if s.plain_words_description), "") or ""
+    role = raw.split("|", 1)[0].strip().lower()
+    role, _ = strip_dollar_amounts(role)          # a salary in the title never reaches copy
+    role = role.strip()
+    if not role:
+        return "is hiring"
+    return fix_articles(f"is looking for a {role}")
+
+
 def _lead_line(
     lead: Lead, description: str, today: date, geo_level: str, *, pack,
     with_date: bool = True,
@@ -192,13 +213,18 @@ def _lead_line(
     if pack.funding_phrase is not None and is_raise(lead, pack.raise_signals):
         text = pack.funding_phrase(lead)                 # #10: ALL raises templated
     else:
-        text = (description or "").strip().lower()
-        text, stripped = strip_dollar_amounts(text)      # safety net on any LLM $ figure
-        text = fix_articles(text)                        # #11: a/an correction
-        if stripped:
-            flags.append(
-                f"stripped a dollar amount from {lead.company}'s line — never state a figure"
-            )
+        if is_job_posting(lead):
+            # Templated hiring line — never the LLM clause (which said "hired") nor
+            # the raw "title | location | salary" evidence (goofy in copy).
+            text = job_phrase(lead)
+        else:
+            text = (description or "").strip().lower()
+            text, stripped = strip_dollar_amounts(text)  # safety net on any LLM $ figure
+            text = fix_articles(text)                    # #11: a/an correction
+            if stripped:
+                flags.append(
+                    f"stripped a dollar amount from {lead.company}'s line — never state a figure"
+                )
         # Multi-signal ("double"): a hire-primary lead that ALSO raised — mention
         # both. The raise stays code-templated (honest, never a dollar amount).
         if pack.funding_phrase is not None and _has_funding_signal(lead, pack.raise_signals):

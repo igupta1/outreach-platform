@@ -327,14 +327,14 @@ def test_relative_date():
 
 
 def test_5e_high_confidence_date_appended():
-    # job_finance_lead keeps its LLM description (funding is templated), so this
-    # exercises the date recompute on a real freeform line.
+    # a high-confidence job lead gets a date on its templated hiring line.
     lead = mk("hc", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
-              date="2026-07-05", date_confidence="high", finance_grade="strong")
+              date="2026-07-05", date_confidence="high", finance_grade="strong",
+              evidence="Head of Finance")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"hc": "posted a head of finance role"}, today=TODAY)
-    assert "posted a head of finance role, 3 days ago" in draft.body
+    draft = build_email_1(g, p, {"hc": "ignored"}, today=TODAY)
+    assert "is looking for a head of finance, 3 days ago" in draft.body
 
 
 def test_funding_lines_are_templated_not_llm():
@@ -356,22 +356,23 @@ def test_funding_lines_are_templated_not_llm():
     # its PRIMARY signal is the hire (kept from the LLM description), and the raise
     # is appended via the honest code template — mentioned, but never a $ figure.
     ds = mk("ds", "job_finance_lead", also_signal="funding_form_d",
-            industry="healthcare", city="Denver", state="CO", date="2026-07-05")
+            industry="healthcare", city="Denver", state="CO", date="2026-07-05",
+            evidence="Senior Controller")
     gds = build_gift(p, FakeScraper([ds]))
-    dds = build_email_1(gds, p, {"ds": "hiring a senior controller"}, today=TODAY)
-    assert "hiring a senior controller" in dds.body       # the hire, from the description
-    assert "and just filed to raise" in dds.body          # the raise, code-templated
+    dds = build_email_1(gds, p, {"ds": "ignored"}, today=TODAY)
+    assert "is looking for a senior controller" in dds.body  # the hire, templated
+    assert "and just filed to raise" in dds.body            # the raise, code-templated
     assert "$" not in dds.body
 
 
 def test_5e_low_confidence_date_suppressed():
     # job_fractional_cfo from fractionaljobs.io => date_confidence low => NO date in copy
     lead = mk("cw", "job_fractional_cfo", industry="healthcare", city="Denver", state="CO",
-              date="2026-07-05", date_confidence="low", domain=None)
+              date="2026-07-05", date_confidence="low", domain=None, evidence="Fractional CFO")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"cw": "is hiring a fractional cfo right now"}, today=TODAY)
-    assert "is hiring a fractional cfo right now" in draft.body
+    draft = build_email_1(g, p, {"cw": "ignored"}, today=TODAY)
+    assert "is looking for a fractional cfo" in draft.body
     for banned in ("days ago", "weeks ago", "yesterday", "today", "a week ago"):
         assert banned not in draft.body
 
@@ -388,16 +389,30 @@ def test_strip_dollar_amounts():
 
 
 def test_5e_dollar_amount_stripped_and_flagged():
-    # all raises are templated now, so the $-strip safety net runs on the LLM
-    # path (hiring/cfo) — e.g. a salary figure the model slips into a role line.
-    lead = mk("f", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
-              date="2026-07-05", date_confidence="high", finance_grade="medium")
-    p = P()
+    # job + funding lines are templated, so the $-strip safety net + flag now run
+    # on the remaining LLM-description path (a non-job/non-funding lead, e.g. a
+    # breach): a $ figure the model slips in is removed and flagged.
+    lead = mk("f", "breach_disclosed", city="Denver", state="CO",
+              date="2026-07-05", date_confidence="high")
+    p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"f": "posted a $200k controller role"}, today=TODAY)
+    draft = build_email_1(g, p, {"f": "exposed records and was sued for $200k"}, today=TODAY)
     assert "$" not in draft.body
     assert "200k" not in draft.body
     assert any("dollar amount" in f for f in draft.flags)
+
+
+def test_job_line_strips_salary_and_metadata():
+    # a job title with '| location | $salary' becomes a clean 'is looking for a
+    # {role}' — no pipes, no dollar figure (the goofy-line fix).
+    lead = mk("s", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
+              date="2026-07-05", finance_grade="medium",
+              evidence="Property Accounting Manager | Remote | $90,000/yr DOE")
+    p = P()
+    g = build_gift(p, FakeScraper([lead]))
+    draft = build_email_1(g, p, {"s": "ignored"}, today=TODAY)
+    assert "is looking for a property accounting manager" in draft.body
+    assert "|" not in draft.body and "$" not in draft.body and "90,000" not in draft.body
 
 
 # --------------------------------------------------------------------------
@@ -405,27 +420,28 @@ def test_5e_dollar_amount_stripped_and_flagged():
 # --------------------------------------------------------------------------
 
 def test_lead_description_forced_lowercase_company_kept_cased():
-    # job_finance_lead keeps its LLM description (funding is templated)
+    # a job lead's hiring line is templated from its evidence title, lowercased
     lead = mk("f", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
-              date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
+              date="2026-07-05", company="Acme BioLabs", finance_grade="medium",
+              evidence="VP of Finance")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"f": "posted a VP of Finance role"}, today=TODAY)
-    # description is lowercased in the voice...
-    assert "posted a vp of finance role" in draft.body
+    draft = build_email_1(g, p, {"f": "ignored for job leads"}, today=TODAY)
+    # the role is lowercased in the voice...
+    assert "is looking for a vp of finance" in draft.body
     assert "VP of Finance" not in draft.body
     # ...but the company name (added by code) keeps its real casing
     assert "Acme BioLabs, denver:" in draft.body
 
 
 def test_fix_articles_in_lead_lines():
-    # a/an corrected in the freeform lead line (#11)
+    # a/an corrected in the templated hiring line (#11): "a assistant" -> "an assistant"
     lead = mk("g", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
-              date="2026-07-05", finance_grade="medium")
+              date="2026-07-05", finance_grade="medium", evidence="Assistant Controller")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"g": "posted a assistant controller and a accounting manager"}, today=TODAY)
-    assert "posted an assistant controller and an accounting manager" in draft.body
+    draft = build_email_1(g, p, {"g": "ignored"}, today=TODAY)
+    assert "is looking for an assistant controller" in draft.body
 
 
 def test_5e_domainless_flag():
@@ -454,7 +470,7 @@ def test_full_email_niched_example_1():
     leads = [
         mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05", company="Acme Bio"),
         mk("h2", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-04", company="Nimbus Rx"),
-        mk("h3", "job_finance_lead", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium"),
+        mk("h3", "job_finance_lead", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
     descriptions = {
@@ -469,7 +485,7 @@ def test_full_email_niched_example_1():
     assert "saw on your site you work with healthcare, so i pulled 3 healthcare companies" in draft.body
     # a finance-lead hire (rank 1) now outranks the funding leads (rank 2) in the
     # within-level re-sort, so the hiring line is #1 and the two raises follow.
-    assert "1. Vitals Co, denver: posted for a controller, 5 days ago" in draft.body   # hire outranks funding
+    assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body   # hire outranks funding
     assert "2. Acme Bio, denver: just filed to raise, 3 days ago" in draft.body        # funding templated
     assert "3. Nimbus Rx, denver: just filed to raise, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
@@ -486,16 +502,16 @@ def test_full_email_niched_example_1():
 def test_full_email_generalist_example_8():
     p = P(niched=False, city="Miami", state="FL", first_name="sam")
     leads = [
-        mk("m1", "job_finance_lead", city="Miami", state="FL", date="2026-07-06", company="Palm Freight", finance_grade="strong"),
-        mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium"),
+        mk("m1", "job_finance_lead", city="Miami", state="FL", date="2026-07-06", company="Palm Freight", finance_grade="strong", evidence="VP of Finance"),
+        mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, {"m1": "posted a VP of finance role", "m2": "posted a controller role"}, today=TODAY, rotation=1)
+    draft = build_email_1(g, p, {"m1": "ignored", "m2": "ignored"}, today=TODAY, rotation=1)
 
     assert draft.subject == "companies in miami hiring finance leadership right now"
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
-    assert "1. Palm Freight, miami: posted a vp of finance role, 2 days ago" in draft.body  # forced lowercase
-    assert "2. Bay Foods, miami: posted a controller role, 3 days ago" in draft.body
+    assert "1. Palm Freight, miami: is looking for a vp of finance, 2 days ago" in draft.body
+    assert "2. Bay Foods, miami: is looking for a controller, 3 days ago" in draft.body
     assert "want me to keep an eye out for miami ones and send them your way?" in draft.body
     # ZERO niche words anywhere — subject AND body — for a generalist
     assert_no_niche_claim(draft.subject + "\n" + draft.body)

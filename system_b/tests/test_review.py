@@ -19,7 +19,7 @@ TODAY = date(2026, 7, 20)
 
 
 def _lead(id, company, *, niche=None, city=None, state=None, domain="x.com",
-          signal_type="job_finance_lead", url="https://jobs/x", ev="posted a controller role"):
+          signal_type="job_finance_lead", url="https://jobs/x", ev="Controller"):
     return Lead(
         id=id, company=company, domain=domain, city=city, state=state, niche=niche,
         value_prop="growing fast", signal_type=signal_type, freshness="fresh",
@@ -60,7 +60,7 @@ def _built():
     lead_a = _lead("a", "Acme Dental Group", niche="dental", city="Denver", state="CO",
                    url="https://jobs/acme")
     lead_b = _lead("b", "Beta Dental", niche="dental", url="https://jobs/beta",
-                   ev="hired a finance manager", domain=None)
+                   ev="Finance Manager", domain=None)
     prospect = Prospect(firm_name="Beacon", city="Denver", state="CO",
                         classification="niched", match_param=("niche", "dental"),
                         niche_phrase="dental practices", niche_source="site",
@@ -121,7 +121,9 @@ def test_review_leads_include_source_url_and_followups():
     assert a["best"] is True
     assert a["source_url"] == "https://jobs/acme"
     assert a["match_level"] == 1               # niche + city (both Denver/CO) -> level 1
-    assert a["description"] == "hired a controller"
+    # job lead: review shows the SAME templated hiring line the email uses,
+    # not the raw LLM clause (which the descriptions dict passed as "hired a...").
+    assert a["description"] == "is looking for a controller"
     assert a["signals"][0]["source_url"] == "https://jobs/acme"
     b = p["leads"][1]
     assert b["used_in"] == "email 2"
