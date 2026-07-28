@@ -18,6 +18,7 @@ system_b/apollo-contacts-export.csv
 
 # exported outreach copy (prospect data — never commit)
 sequences*.csv
+sequences*.json
 
 # prospect CSV exports (Apollo) — never commit
 system_b/*.csv

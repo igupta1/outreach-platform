@@ -47,9 +47,6 @@ VALID_NICHES: frozenset[str] = frozenset(
 
 _NONWORD_RE = re.compile(r"[^a-z0-9]+")
 
-# Niche-neutral fallback line for a lead that carries no per-signal evidence.
-_DEFAULT_DESCRIPTION = "just showed a buying signal"
-
 
 # --- Inventory source config (read at call time so tests can monkeypatch) ---
 
@@ -281,16 +278,3 @@ def snapshot_for_niche(
         "no lead inventory configured: set LEADGEN_BLOB_BASE_URL (daily Vercel "
         "Blob) or LEADGEN_INVENTORY_DIR (offline folder)."
     )
-
-
-def descriptions_for(leads: list[Lead]) -> dict[str, str]:
-    """{lead.id: its signals[0].plain_words_description or a niche-neutral
-    fallback}. Mirrors the old `it_descriptions` / `bookkeeping_descriptions`
-    so callers that want a static per-lead line have one."""
-    out: dict[str, str] = {}
-    for lead in leads:
-        out[lead.id] = next(
-            (s.plain_words_description for s in lead.signals if s.plain_words_description),
-            _DEFAULT_DESCRIPTION,
-        )
-    return out
