@@ -35,15 +35,9 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
                         what_category="hiring", best_lead_level=None)
         return None
 
-    describe_calls = []
-
-    def _describe(g, p, **kw):
-        describe_calls.append(len(g.leads))
-        return {ld.id: "did a thing" for ld in g.leads}
 
     monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: None)
     monkeypatch.setattr(gen, "resolve_gift", lambda research, row, sc, pack=None: (prospect, gift))
-    monkeypatch.setattr(gen, "describe_leads", _describe)
     monkeypatch.setattr(gen, "build_gift", fake_build_gift)
 
     row = {"firm_name": "Acme", "website": "http://a.com",
@@ -56,8 +50,7 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
     assert res["subject"]                                   # email #1 has a subject
     assert res["email_1"].startswith("hey dana,")
     assert res["email_2"] and res["email_3"]                # #2/#3 pulled l2, l3
-    # email #1 uses the LLM; follow-ups use the grounded description (no LLM call)
-    assert describe_calls == [1]
+    # every line is code-templated now — no model call anywhere in the sequence
 
 
 def test_generate_sequence_no_gift(monkeypatch):

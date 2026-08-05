@@ -294,7 +294,7 @@ def test_5b_left_field_rotation():
     # explicit rotation selects the exact line AND logs its label (A-E) on the draft
     for k in range(len(LEFT_FIELD)):
         g = build_gift(P(), FakeScraper([mk("a", "funding_form_d", industry="healthcare", city="Denver", state="CO")]))
-        draft = build_email_1(g, P(), {"a": "closed a round"}, today=TODAY, rotation=k)
+        draft = build_email_1(g, P(), today=TODAY, rotation=k)
         assert LEFT_FIELD[k] in draft.body
         assert draft.left_field_variant == LEFT_FIELD_LABELS[k]
 
@@ -305,13 +305,13 @@ def test_greeting_lowercased_but_company_names_kept_cased():
     lead = mk("a", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"a": "posted a controller role"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert draft.body.startswith("hey dora,\n\n")
     assert "hey Dora," not in draft.body
     # ...but a lead company name (a proper noun, added by code) keeps its casing
     assert "Acme BioLabs, denver:" in draft.body
     # missing first name still falls back to "there"
-    assert build_email_1(g, P(first_name=None), {"a": "x"}, today=TODAY).body.startswith("hey there,")
+    assert build_email_1(g, P(first_name=None), today=TODAY).body.startswith("hey there,")
 
 
 # --------------------------------------------------------------------------
@@ -333,24 +333,19 @@ def test_5e_high_confidence_date_appended():
               evidence="Head of Finance")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"hc": "ignored"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert "is looking for a head of finance, 3 days ago" in draft.body
 
 
-def test_funding_lines_are_templated_not_llm():
-    # funding descriptions are code-templated + consistent (#10), never the LLM's
+def test_no_raise_claim_is_ever_made():
+    # The EDGAR sources that evidenced a raise were deleted, so the claim is
+    # unprovable and no pack may make it. Guard against re-adding one.
     fd = mk("fd", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
-    cf = mk("cf", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05")
-    cf.signals[0].plain_words_description = "raised via Reg CF equity crowdfunding"
     p = P()
-    gfd = build_gift(p, FakeScraper([fd]))
-    gcf = build_gift(p, FakeScraper([cf]))
-    # the LLM description is ignored for funding leads
-    dfd = build_email_1(gfd, p, {"fd": "closed a huge seed round of $9M!!!"}, today=TODAY)
-    dcf = build_email_1(gcf, p, {"cf": "whatever the model said"}, today=TODAY)
-    assert "just filed to raise, 3 days ago" in dfd.body
-    assert "$" not in dfd.body and "9M" not in dfd.body
-    assert "just raised via crowdfunding, 3 days ago" in dcf.body
+    body = build_email_1(build_gift(p, FakeScraper([fd])), p, today=TODAY).body
+    assert "filed to raise" not in body
+    assert "raised" not in body
+    assert "$" not in body
 
     # a "double" lead (a hire that ALSO filed a raise) is the highest-intent gift:
     # its PRIMARY signal is the hire (kept from the LLM description), and the raise
@@ -359,9 +354,9 @@ def test_funding_lines_are_templated_not_llm():
             industry="healthcare", city="Denver", state="CO", date="2026-07-05",
             evidence="Senior Controller")
     gds = build_gift(p, FakeScraper([ds]))
-    dds = build_email_1(gds, p, {"ds": "ignored"}, today=TODAY)
+    dds = build_email_1(gds, p, today=TODAY)
     assert "is looking for a senior controller" in dds.body  # the hire, templated
-    assert "and just filed to raise" in dds.body            # the raise, code-templated
+    assert "filed to raise" not in dds.body      # the raise is no longer claimed
     assert "$" not in dds.body
 
 
@@ -371,7 +366,7 @@ def test_5e_low_confidence_date_suppressed():
               date="2026-07-05", date_confidence="low", domain=None, evidence="Fractional CFO")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"cw": "ignored"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert "is looking for a fractional cfo" in draft.body
     for banned in ("days ago", "weeks ago", "yesterday", "today", "a week ago"):
         assert banned not in draft.body
@@ -388,18 +383,18 @@ def test_strip_dollar_amounts():
     assert strip_dollar_amounts("just raised") == ("just raised", False)
 
 
-def test_5e_dollar_amount_stripped_and_flagged():
-    # job + funding lines are templated, so the $-strip safety net + flag now run
-    # on the remaining LLM-description path (a non-job/non-funding lead, e.g. a
-    # breach): a $ figure the model slips in is removed and flagged.
+def test_breach_line_is_templated_and_carries_no_specifics():
+    # EVERY line is now code-templated, so no figure or breach detail can reach
+    # copy from source data at all — the $-strip is a dead-code safety net
+    # rather than the thing doing the work.
     lead = mk("f", "breach_disclosed", city="Denver", state="CO",
               date="2026-07-05", date_confidence="high")
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"f": "exposed records and was sued for $200k"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert "$" not in draft.body
     assert "200k" not in draft.body
-    assert any("dollar amount" in f for f in draft.flags)
+    assert "disclosed a security incident" in draft.body
 
 
 def test_job_line_strips_salary_and_metadata():
@@ -410,7 +405,7 @@ def test_job_line_strips_salary_and_metadata():
               evidence="Property Accounting Manager | Remote | $90,000/yr DOE")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"s": "ignored"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert "is looking for a property accounting manager" in draft.body
     assert "|" not in draft.body and "$" not in draft.body and "90,000" not in draft.body
 
@@ -426,7 +421,7 @@ def test_lead_description_forced_lowercase_company_kept_cased():
               evidence="VP of Finance")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"f": "ignored for job leads"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     # the role is lowercased in the voice...
     assert "is looking for a vp of finance" in draft.body
     assert "VP of Finance" not in draft.body
@@ -440,7 +435,7 @@ def test_fix_articles_in_lead_lines():
               date="2026-07-05", finance_grade="medium", evidence="Assistant Controller")
     p = P()
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"g": "ignored"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert "is looking for an assistant controller" in draft.body
 
 
@@ -448,17 +443,19 @@ def test_5e_domainless_flag():
     lead = mk("dl", "job_finance_lead", city="Denver", state="CO", domain=None, finance_grade="medium")
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"dl": "posted a controller role"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert any("domainless" in f for f in draft.flags)
 
 
-def test_5e_odd_city_funding_flag():
-    lead = mk("fc", "funding_form_d", city="Denver", state="CO")  # geo will be city
+def test_registered_address_flag_is_dead_with_funding_gone():
+    # The flag existed because a Form D city is a registered address, not HQ.
+    # No funding claim is made now, so it must not fire (and its lead should
+    # not be reachable at all once the inventory stops carrying funding).
+    lead = mk("fc", "funding_form_d", city="Denver", state="CO")
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
-    assert g.geo_level == "city"
-    draft = build_email_1(g, p, {"fc": "filed a raise"}, today=TODAY)
-    assert any("registered address" in f for f in draft.flags)
+    draft = build_email_1(g, p, today=TODAY)
+    assert not any("registered address" in f for f in draft.flags)
 
 
 # --------------------------------------------------------------------------
@@ -468,31 +465,26 @@ def test_5e_odd_city_funding_flag():
 def test_full_email_niched_example_1():
     p = P(niche_phrase="healthcare startups", first_name="dana")
     leads = [
-        mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-05", company="Acme Bio"),
-        mk("h2", "funding_form_d", industry="healthcare", city="Denver", state="CO", date="2026-07-04", company="Nimbus Rx"),
+        mk("h1", "job_junior_finance", industry="healthcare", city="Denver", state="CO", date="2026-07-05", company="Acme Bio", evidence="Bookkeeper"),
+        mk("h2", "job_junior_finance", industry="healthcare", city="Denver", state="CO", date="2026-07-04", company="Nimbus Rx", evidence="Staff Accountant"),
         mk("h3", "job_finance_lead", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    descriptions = {
-        "h1": "closed a seed round",
-        "h2": "just filed a raise",
-        "h3": "posted for a controller",
-    }
-    draft = build_email_1(g, p, descriptions, today=TODAY, rotation=0)
+    draft = build_email_1(g, p, today=TODAY, rotation=0)
 
-    assert draft.subject == "healthcare companies in denver that need finance help right now"
+    assert draft.subject == "healthcare companies in denver hiring finance leadership right now"
     assert draft.body.startswith("hey dana,\n\n")
     assert "saw on your site you work with healthcare, so i pulled 3 healthcare companies" in draft.body
-    # a finance-lead hire (rank 1) now outranks the funding leads (rank 2) in the
-    # within-level re-sort, so the hiring line is #1 and the two raises follow.
-    assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body   # hire outranks funding
-    assert "2. Acme Bio, denver: just filed to raise, 3 days ago" in draft.body        # funding templated
-    assert "3. Nimbus Rx, denver: just filed to raise, 4 days ago" in draft.body
+    # a finance-lead hire (rank 1) outranks the junior-finance leads (rank 2)
+    # in the within-level re-sort, so the finance-lead line is #1.
+    assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body
+    assert "2. Acme Bio, denver: is looking for a bookkeeper, 3 days ago" in draft.body
+    assert "3. Nimbus Rx, denver: is looking for a staff accountant, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
     assert "want me to keep an eye out for healthcare ones and send them your way?" in draft.body
     assert draft.body.endswith("best,\nishaan")
-    # funding leads in a city-claim gift raise the registered-address flag
-    assert any("registered address" in f for f in draft.flags)
+    # no funding claim means no registered-address caveat
+    assert not any("registered address" in f for f in draft.flags)
 
 
 # --------------------------------------------------------------------------
@@ -506,7 +498,7 @@ def test_full_email_generalist_example_8():
         mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, {"m1": "ignored", "m2": "ignored"}, today=TODAY, rotation=1)
+    draft = build_email_1(g, p, today=TODAY, rotation=1)
 
     assert draft.subject == "companies in miami hiring finance leadership right now"
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
@@ -523,12 +515,11 @@ def test_full_email_generalist_example_8():
 
 def test_single_lead_not_numbered():
     p = P(niche="ecommerce_retail", city="Nashville", state="TN", first_name="lee")
-    lead = mk("mem", "funding_form_d", industry="ecommerce_retail", city="Memphis", state="TN", date="2026-07-05", company="River Goods")
+    lead = mk("mem", "job_finance_lead", industry="ecommerce_retail", city="Memphis", state="TN", date="2026-07-05", company="River Goods", evidence="Controller")
     g = build_gift(p, FakeScraper([lead]))
-    draft = build_email_1(g, p, {"mem": "just filed a raise"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert g.gift_size == 1
-    assert draft.subject == "an ecommerce company in tennessee just raised"
-    assert "River Goods, memphis: just filed to raise, 3 days ago" in draft.body   # funding templated
+    assert "River Goods, memphis: is looking for a controller, 3 days ago" in draft.body
     assert "1. River Goods" not in draft.body        # single lead is not numbered
 
 
@@ -555,7 +546,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     ]
     g = build_gift(p, FakeScraper(leads))
     assert g.all_niche is True                       # gift really is on-niche...
-    draft = build_email_1(g, p, {"p1": "closed a round", "p2": "posted a controller role"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
 
     # ...but the copy is generalist, because the token has no label.
     assert draft.subject == "companies in denver that need finance help right now"
@@ -574,7 +565,7 @@ def test_cfo_wanted_gift_flags_live_check():
         mk("c2", "job_finance_lead", city="Chicago", state="IL", date="2026-07-04", company="Deep Dish Inc", finance_grade="medium"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, {"cfo": "is hiring a fractional cfo right now", "c1": "closed a round", "c2": "posted a controller role"}, today=TODAY)
+    draft = build_email_1(g, p, today=TODAY)
     assert draft.subject == "a company in chicago is hiring a fractional cfo"
     assert any("confirm it's still live" in f for f in draft.flags)
     assert any("domainless" in f for f in draft.flags)

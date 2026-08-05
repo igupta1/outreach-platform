@@ -311,3 +311,38 @@ def test_no_source_configured_raises(monkeypatch):
     monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
     with pytest.raises(RuntimeError):
         snapshot_for_niche("cfo", today=TODAY)
+
+
+# --- Job-posting age cap ---------------------------------------------------
+
+
+def _job_row(days_old: int) -> dict:
+    d = (date(2026, 8, 4) - timedelta(days=days_old)).isoformat()
+    return {
+        "id": f"j{days_old}", "name": f"Co{days_old}", "domain": "c.com",
+        "signal_type": "job_finance_lead", "niche": "dental",
+        "signals": [{"type": "job_finance_lead", "event_date": f"{d}T00:00:00",
+                     "evidence_text": "Controller", "source_url": "https://j/1"}],
+    }
+
+
+def test_expired_job_leads_never_enter_the_pool():
+    # "is looking for a controller" must not outlive the posting.
+    rows = [_job_row(3), _job_row(20), _job_row(22), _job_row(59)]
+    leads = inv._adapt_rows(rows, today=date(2026, 8, 4))
+    assert [lead.id for lead in leads] == ["j3", "j20"]
+
+
+def test_undated_job_lead_is_dropped():
+    row = _job_row(1)
+    row["signals"][0]["event_date"] = None
+    assert inv._adapt_rows([row], today=date(2026, 8, 4)) == []
+
+
+def test_age_cap_does_not_touch_breach_leads():
+    # A breach is an event that stays true; only the hiring claim decays.
+    row = _job_row(90)
+    row["signal_type"] = "breach_disclosed"
+    row["signals"][0]["type"] = "breach_disclosed"
+    leads = inv._adapt_rows([row], today=date(2026, 8, 4))
+    assert len(leads) == 1

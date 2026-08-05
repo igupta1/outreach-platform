@@ -1,5 +1,6 @@
-"""Step 5 — Email #1. Everything structural is deterministic code; the LLM
-fills ONLY the freeform per-lead descriptions (passed in as `descriptions`).
+"""Step 5 — Email #1. EVERY part is deterministic code, including each
+per-lead line (hiring, breach, funding are all templated). No model writes
+any part of a sent email.
 
 5a framing table, 5b left-field rotation, 5c CTA table, 5d template fill,
 5e honesty enforcement (dates, dollar amounts, flags).
@@ -204,22 +205,49 @@ def job_phrase(lead: Lead) -> str:
     return fix_articles(f"is looking for a {role}")
 
 
+def is_breach(lead: Lead) -> bool:
+    return (lead.signal_type or "") == "breach_disclosed"
+
+
+def breach_phrase(lead: Lead) -> str:
+    """Deterministic line for a breach lead: `disclosed a security incident`.
+
+    Templated for the same reason hiring and funding are: the disclosure is a
+    matter of public record, and code cannot embellish it. Deliberately SOFT
+    and specific-free — the MSSP pack's own operator flag says to keep it that
+    way, and the underlying record ("... reported a data breach (07/24/2026,
+    California AG)") carries details this line must not repeat."""
+    return "disclosed a security incident"
+
+
+def _grounded_line(lead: Lead) -> str:
+    """Fallback for a signal type with no template of its own: the lead's own
+    verbatim evidence, never a model's paraphrase. Reached only if a new signal
+    type is added without a phrase — an honest degradation, not a normal path."""
+    return next(
+        (s.plain_words_description for s in lead.signals if s.plain_words_description),
+        "",
+    )
+
+
 def _lead_line(
-    lead: Lead, description: str, today: date, geo_level: str, *, pack,
+    lead: Lead, today: date, geo_level: str, *, pack,
     with_date: bool = True,
 ) -> tuple[str, list[str]]:
     flags: list[str] = []
 
     if pack.funding_phrase is not None and is_raise(lead, pack.raise_signals):
         text = pack.funding_phrase(lead)                 # #10: ALL raises templated
+    elif is_breach(lead):
+        text = breach_phrase(lead)
     else:
         if is_job_posting(lead):
-            # Templated hiring line — never the LLM clause (which said "hired") nor
-            # the raw "title | location | salary" evidence (goofy in copy).
+            # Templated hiring line — never the raw "title | location | salary"
+            # evidence (goofy in copy).
             text = job_phrase(lead)
         else:
-            text = (description or "").strip().lower()
-            text, stripped = strip_dollar_amounts(text)  # safety net on any LLM $ figure
+            text = _grounded_line(lead).strip().lower()
+            text, stripped = strip_dollar_amounts(text)  # safety net on any $ figure
             text = fix_articles(text)                    # #11: a/an correction
             if stripped:
                 flags.append(
@@ -252,16 +280,15 @@ def _lead_line(
 def build_email_1(
     gift: Gift,
     prospect: Prospect,
-    descriptions: dict[str, str],
     *,
     today: date,
     rotation: int | None = None,
     pack=None,
     include_signoff: bool = True,
 ) -> EmailDraft:
-    """Render Email #1. `descriptions` maps lead id -> the LLM's freeform
-    'what they did, plain words' (no dates, no dollar amounts). The scaffolding
-    is niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
+    """Render Email #1. EVERY lead line is code-templated (hiring, breach,
+    funding) — no model writes any part of a sent email. The scaffolding is
+    niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
     voice and the raise/priority-signal knobs.
 
     `include_signoff=False` (the platform send path, B4a) omits the trailing
@@ -274,7 +301,7 @@ def build_email_1(
     lines: list[str] = []
     numbered = gift.gift_size >= 2                     # 5d: 1 lead folds in, no numbers
     for i, lead in enumerate(gift.leads):
-        line, lf = _lead_line(lead, descriptions.get(lead.id, ""), today, gift.geo_level, pack=pack)
+        line, lf = _lead_line(lead, today, gift.geo_level, pack=pack)
         flags.extend(lf)
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
@@ -329,7 +356,6 @@ def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
 def build_followup_email(
     lead: Lead | None,
     prospect: Prospect,
-    description: str,
     *,
     step: int,
     today: date,
@@ -354,7 +380,7 @@ def build_followup_email(
     final = step == 3
 
     if lead is not None:
-        line, lf = _lead_line(lead, description, today, "none", pack=pack, with_date=False)
+        line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
         opener = "last one from me." if final else f"found one more {qual}showing the same signal:"

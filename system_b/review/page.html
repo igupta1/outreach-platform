@@ -89,6 +89,7 @@ function autosize(ta) {
   ta.style.height = "auto";
   ta.style.height = (ta.scrollHeight + 2) + "px";
 }
+function autosizeAll() { document.querySelectorAll("textarea.f").forEach(autosize); }
 
 function fieldsBlock(p, idx) {
   const wrap = el("div", {class:"fields"});
@@ -208,8 +209,14 @@ function render() {
 
   const main = document.getElementById("rows");
   (REVIEW.prospects||[]).forEach((p,i) => main.append(card(p,i)));
-  document.querySelectorAll("textarea.f").forEach(autosize);
+  autosizeAll();
 }
+
+// Text wraps to more lines when the window narrows (or on zoom / font load), so
+// re-fit every box to its content on those events — otherwise a box sized at
+// load stays too short and clips its copy behind an internal scroll.
+window.addEventListener("resize", () => requestAnimationFrame(autosizeAll));
+window.addEventListener("load", autosizeAll);
 
 function csvCell(v) {
   v = v == null ? "" : String(v);

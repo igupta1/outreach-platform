@@ -18,7 +18,7 @@ of leadgen inventory rows onto the outreach `Lead` lives in `clients/inventory.p
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, _funding_phrase, framing_line
+from system_b.copy.email import _cta, framing_line
 from system_b.copy.subject import build_who_what
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -225,13 +225,13 @@ CLOUD_PACK = NichePack(
     followup_signal="a cloud-need signal",
     signal_rank={"job_cloud_devops": 0, "funding_form_d": 1},
     priority_signal=None,
-    raise_signals=frozenset({"funding_form_d"}),   # a raise line is templated (no $)
+    raise_signals=frozenset(),   # EDGAR sources deleted — no raise claim is provable
     what_category=_cloud_what_category,
     subject=_cloud_subject,
     framing=_cloud_framing,
     cta=_cta,
     left_field=CLOUD_LEFT_FIELD,
     left_field_labels=_LEFT_FIELD_LABELS,
-    funding_phrase=_funding_phrase,
+    funding_phrase=None,
     priority_flag=None,
 )

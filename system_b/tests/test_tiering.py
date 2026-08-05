@@ -72,8 +72,7 @@ def _research(match_params, *, exclusivity, phrases=None, niche_phrase="stated t
 
 
 def _body(prospect, gift):
-    desc = {lead.id: "did a thing" for lead in gift.leads}
-    return build_email_1(gift, prospect, desc, today=TODAY).body
+    return build_email_1(gift, prospect, today=TODAY).body
 
 
 # --------------------------------------------------------------------------
@@ -289,7 +288,7 @@ def test_raw_phrase_blob_never_leaks_into_copy():
         mk("r2", "job_finance_lead", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
-    draft = build_email_1(gift, prospect, {lead.id: "did a thing" for lead in gift.leads}, today=TODAY)
+    draft = build_email_1(gift, prospect, today=TODAY)
     blob = (draft.subject + "\n" + draft.body).lower()
     for leak in ("who we serve", "designed for", "nonprofit"):
         assert leak not in blob

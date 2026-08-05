@@ -2,7 +2,7 @@
 
 Every niche runs the SAME pipeline: research the prospect's site → classify the
 served vertical (verbatim, Gate A) → `resolve_gift` (Gate B) or a generalist geo
-gift → LLM per-lead descriptions → the FULL 3-email sequence. No state, no
+gift → code-templated per-lead lines → the FULL 3-email sequence. No state, no
 Airtable — `generate_sequence` returns the sequence as a plain dict for the CSV
 writer. Emails #2/#3 each gift one more fresh lead (excluding leads already used)
 and carry NO recency date (Option A): they send days later, so a baked-in
@@ -15,7 +15,6 @@ from datetime import date
 from typing import Any
 
 from system_b.copy.email import build_email_1, build_followup_email
-from system_b.copy.llm import describe_leads, grounded_description
 from system_b.gift.engine import build_gift
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
@@ -46,15 +45,12 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
         if g is None:
             g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
         lead = g.leads[0] if g else None
-        description = ""
         if lead is not None:
-            # follow-ups use the lead's grounded description — no per-lead LLM call.
-            description = grounded_description(lead)
             used.append(lead.id)
             extra_ids.append(lead.id)
         leads.append(lead)
         drafts.append(build_followup_email(
-            lead, prospect, description, step=step, today=today, pack=pack,
+            lead, prospect, step=step, today=today, pack=pack,
             include_signoff=False,
         ))
     return drafts, extra_ids, leads
@@ -80,9 +76,8 @@ def generate_sequence(
     prospect, gift = resolve_gift(research, row, sc, pack=pack)
     if gift is None:
         return {"firm": row.get("firm_name"), "status": "no_gift"}
-    descriptions = describe_leads(gift, prospect, pack=pack)
     email1 = build_email_1(
-        gift, prospect, descriptions, today=today, pack=pack, include_signoff=False
+        gift, prospect, today=today, pack=pack, include_signoff=False
     )
     followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today)
     return {
@@ -99,6 +94,6 @@ def generate_sequence(
         # Full evidence + copy for the review gate (run.py dumps this to the
         # companion review JSON; the CSV writer ignores it).
         "review": build_review(
-            prospect, gift, research, email1, followups, descriptions, followup_leads, row
+            prospect, gift, research, email1, followups, followup_leads, row
         ),
     }

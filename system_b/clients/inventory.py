@@ -233,8 +233,30 @@ def load_taxonomy() -> dict[str, list[str]]:
     return {}
 
 
+def _is_expired_job_lead(lead: Lead, today: date) -> bool:
+    """True for a job-posting lead whose posting is old enough that "is looking
+    for a {role}" can no longer be trusted. Non-job signals (a breach) describe
+    an event that stays true, so the cap does not apply to them."""
+    if not (lead.signal_type or "").startswith("job_"):
+        return False
+    dates = [s.date for s in lead.signals if s.date]
+    if not dates:
+        return True          # undated job posting: cannot show it is still open
+    try:
+        newest = max(date.fromisoformat(str(d)[:10]) for d in dates)
+    except ValueError:
+        return True
+    return (today - newest).days > config.MAX_JOB_LEAD_AGE_DAYS
+
+
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
-    return [adapt_leadgen_lead(row, today=today) for row in rows]
+    leads = [adapt_leadgen_lead(row, today=today) for row in rows]
+    kept = [lead for lead in leads if not _is_expired_job_lead(lead, today)]
+    dropped = len(leads) - len(kept)
+    if dropped:
+        log.info("inventory: dropped %d job lead(s) older than %d days",
+                 dropped, config.MAX_JOB_LEAD_AGE_DAYS)
+    return kept
 
 
 def snapshot_for_niche(

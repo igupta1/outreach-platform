@@ -82,7 +82,7 @@ def _built():
     fu3 = EmailDraft(subject="", body="last one from me.")
     row = {"email": "dana@beacon.com", "first_name": "dana", "linkedin": "https://li/dana"}
     return build_review(prospect, gift, research, email1, [fu2, fu3],
-                        {"a": "hired a controller"}, [lead_b, None], row)
+                        [lead_b, None], row)
 
 
 def test_review_identity_and_copy():
@@ -138,7 +138,7 @@ def test_review_generalist_has_no_niche():
                 geo_level="city", subject_shape="singular", what_category="hiring",
                 best_lead_level=1)
     email1 = EmailDraft(subject="s", body="b")
-    p = build_review(prospect, gift, None, email1, [], {}, [], {"email": "s@x.com"})
+    p = build_review(prospect, gift, None, email1, [], [], {"email": "s@x.com"})
     assert p["classification"] == "generalist"
     assert p["niche"] is None
     assert p["match_param"] is None
@@ -172,7 +172,6 @@ def test_generate_sequence_includes_review(monkeypatch):
 
     monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: None)
     monkeypatch.setattr(gen, "resolve_gift", lambda research, row, sc, pack=None: (prospect, gift))
-    monkeypatch.setattr(gen, "describe_leads", lambda g, p, **kw: {ld.id: "did a thing" for ld in g.leads})
     monkeypatch.setattr(gen, "build_gift", fake_build_gift)
 
     row = {"firm_name": "Acme", "website": "http://a.com", "email": "d@acme.com",

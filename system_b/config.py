@@ -31,6 +31,13 @@ SCRAPER_BASE_URL = os.environ.get(
 # --- Constants ---
 SCRAPER_CACHE_TTL_S = 120        # ~2 min per-response cache in the scraper client
 FRESH_WINDOW_DAYS = 30           # a signal newer than this reads as "fresh"
+# Hard ceiling on a JOB-posting lead entering a gift. The copy says a company
+# "is looking for a controller" — present tense — and a posting that closed
+# makes that false, with no way for the recipient to tell we were ever right.
+# Job boards expire most postings around 30 days, so 21 keeps the claim inside
+# the window where it is still very likely open. Applies to both gift rounds
+# (fresh AND the stale fallback), so nothing routes around it.
+MAX_JOB_LEAD_AGE_DAYS = 21
 
 
 def require(*names: str) -> None:

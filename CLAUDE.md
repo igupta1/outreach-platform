@@ -62,9 +62,13 @@ it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
   `LEADGEN_INVENTORY_DIR` → local JSON (offline). A freshness guard refuses
   inventory older than `LEADGEN_MAX_INVENTORY_AGE_DAYS` (default 3) unless
   `LEADGEN_ALLOW_STALE=1`, so a broken daily refresh can't ship stale gifts.
-- Conventions: everything structural is deterministic code; the LLM only
-  proposes (site classification, lead-fit check, per-lead descriptions) and code
-  re-verifies. Honesty is enforced in code, never left to the model.
+- Conventions: ALL copy is deterministic code. Every lead line is templated
+  (hiring, breach), so no model writes any part of a sent email — `copy/llm.py`
+  was deleted (2026-08-04). The LLM only proposes site classification and the
+  lead-fit check, and code re-verifies. Honesty is enforced in code.
+- A job lead older than `config.MAX_JOB_LEAD_AGE_DAYS` (21) never enters a
+  gift: the copy says a company "is looking for" a role in the present tense,
+  and a closed posting makes that false with no way for the recipient to tell.
 
 ## Honesty invariants (do not weaken without explicit instruction)
 
@@ -93,5 +97,8 @@ it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
   or a hosted service.)
 - Re-adding an insurance/trucking/pc niche, an `exec_hired` signal, or the old
   `cfo_wanted`/`funding_only`/`hiring_only` collapsed signal vocabulary.
+- Re-adding a raise/funding claim (`funding_phrase`, `raise_signals`) — the
+  EDGAR sources that evidenced it were deleted, so the claim is unprovable.
+- Letting a model write any part of a lead line.
 - Wholesale-destructive ops (`rm -rf` of dirs, `git reset --hard`, force push,
   dropping/truncating data, mass file deletes). Single-file deletes are fine.

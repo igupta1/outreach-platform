@@ -51,6 +51,16 @@ def _signal_evidence(lead: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _grounded(lead: Any) -> str:
+    """The lead's own verbatim evidence line — what the templated copy is built
+    from. Shown on the review card so the operator checks the source, not a
+    paraphrase of it."""
+    return next(
+        (s.plain_words_description for s in lead.signals if s.plain_words_description),
+        "",
+    )
+
+
 def _lead_entry(
     lead: Any, prospect: Prospect, best_id: str | None, *,
     used_in: str, description: str,
@@ -86,15 +96,14 @@ def build_review(
     research: Any,
     email1: Any,
     followups: list[Any],
-    descriptions: dict[str, str],
     followup_leads: list[Any],
     row: dict[str, Any],
 ) -> dict[str, Any]:
     """One prospect's review card as a plain dict.
 
-    `descriptions` is the email-1 per-lead line map (lead id -> text); each
-    follow-up lead uses its own grounded plain-words line. `followup_leads` is
-    aligned to steps 2 and 3 (either entry may be None when the well ran dry).
+    Every lead shows its own grounded plain-words line — the same evidence the
+    templated copy is built from. `followup_leads` is aligned to steps 2 and 3
+    (either entry may be None when the well ran dry).
     """
     mp = prospect.match_param
     niche = niche_display(mp) if mp else None
@@ -121,7 +130,7 @@ def build_review(
     leads = [
         _lead_entry(
             lead, prospect, gift.best_lead.id,
-            used_in="email 1", description=descriptions.get(lead.id, ""),
+            used_in="email 1", description=_grounded(lead),
         )
         for lead in gift.leads
     ]

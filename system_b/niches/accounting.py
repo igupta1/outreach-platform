@@ -16,7 +16,7 @@ inventory rows onto the outreach `Lead` lives in `clients/inventory.py`.
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, _funding_phrase, framing_line
+from system_b.copy.email import _cta, framing_line
 from system_b.copy.subject import build_who_what
 from system_b.gift.engine import _cfo_what_category
 from system_b.gift.models import Gift, Prospect
@@ -96,13 +96,13 @@ ACCOUNTING_PACK = NichePack(
         "funding_form_c": 1,
     },
     priority_signal=None,
-    raise_signals=frozenset({"funding_form_d", "funding_form_c"}),
+    raise_signals=frozenset(),   # EDGAR sources deleted — no raise claim is provable
     what_category=_cfo_what_category,     # pure signal logic (raised/hiring/mixed)
     subject=_accounting_subject,
     framing=_accounting_framing,
     cta=_cta,                            # vertical-aware, geo fallback (shared)
     left_field=ACCOUNTING_LEFT_FIELD,
     left_field_labels=ACCOUNTING_LEFT_FIELD_LABELS,
-    funding_phrase=_funding_phrase,      # raises are templated, never a $ figure
+    funding_phrase=None,
     priority_flag=None,
 )

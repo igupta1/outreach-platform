@@ -263,7 +263,7 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
     leads = [mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO",
                 date="2026-07-05", company="Acme Bio")]
     gift = build_gift(prospect, FakeScraper(leads))
-    draft = build_email_1(gift, prospect, {"h1": "closed a round"}, today=TODAY)
+    draft = build_email_1(gift, prospect, today=TODAY)
 
     # framing uses the clean mapped niche word, not the raw phrase (#7)...
     assert "you work with healthcare" in draft.body
