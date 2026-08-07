@@ -18,7 +18,6 @@ from typing import Any
 
 from system_b.copy.email import is_job_posting, job_phrase
 from system_b.copy.lex import niche_display
-from system_b.gift.engine import compute_match_level
 from system_b.gift.models import Gift, Prospect
 
 _HOW_WE_KNOW = {
@@ -38,19 +37,6 @@ def _dedupe(items: list[str]) -> list[str]:
     return out
 
 
-def _signal_evidence(lead: Any) -> list[dict[str, Any]]:
-    """Every signal on the lead, as evidence rows (the verbatim line + link)."""
-    return [
-        {
-            "type": s.type,
-            "date": s.date,
-            "evidence_text": s.plain_words_description,
-            "source_url": s.source_url,
-        }
-        for s in lead.signals
-    ]
-
-
 def _grounded(lead: Any) -> str:
     """The lead's own verbatim evidence line — what the templated copy is built
     from. Shown on the review card so the operator checks the source, not a
@@ -61,33 +47,29 @@ def _grounded(lead: Any) -> str:
     )
 
 
-def _lead_entry(
-    lead: Any, prospect: Prospect, best_id: str | None, *,
-    used_in: str, description: str,
-) -> dict[str, Any]:
-    # Show the SAME line the email uses for a job posting (deterministic "is
-    # looking for a {role}"), not the raw LLM clause — so the review never
-    # contradicts the sent copy.
-    if is_job_posting(lead):
-        description = job_phrase(lead)
+def _lead_entry(lead: Any) -> dict[str, Any]:
+    """One evidence row: everything needed to CHECK the claim, nothing else.
+
+    Reviewing asks one question — is this safe to send? — so this carries only
+    what answers it: who the company is, what the copy claims about them, when
+    it happened, and the link that proves it. The engine internals that used to
+    ride along (match_level, freshness, date_confidence, best, used_in,
+    domainless, value_prop) never changed a reviewer's decision, and
+    `description` duplicated the copy verbatim two inches further down."""
     return {
         "company": lead.company,
-        "used_in": used_in,
-        "best": best_id is not None and lead.id == best_id,
-        "signal_type": lead.signal_type,
-        "match_level": compute_match_level(lead, prospect),
-        "freshness": lead.freshness,
-        "date": lead.newest_date or None,
-        "date_confidence": lead.effective_date_confidence,
-        "domain": lead.domain,
-        "domainless": lead.domain is None,
-        "city": lead.city,
-        "state": lead.state,
-        "value_prop": lead.value_prop,
-        "description": (description or "").strip(),   # the plain-words line used in the copy
-        "source_url": lead.primary_source_url,         # headline evidence link
-        "signals": _signal_evidence(lead),             # all evidence rows
+        "role": _role(lead),
+        "date": (lead.newest_date or "")[:10] or None,
+        "source_url": lead.primary_source_url,
     }
+
+
+def _role(lead: Any) -> str:
+    """What the copy claims, in the copy's own words — so the review can never
+    contradict the sent email."""
+    if is_job_posting(lead):
+        return job_phrase(lead)
+    return _grounded(lead).strip()
 
 
 def build_review(
@@ -127,22 +109,10 @@ def build_review(
         + [f for d in followups for f in (getattr(d, "flags", None) or [])]
     )
 
-    leads = [
-        _lead_entry(
-            lead, prospect, gift.best_lead.id,
-            used_in="email 1", description=_grounded(lead),
-        )
-        for lead in gift.leads
-    ]
-    for step, lead in zip((2, 3), followup_leads):
+    leads = [_lead_entry(lead) for lead in gift.leads]
+    for lead in followup_leads:
         if lead is not None:
-            desc = next(
-                (s.plain_words_description for s in lead.signals if s.plain_words_description),
-                "",
-            )
-            leads.append(
-                _lead_entry(lead, prospect, None, used_in=f"email {step}", description=desc)
-            )
+            leads.append(_lead_entry(lead))
 
     return {
         # identity (drives the header + the exported CSV)

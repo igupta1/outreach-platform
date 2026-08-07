@@ -557,7 +557,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     assert_no_niche_claim(draft.subject + "\n" + draft.body)
 
 
-def test_cfo_wanted_gift_flags_live_check():
+def test_cfo_gift_no_longer_flags_every_card():
     p = P(niched=False, city="Chicago", state="IL", first_name="ray")
     leads = [
         mk("cfo", "job_fractional_cfo", city="Chicago", state="IL", date="2026-06-20", date_confidence="low", domain=None, company="Loop Labs"),
@@ -567,5 +567,8 @@ def test_cfo_wanted_gift_flags_live_check():
     g = build_gift(p, FakeScraper(leads))
     draft = build_email_1(g, p, today=TODAY)
     assert draft.subject == "a company in chicago is hiring a fractional cfo"
-    assert any("confirm it's still live" in f for f in draft.flags)
+    # The blanket "confirm it's still live" flag is retired: it fired on 21 of
+    # 23 real prospects and buried the flags that needed a decision. The
+    # MAX_JOB_LEAD_AGE_DAYS cap enforces posting freshness in code instead.
+    assert not any("confirm it's still live" in f for f in draft.flags)
     assert any("domainless" in f for f in draft.flags)

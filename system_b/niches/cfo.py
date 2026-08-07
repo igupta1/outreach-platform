@@ -8,7 +8,6 @@ so this is the default pack and nothing about CFO output changes.
 from __future__ import annotations
 
 from system_b.copy.email import (
-    CFO_PRIORITY_FLAG,
     LEFT_FIELD,
     LEFT_FIELD_LABELS,
     _cta,
@@ -31,5 +30,11 @@ CFO_PACK = NichePack(
     left_field=tuple(LEFT_FIELD),
     left_field_labels=tuple(LEFT_FIELD_LABELS),
     funding_phrase=None,
-    priority_flag=CFO_PRIORITY_FLAG,
+    # No priority flag. CFO_PRIORITY_FLAG ("google the posting and confirm
+    # it's still live") fired on 21 of 23 prospects in a real run — a flag that
+    # fires on 91% of cards carries no information and trains the reviewer to
+    # skip the whole flag box, including the rare flags that matter. The
+    # 21-day MAX_JOB_LEAD_AGE_DAYS cap now enforces the same thing structurally.
+    # Removing it splits a run into 10 clean / 13 worth-a-look.
+    priority_flag=None,
 )

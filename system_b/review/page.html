@@ -26,6 +26,9 @@
   .ev li { margin:3px 0; }
   .ev .k { display:inline-block; min-width:52px; color:var(--muted); }
   .quote { color:#374151; }
+  .tscroll { overflow-x:auto; max-width:100%; }
+  details > summary { cursor:pointer; color:#555; font-size:13px; user-select:none; }
+  details[open] > summary { margin-bottom:6px; }
   .flags { background:var(--flag); border:1px solid var(--flagbd); border-radius:8px; padding:8px 12px; font-size:13px; }
   .flags ul { margin:4px 0 0; padding-left:18px; }
   table { width:100%; border-collapse:collapse; font-size:12.5px; }
@@ -145,29 +148,36 @@ function flagsBlock(p) {
     el("b", {}, text("⚠ " + p.flags.length + " flag" + (p.flags.length>1?"s":"") + " to check")), ul);
 }
 
+// Evidence: company (linked to the posting), what the copy claims, and when.
+// Four columns, so it fits without clipping; wrapped in a scroll container so a
+// long role name scrolls rather than being cut mid-word.
 function leadsTable(p) {
   if (!p.leads || !p.leads.length) return null;
-  const head = el("tr", {},
-    ...["in","company","signal","match","when","evidence","links"].map(h => el("th",{},text(h))));
-  const rows = [head];
+  const rows = [el("tr", {},
+    ...["company","claim","when","verify"].map(h => el("th",{},text(h))))];
   for (const L of p.leads) {
-    const when = [L.freshness, L.date].filter(Boolean).join(" · ");
-    const links = el("td");
-    links.append(link(L.domain ? ("http://"+L.domain) : null, L.domain || (L.domainless ? "" : "—")));
-    if (L.domainless) links.append(el("span", {class:"warn"}, text("no domain")));
-    if (L.source_url) { links.append(text("  ")); links.append(link(L.source_url, "signal")); }
-    const evid = [L.description || L.value_prop, ...(L.signals||[]).map(s=>s.evidence_text)]
-      .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(" — ");
-    rows.push(el("tr", {class: L.best ? "best" : ""},
-      el("td", {}, el("span", {class:"pill"}, text(L.used_in.replace("email ","#")))),
-      el("td", {}, text(L.company + (L.best ? "  ★" : ""))),
-      el("td", {}, text(L.signal_type || "—")),
-      el("td", {}, text(L.match_level == null ? "—" : ("L" + L.match_level))),
-      el("td", {}, text(when || "—")),
-      el("td", {}, text(evid || "—")),
-      links));
+    const co = L.source_url
+      ? link(L.source_url, L.company)          // one click to the posting
+      : text(L.company);
+    rows.push(el("tr", {},
+      el("td", {}, co),
+      el("td", {}, text(L.role || "—")),
+      el("td", {}, text(L.date || "—")),
+      el("td", {}, L.source_url ? link(L.source_url, "source") : text("—"))));
   }
-  const t = el("table"); rows.forEach(r => t.append(r)); return t;
+  const t = el("table"); rows.forEach(r => t.append(r));
+  return el("div", {class:"tscroll"}, t);
+}
+
+// Collapsed by default: the copy is what gets read on every card, the evidence
+// is what gets opened when a flag or a line prompts a check.
+function evidenceBlock(p) {
+  const t = leadsTable(p);
+  if (!t) return null;
+  const d = el("details");
+  d.append(el("summary", {}, text("evidence (" + p.leads.length + " leads)")));
+  d.append(t);
+  return d;
 }
 
 function card(p, idx) {
@@ -179,20 +189,24 @@ function card(p, idx) {
     el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  ")))));
 
   const sec = (label, node) => node ? el("div", {class:"sec"}, el("div",{class:"lbl"},text(label)), node) : null;
+  // Flags first (they are the only thing that stops a send), then the copy in
+  // full — every prospect's copy is read, so it is never collapsed — then the
+  // evidence, one click away.
   [
+    flagsBlock(p) ? el("div",{class:"sec"}, flagsBlock(p)) : null,
+    sec("copy", fieldsBlock(p, idx)),
+    sec("evidence", evidenceBlock(p)),
     sec("who they serve", nicheLine(p)),
     sec("niche evidence", evidenceList(p)),
-    flagsBlock(p) ? el("div",{class:"sec"}, flagsBlock(p)) : null,
-    sec("gift leads (the other evidence)", leadsTable(p)),
-    sec("copy", fieldsBlock(p, idx)),
   ].forEach(s => { if (s) c.append(s); });
   return c;
 }
 
 function render() {
   const n = REVIEW.valid_count ?? (REVIEW.prospects||[]).length;
+  const flagged = (REVIEW.prospects||[]).filter(p => (p.flags||[]).length).length;
   document.getElementById("count").textContent =
-    n + " valid prospect" + (n===1?"":"s") + " ready to email";
+    n + " prospect" + (n===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged + " flagged";
   document.getElementById("meta").textContent =
     "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
   document.getElementById("foot").textContent =

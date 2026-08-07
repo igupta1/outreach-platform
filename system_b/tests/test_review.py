@@ -114,21 +114,19 @@ def test_review_flags_merged_and_deduped():
     assert p["flags"].count("domainless lead (Beta Dental) — google the name") == 1
 
 
-def test_review_leads_include_source_url_and_followups():
+def test_review_lead_carries_only_what_verifies_the_claim():
+    # Four fields, nothing else: who, what the copy claims, when, and the link.
+    # The engine internals that used to ride along never changed a decision.
     p = _built()
-    assert [ld["used_in"] for ld in p["leads"]] == ["email 1", "email 2"]
+    assert len(p["leads"]) == 2
     a = p["leads"][0]
-    assert a["best"] is True
+    assert set(a) == {"company", "role", "date", "source_url"}
+    assert a["company"] == "Acme Dental Group"
+    # the review shows the SAME templated line the email sends
+    assert a["role"] == "is looking for a controller"
+    assert a["date"] == "2026-07-01"
     assert a["source_url"] == "https://jobs/acme"
-    assert a["match_level"] == 1               # niche + city (both Denver/CO) -> level 1
-    # job lead: review shows the SAME templated hiring line the email uses,
-    # not the raw LLM clause (which the descriptions dict passed as "hired a...").
-    assert a["description"] == "is looking for a controller"
-    assert a["signals"][0]["source_url"] == "https://jobs/acme"
-    b = p["leads"][1]
-    assert b["used_in"] == "email 2"
-    assert b["domainless"] is True
-    assert b["source_url"] == "https://jobs/beta"
+    assert p["leads"][1]["source_url"] == "https://jobs/beta"
 
 
 def test_review_generalist_has_no_niche():
@@ -184,7 +182,7 @@ def test_generate_sequence_includes_review(monkeypatch):
     assert review["email"] == "d@acme.com"
     assert review["subject"] == res["subject"]
     assert review["email_1"] == res["email_1"]
-    assert [ld["used_in"] for ld in review["leads"]] == ["email 1", "email 2"]
+    assert [ld["company"] for ld in review["leads"]] == ["l1", "l2"]
 
 
 # --------------------------------------------------------------------------
@@ -207,4 +205,4 @@ def test_serve_renders_and_injects(tmp_path):
     html = serve.render(path).decode("utf-8")
     assert "__REVIEW_DATA__" not in html          # placeholder was replaced
     assert "Beacon" in html                        # prospect data is embedded
-    assert "valid prospect" in html                # page shell present
+    assert "prospect" in html                      # page shell present

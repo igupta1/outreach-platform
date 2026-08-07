@@ -21,8 +21,10 @@ from system_b.models import Lead
 from system_b.niches.base import default_pack
 from system_b.niches.text import noun
 
-# 5e flag emitted when a priority-signal (job_fractional_cfo) lead is in the gift
-# — the CFO pack's `priority_flag`.
+# Retired 2026-08-04: this fired on 21 of 23 prospects, so it drowned the flags
+# that actually needed a decision. `config.MAX_JOB_LEAD_AGE_DAYS` now bounds
+# posting staleness in code instead. Kept as a named constant only so a pack
+# that wants an explicit "check this one" flag has a template to copy.
 CFO_PRIORITY_FLAG = (
     "job_fractional_cfo / low-confidence lead present — google the posting and "
     "confirm it's still live before sending (no date in copy)"
