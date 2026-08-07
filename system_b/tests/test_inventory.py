@@ -346,3 +346,123 @@ def test_age_cap_does_not_touch_breach_leads():
     row["signals"][0]["type"] = "breach_disclosed"
     leads = inv._adapt_rows([row], today=date(2026, 8, 4))
     assert len(leads) == 1
+
+
+# --- Layer 1: the unusable-lead gate ---------------------------------------
+
+from system_b.clients.inventory import (  # noqa: E402
+    _adapt_rows,
+    _foreign_hirer,
+    _has_id_suffix,
+    _unusable_reason,
+)
+
+
+def _gate_row(**over):
+    row = {
+        "id": 1,
+        "name": "Acme Paving",
+        "domain": "acmepaving.com",
+        "insight": "Acme Paving builds roads.",
+        "signal_type": "job_finance_lead",
+        "city": "Austin",
+        "state": "TX",
+        "signals": [{
+            "type": "job_finance_lead",
+            "event_date": "2026-08-01T00:00:00",
+            "evidence_text": "Controller",
+            "source_url": "https://example.com/j/1",
+            "payload": {},
+        }],
+    }
+    row.update(over)
+    return row
+
+
+def test_id_suffix_catches_the_hash_artifact():
+    # The shape the fractional board actually produces.
+    assert _has_id_suffix("Lifesitenews 07Cfc")
+    assert _has_id_suffix("Lifesitenews Bef8C")
+    assert _has_id_suffix("Plutus Health Ddb8F")
+
+
+def test_id_suffix_leaves_real_brands_alone():
+    # Every one of these is a real company in the live store. A rule that eats
+    # them costs more than the artifacts it removes.
+    for name in (
+        "Love146", "Horizon3", "Imagine360", "4AIR", "JB3D", "Incodema3D",
+        "Delta360", "93Energy", "TRL11", "PM2CM", "Live4Lali", "hello82",
+        "SunEnergy1LLC", "Wavepoint3pl", "Enrollment123", "Transform9",
+        "F3EA Inc", "3Dt Holdings", "Studio 54", "Area 51", "Sector 9",
+        "Big Ten", "Deca Dence",     # letters-only trailing token, hex or not
+    ):
+        assert not _has_id_suffix(name), name
+
+
+def test_domainless_lead_is_kept_not_dropped():
+    """`gift.engine.sort_key` ranks a domainless lead below every resolvable
+    company. Dropping it here would make that tiebreak dead code and cost real
+    leads for a case the ranking already handles."""
+    row = _gate_row(domain=None)
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def test_clean_lead_survives():
+    row = _gate_row()
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def _gate_lead(row):
+    from datetime import date as _d
+    from system_b.clients.inventory import adapt_leadgen_lead
+    return adapt_leadgen_lead(row, today=_d(2026, 8, 5))
+
+
+def test_recruiter_posting_naming_another_company_is_dropped():
+    # The real case: the lead is the recruiter, the body names the actual hirer.
+    row = _gate_row(name="InforCapital, partnership", domain="inforcapital.com")
+    row["signals"][0]["payload"] = {
+        "description": "Amphora Equity Partners is looking for a Vice President "
+                       "of Finance to lead financial operations."
+    }
+    reason = _unusable_reason(row, _gate_lead(row))
+    assert reason is not None and "Amphora" in reason
+
+
+def test_posting_naming_the_same_company_is_kept():
+    # Same company, phrased differently — token overlap must save it.
+    row = _gate_row(name="Shipium", domain="shipium.com")
+    row["signals"][0]["payload"] = {
+        "description": "About the role Shipium is looking for a Controller."
+    }
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def test_generic_opener_is_not_a_foreign_hirer():
+    for opener in (
+        "Our company is looking for a Controller.",
+        "The company is seeking a Director of Finance.",
+        "We is hiring",           # degenerate, must not match a name
+    ):
+        row = _gate_row()
+        row["signals"][0]["payload"] = {"description": opener}
+        assert _foreign_hirer(row, "Acme Paving") is None, opener
+
+
+def test_missing_description_is_not_a_foreign_hirer():
+    row = _gate_row()
+    row["signals"][0]["payload"] = {}
+    assert _foreign_hirer(row, "Acme Paving") is None
+
+
+def test_adapt_rows_drops_unusable_and_keeps_the_rest():
+    from datetime import date as _d
+    rows = [
+        _gate_row(id=1, name="Acme Paving", domain="acmepaving.com"),
+        _gate_row(id=2, name="Lifesitenews 07Cfc", domain="lifesitenews.com"),
+        _gate_row(id=3, name="No Domain Co", domain=None),
+        _gate_row(id=4, name="Good Corp", domain="goodcorp.com"),
+    ]
+    kept = _adapt_rows(rows, today=_d(2026, 8, 5))
+    # The hash-suffixed name goes; the domainless one stays (ranked, not dropped).
+    assert [lead.company for lead in kept] == ["Acme Paving", "No Domain Co", "Good Corp"]

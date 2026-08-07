@@ -70,13 +70,41 @@ it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
   gift: the copy says a company "is looking for" a role in the present tense,
   and a closed posting makes that false with no way for the recipient to tell.
 
+## Lead quality gates (two layers, both drop-and-swap)
+
+The inventory carries hundreds of leads per niche against ~100 prospects, so a
+rejected lead costs a swap, never a gift. Both layers therefore DROP rather
+than repair, and both log what they dropped.
+
+- **Layer 1 — `clients/inventory.py`, at load.** Judges a lead alone, with no
+  gift context: an ingest hash welded onto the name (`Lifesitenews 07Cfc`), no
+  domain (the gift prints a name and a city and no link, so an uncheckable name
+  reads as invented), or a posting whose own body names a DIFFERENT hiring
+  company (a recruiter listing — the one error a recipient can catch outright).
+- **Layer 2 — `gift/engine.py`, while building.** Judges a lead against the
+  gift: one company per gift, matched on DOMAIN not name, because upstream
+  dedup keys on the name and so misses exactly the duplicates that survive. A
+  skipped duplicate is NOT added to `excluded` — that set is the used ledger,
+  and marking an unused lead would silently shrink later gifts.
+
+A "remote posting" check was considered and deliberately NOT built: `city`
+always comes from the company's HQ (leadgen's `_split_location` returns None
+for a remote posting, so the city is the enrichment answer), which means "a
+company in denver needs finance help" stays true when the role is remote. It
+would have dropped 12 accurate cfo leads for no honesty gain.
+
 ## Honesty invariants (do not weaken without explicit instruction)
 
 - **Gate A (verbatim):** only claim a customer vertical the prospect stated
   word-for-word on their own site.
 - **Gate B (fit):** only claim a niche when the gift's leads genuinely read as
   that vertical (taxonomy match AND an LLM value_prop fit check); otherwise drop
-  to a generalist geo email.
+  to a generalist geo email. `value_prop` comes from the lead platform's
+  published `insight` and is the ONLY field describing what a lead does. If it
+  stops arriving, Gate B judges empty strings, answers false for every lead, and
+  every run silently goes 100% generalist with no error and no flag — the
+  2026-08-04 regression. A 0% niche rate means check `insight` in the blob
+  FIRST. It feeds the gate only; it must never reach rendered copy.
 - Framing uses the clean mapped niche word, never the raw scraped phrase.
 - Soft verb ("work with"), never "focus on".
 - No dollar amounts on raises; relative dates only for high-confidence signals;

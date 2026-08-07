@@ -28,6 +28,7 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -249,13 +250,120 @@ def _is_expired_job_lead(lead: Lead, today: date) -> bool:
     return (today - newest).days > config.MAX_JOB_LEAD_AGE_DAYS
 
 
+# --- Unusable-lead gate ----------------------------------------------------
+#
+# A lead that can never make an honest gift line, dropped at load so no gift is
+# ever built from it. This is the cheap half of the quality story: it judges a
+# lead on its own, with no gift context. Checks that depend on the OTHER leads
+# in a gift (a duplicate company, a geo claim) belong in `gift/`, not here.
+#
+# Every rule drops a lead rather than repairing it, and the inventory has the
+# depth to absorb that (hundreds of leads per niche against ~100 prospects), so
+# a rejection costs a swap, never a gift.
+
+# An ingest artifact from the fractional board: company names there are rebuilt
+# from URL slugs, and a slug carrying a content hash leaves it welded onto the
+# name ("Lifesitenews 07Cfc", "Plutus Health Ddb8F"). Deliberately narrow — the
+# token must be SPACE-separated, hex-only, AND mix digits with letters. That is
+# what separates a hash from the many real brands that end in something similar:
+# "Love146" / "Horizon3" / "Imagine360" are attached (no space), and "Studio 54"
+# / "Area 51" are digits-only. Both survive; only the hash shape is caught.
+_ID_SUFFIX_RE = re.compile(r"\s[0-9A-Fa-f]{4,8}$")
+
+
+def _has_id_suffix(name: str) -> bool:
+    m = _ID_SUFFIX_RE.search(name or "")
+    if m is None:
+        return False
+    token = m.group(0).strip()
+    return any(c.isdigit() for c in token) and any(c.isalpha() for c in token)
+
+
+# A job board's description often opens by naming the company that is actually
+# hiring. When that is a DIFFERENT company from the lead, the posting was placed
+# by a recruiter or agency on someone else's behalf, and the email would credit
+# the wrong company with the role — the one error a recipient can catch outright.
+_HIRER_RE = re.compile(
+    r"^\s*(?:About the role|About us|Position Summary|Position Overview|Job Summary)?\s*"
+    r"([A-Z][\w&.,'-]*(?:\s+[A-Z][\w&.,'-]*){0,4})\s+is\s+(?:looking for|seeking|hiring)",
+)
+# Openers that name no one in particular — not evidence of a different hirer.
+_GENERIC_HIRER_RE = re.compile(
+    r"^(?:our|the|a|an|this|we|us|company|client|organization|team|employer)\b",
+    re.IGNORECASE,
+)
+_WORD_RE = re.compile(r"[a-z0-9]+")
+# Tokens shared by unrelated company names; overlap on these proves nothing.
+_STOP_TOKENS = frozenset({
+    "inc", "llc", "ltd", "corp", "co", "company", "group", "holdings", "the",
+    "and", "of", "services", "solutions", "partners", "associates", "systems",
+    "technologies", "international", "global", "usa", "america",
+})
+
+
+def _name_tokens(name: str) -> set[str]:
+    return {w for w in _WORD_RE.findall((name or "").lower()) if w not in _STOP_TOKENS}
+
+
+def _foreign_hirer(row: dict[str, Any], company: str) -> str | None:
+    """The company a posting's own body says is hiring, when that is clearly not
+    this lead. None when the body names nobody, names this company, or is absent."""
+    own = _name_tokens(company)
+    if not own:
+        return None
+    for sig in row.get("signals") or []:
+        desc = ((sig.get("payload") or {}).get("description") or "").strip()
+        if not desc:
+            continue
+        m = _HIRER_RE.match(desc)
+        if m is None:
+            continue
+        claimed = m.group(1).strip()
+        if _GENERIC_HIRER_RE.match(claimed):
+            continue
+        if _name_tokens(claimed) & own:
+            continue          # same company, phrased differently
+        return claimed
+    return None
+
+
+def _unusable_reason(row: dict[str, Any], lead: Lead) -> str | None:
+    """Why this lead can never make an honest gift line, or None when it can."""
+    if _has_id_suffix(lead.company):
+        return "id_suffixed_name"
+    # A domainless lead is NOT dropped here. `gift.engine.sort_key` already
+    # ranks it below every resolvable company, which keeps it out of gifts that
+    # have better options while still leaving it available when a narrow
+    # prospect's pool is thin. Dropping it would make that tiebreak dead code
+    # and cost real leads (154 in accounting, 39 in cfo) for a case the ranking
+    # already handles.
+    foreign = _foreign_hirer(row, lead.company)
+    if foreign is not None:
+        return f"posting_hires_for={foreign!r}"
+    return None
+
+
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
-    leads = [adapt_leadgen_lead(row, today=today) for row in rows]
-    kept = [lead for lead in leads if not _is_expired_job_lead(lead, today)]
-    dropped = len(leads) - len(kept)
-    if dropped:
+    kept: list[Lead] = []
+    expired = 0
+    unusable: Counter[str] = Counter()
+    for row in rows:
+        lead = adapt_leadgen_lead(row, today=today)
+        if _is_expired_job_lead(lead, today):
+            expired += 1
+            continue
+        reason = _unusable_reason(row, lead)
+        if reason is not None:
+            unusable[reason.split("=")[0]] += 1
+            log.debug("inventory: dropped %s — %s", lead.company, reason)
+            continue
+        kept.append(lead)
+    if expired:
         log.info("inventory: dropped %d job lead(s) older than %d days",
-                 dropped, config.MAX_JOB_LEAD_AGE_DAYS)
+                 expired, config.MAX_JOB_LEAD_AGE_DAYS)
+    if unusable:
+        log.info("inventory: dropped %d unusable lead(s): %s",
+                 sum(unusable.values()), dict(unusable.most_common()))
     return kept
 
 
