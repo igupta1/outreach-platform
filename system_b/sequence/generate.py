@@ -1,16 +1,12 @@
-"""B3 — draft generation for the sequence.
+"""Draft generation — the pure core.
 
-Every niche runs the SAME pipeline now: research the prospect's site → classify
-the customer vertical they serve (verbatim, Gate A) → `resolve_gift` builds a
-vertical-matched gift (Gate B) or falls back to a generalist geo gift → LLM
-per-lead descriptions → a pending Email #1 card. The caller supplies the
-per-niche inventory scraper (`clients.inventory.snapshot_for_niche`), so this
-module is niche-blind — it just threads the row's `pack` through.
-
-`generate_first_touch` writes a pending Email #1 card. `generate_followup`
-pulls ONE new lead (exclude_ids = everything already sent) for Email #2/#3, or a
-fallback bump when the well is dry. Both leave review_status=pending — nothing
-is sent here.
+Every niche runs the SAME pipeline: research the prospect's site → classify the
+served vertical (verbatim, Gate A) → `resolve_gift` (Gate B) or a generalist geo
+gift → code-templated per-lead lines → the FULL 3-email sequence. No state, no
+Airtable — `generate_sequence` returns the sequence as a plain dict for the CSV
+writer. Emails #2/#3 each gift one more fresh lead (excluding leads already used)
+and carry NO recency date (Option A): they send days later, so a baked-in
+"about a week ago" would drift by send time.
 """
 
 from __future__ import annotations
@@ -19,115 +15,85 @@ from datetime import date
 from typing import Any
 
 from system_b.copy.email import build_email_1, build_followup_email
-from system_b.copy.lex import niche_display
-from system_b.copy.linkedin import build_dm
-from system_b.copy.llm import describe_leads
 from system_b.gift.engine import build_gift
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
-from system_b.research.service import research_and_write
-from system_b.review import (
-    assemble_followup_review,
-    assemble_linkedin_review,
-    assemble_review,
-)
-from system_b.sequence.rows import (
-    field,
-    next_step_for,
-    parse_history,
-    parse_id_list,
-    prospect_from_row,
-    resolve_pack_key,
-)
+from system_b.research.service import research_prospect
+from system_b.review.payload import build_review
 
 
-def generate_first_touch(
-    at: Any, sc: Any, taxonomy: dict, row: dict[str, Any], today: date,
+def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
+    """Build Email #2 and #3 up front. Each pulls one fresh lead not already used
+    across the sequence (Option A: no recency date). Returns
+    (drafts, extra_ids, leads) where `leads` is aligned to steps 2 and 3 (each
+    entry is the lead used, or None when the well ran dry) — the review gate
+    surfaces those leads' evidence too."""
+    used = [lead.id for lead in gift.leads]
+    drafts: list[Any] = []
+    extra_ids: list[str] = []
+    leads: list[Any] = []
+    for step in (2, 3):
+        prospect.sent_lead_ids = list(used)
+        # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
+        # as Email #1 (build_gift excludes already-used leads via sent_lead_ids),
+        # falling back to a geo lead only when the niche well has run dry.
+        g = None
+        if prospect.classification == "niched":
+            gn = build_gift(prospect, sc, target=1, niche_only=True, pack=pack)
+            if gn is not None and gn.all_niche:
+                g = gn
+        if g is None:
+            g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
+        lead = g.leads[0] if g else None
+        if lead is not None:
+            used.append(lead.id)
+            extra_ids.append(lead.id)
+        leads.append(lead)
+        drafts.append(build_followup_email(
+            lead, prospect, step=step, today=today, pack=pack,
+            include_signoff=False,
+        ))
+    return drafts, extra_ids, leads
+
+
+def generate_sequence(
+    row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
     *, pack_key: str = "cfo",
 ) -> dict[str, Any]:
-    """Research + gift + Email #1 (no signoff), written as a pending card.
+    """Research + gift + the full 3-email sequence for ONE prospect.
 
-    Runs for EVERY niche: research the site, classify the served vertical, build
-    a vertical-matched gift (or a generalist geo gift as the fallback). `sc` is
-    the row's per-niche inventory scraper; `pack_key` selects the copy voice and
-    lead preference."""
-    rid = row["record_id"]
+    Pure of any store: research the site, classify the served vertical, build a
+    vertical-matched gift (or a generalist geo gift fallback), then write all
+    three emails. `sc` is the niche inventory scraper; `pack_key` selects voice +
+    lead preference. Returns a row dict ready for the CSV, or a `no_gift`/`error`
+    marker (status != "ok") when the inventory had no matching leads.
+
+    Signoffs are omitted (`include_signoff=False`): you add your signature + the
+    CAN-SPAM footer ONCE in the Smartlead sequence editor after importing the CSV.
+    """
     pack = pack_for(pack_key)
-    research = research_and_write(rid, row["website"], taxonomy, at)
+    research = research_prospect(row["website"], taxonomy)
     prospect, gift = resolve_gift(research, row, sc, pack=pack)
     if gift is None:
-        return {"firm": row.get("firm_name"), "status": "no_gift", "step": 1}
-    descriptions = describe_leads(gift, prospect, pack=pack)
-    draft = build_email_1(
-        gift, prospect, descriptions, today=today, pack=pack, include_signoff=False
+        return {"firm": row.get("firm_name"), "status": "no_gift"}
+    email1 = build_email_1(
+        gift, prospect, today=today, pack=pack, include_signoff=False
     )
-    contact = {"email": row.get("email", ""), "linkedin": row.get("linkedin", "")}
-    assemble_review(
-        at, rid, prospect, gift, draft, research,
-        contact=contact, niche_pack=pack_key,
-    )
+    followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today)
     return {
-        "firm": row["firm_name"], "status": "ok", "step": 1,
-        "subject": draft.subject, "gift_size": gift.gift_size,
+        "firm": row.get("firm_name", ""),
+        "status": "ok",
+        "gift_size": gift.gift_size,
+        "email": (row.get("email") or "").strip(),
+        "first_name": row.get("first_name") or "",
+        "company": row.get("firm_name") or "",
+        "subject": email1.subject,
+        "email_1": email1.body,
+        "email_2": followups[0].body if followups else "",
+        "email_3": followups[1].body if len(followups) > 1 else "",
+        # Full evidence + copy for the review gate (run.py dumps this to the
+        # companion review JSON; the CSV writer ignores it).
+        "review": build_review(
+            prospect, gift, research, email1, followups, followup_leads, row
+        ),
     }
-
-
-def generate_followup(at: Any, sc: Any, record: dict[str, Any], today: date) -> dict[str, Any]:
-    """Draft the next follow-up for an in-sequence prospect. `record` is a full
-    Airtable record ({'id', 'fields'}); `sc` is the row's per-niche inventory."""
-    fields = record["fields"]
-    rid = record["id"]
-    firm = field(fields, "firm_name", "?")
-    if fields.get("frozen"):
-        return {"firm": firm, "status": "skipped_frozen"}
-    step = next_step_for(fields.get("stage"))
-    if step is None:
-        return {"firm": firm, "status": "sequence_complete"}
-
-    pack_key = resolve_pack_key(fields)
-    pack = pack_for(pack_key)
-    prospect = prospect_from_row(fields)
-
-    gift = build_gift(prospect, sc, target=1, pack=pack)   # excludes already-sent
-    lead = gift.leads[0] if gift else None
-    description = ""
-    if lead is not None:
-        description = describe_leads(gift, prospect, pack=pack).get(lead.id, "")
-
-    draft = build_followup_email(
-        lead, prospect, description, step=step, today=today, pack=pack, include_signoff=False
-    )
-    contact = {"email": field(fields, "email", ""), "linkedin": field(fields, "linkedin", "")}
-    history = parse_history(fields.get("message_history"))
-    assemble_followup_review(
-        at, rid, prospect, lead, draft, step=step, history=history, contact=contact
-    )
-    return {
-        "firm": firm, "status": "ok", "step": step,
-        "kind": "value" if lead is not None else "fallback",
-    }
-
-
-def generate_linkedin(at: Any, record: dict[str, Any], step: str, today: date) -> dict[str, Any]:
-    """F2 — draft a LinkedIn DM (dm_1|dm_2) as a pending LinkedIn card. Copy is
-    LIFTED (no LLM); it references the email thread, describes no leads."""
-    fields = record["fields"]
-    rid = record["id"]
-    firm = field(fields, "firm_name", "?")
-    if fields.get("frozen"):
-        return {"firm": firm, "status": "skipped_frozen", "channel": "linkedin"}
-
-    pack = pack_for(resolve_pack_key(fields))
-    prospect = prospect_from_row(fields)
-    all_niche = bool(fields.get("all_niche"))
-    ctx = {
-        "n": len(parse_id_list(fields.get("sent_lead_ids"))),
-        "all_niche": all_niche,
-        "niche": niche_display(prospect.match_param) if all_niche else None,
-        "best_cfo_company": field(fields, "li_best_cfo", "") or None,
-    }
-    body = build_dm(step, prospect, ctx, pack=pack)
-    contact = {"email": field(fields, "email", ""), "linkedin": field(fields, "linkedin", "")}
-    history = parse_history(fields.get("message_history"))
-    assemble_linkedin_review(at, rid, prospect, body, step=step, history=history, contact=contact)
-    return {"firm": firm, "status": "ok", "step": step, "channel": "linkedin"}

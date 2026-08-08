@@ -35,6 +35,9 @@ from system_b.models import Lead, Signal
 # Fixtures / helpers
 # --------------------------------------------------------------------------
 
+_OWN_DOMAIN = object()
+
+
 def mk(
     id: str,
     signal_type: str,
@@ -47,9 +50,15 @@ def mk(
     date: str = "2026-07-01",
     date_confidence: str = "high",
     company: str | None = None,
-    domain: str | None = "example.com",
+    # Sentinel, not a literal default: the gift now drops a lead whose domain is
+    # already in the gift, so a shared "example.com" across every mock made two
+    # distinct companies read as one. Each lead gets its own domain (derived
+    # from its id) unless a test passes one explicitly — which is how a test
+    # asks for a genuine duplicate.
+    domain: str | None = _OWN_DOMAIN,
     finance_grade: str | None = None,
     also_signal: str | None = None,
+    evidence: str = "did a thing",
 ) -> Lead:
     """Build a Lead. `signal_type` is the PRIMARY (ranked) signal. `also_signal`
     adds a second entry to `signals[]` — how a "double" lead is expressed in
@@ -60,7 +69,7 @@ def mk(
             type=signal_type,
             date=date,
             date_confidence=date_confidence,
-            plain_words_description="did a thing",
+            plain_words_description=evidence,
         )
     ]
     if also_signal is not None:
@@ -75,7 +84,7 @@ def mk(
     return Lead(
         id=id,
         company=company or id,
-        domain=domain,
+        domain=f"{id}.example.com" if domain is _OWN_DOMAIN else domain,
         city=city,
         state=state,
         industry=industry,
@@ -556,3 +565,70 @@ def test_compute_match_level_ladder():
     assert compute_match_level(mk("g", "funding_form_d", city="Denver", state="CO"), gen) == 1
     assert compute_match_level(mk("h", "funding_form_d", city="Boulder", state="CO"), gen) == 2
     assert compute_match_level(mk("i", "funding_form_d", city="Miami", state="FL"), gen) is None
+
+
+# --- Layer 2: one company per gift -----------------------------------------
+
+
+def test_gift_never_lists_the_same_company_twice():
+    """Same company, two rows, two ids — the shape upstream name-dedup misses.
+    The gift must take the second-best DISTINCT company instead of repeating."""
+    p = Prospect(
+        firm_name="Miami Numbers", city="Miami", state="FL",
+        classification="generalist", match_param=None,
+    )
+    leads = [
+        mk("a1", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-03", company="Lifesitenews", domain="lifesitenews.com"),
+        mk("a2", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-02", company="Lifesitenews 07Cfc", domain="lifesitenews.com"),
+        mk("b1", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-01", company="Real Other Co", domain="realother.com"),
+    ]
+    g = build_gift(p, FakeScraper(leads))
+    assert g is not None
+    domains = [lead.domain for lead in g.leads]
+    assert len(domains) == len(set(domains))
+    assert sorted(domains) == ["lifesitenews.com", "realother.com"]
+
+
+def test_duplicate_is_skipped_not_consumed():
+    """A skipped duplicate must stay available: `excluded` is the used ledger,
+    and marking an unused lead would silently shrink later gifts."""
+    p = Prospect(
+        firm_name="Miami Numbers", city="Miami", state="FL",
+        classification="generalist", match_param=None,
+    )
+    dupe = mk("a2", "job_finance_lead", city="Miami", state="FL",
+              date="2026-07-02", company="Dup", domain="dup.com")
+    leads = [
+        mk("a1", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-03", company="Dup Primary", domain="dup.com"),
+        dupe,
+    ]
+    g = build_gift(p, FakeScraper(leads))
+    assert g is not None and g.gift_size == 1
+    # The unused duplicate is still reachable for a different prospect.
+    p2 = Prospect(
+        firm_name="Other Firm", city="Miami", state="FL",
+        classification="generalist", match_param=None,
+    )
+    g2 = build_gift(p2, FakeScraper([dupe]))
+    assert g2 is not None and g2.gift_size == 1
+
+
+def test_domainless_leads_do_not_collapse_together():
+    """Two leads with no domain are not 'the same company'. Layer 1 normally
+    removes them, but the gift must not treat empty as a match if one arrives."""
+    p = Prospect(
+        firm_name="Miami Numbers", city="Miami", state="FL",
+        classification="generalist", match_param=None,
+    )
+    leads = [
+        mk("n1", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-03", company="No Dom One", domain=None),
+        mk("n2", "job_finance_lead", city="Miami", state="FL",
+           date="2026-07-02", company="No Dom Two", domain=None),
+    ]
+    g = build_gift(p, FakeScraper(leads))
+    assert g is not None and g.gift_size == 2

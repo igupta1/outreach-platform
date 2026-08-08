@@ -32,25 +32,3 @@ class ResearchResult:
     # "single" (one clear stated focus) | "multiple" (lists several served
     # industries/client types) | "" (generalist). Drives sole vs one_of_several.
     exclusivity: str = ""
-
-
-def to_airtable_fields(result: ResearchResult) -> dict[str, str]:
-    """The Step-2a write: classification + match_param + niche_phrase +
-    niche_source + evidence (quotes + URLs). Generalist leaves niche fields
-    blank so nothing untrue is ever stored."""
-    match_param = ""
-    if result.match_param:
-        kind, val = result.match_param
-        match_param = f"{kind}={val}"
-    evidence = "\n".join(f'[{e.kind}] "{e.text}" — {e.url}' for e in result.evidence)
-    fields: dict[str, str] = {
-        "classification": result.classification,
-        "match_param": match_param,
-        "niche_phrase": result.niche_phrase or "",
-        "evidence": evidence,
-    }
-    if result.niche_source:
-        fields["niche_source"] = result.niche_source
-    if result.flags:
-        fields["flags"] = "\n".join(result.flags)
-    return fields

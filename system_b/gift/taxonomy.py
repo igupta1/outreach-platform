@@ -13,13 +13,44 @@ import re
 _WORD_RE = re.compile(r"[a-z0-9]+")
 _FALLBACK_PARENTS = {"other", "unknown"}
 
+# Common one-word industry synonyms the strict all-tokens match misses because
+# the taxonomy key is multi-word (e.g. "ecommerce" alone never satisfies
+# `ecommerce_retail`, which also needs "retail"). Each maps a stemmed phrase word
+# to (parent, child|None); every target has a NICHE_DISPLAY label. This only
+# widens how a VERBATIM phrase maps to a vertical — Gate A (verbatim) and Gate B
+# (lead fit) are unchanged, so the honesty of the final claim is not weakened.
+_ALIASES: dict[str, tuple[str, str | None]] = {
+    "ecommerce": ("ecommerce_retail", None),
+    "commerce": ("ecommerce_retail", None),
+    "retail": ("ecommerce_retail", None),
+    "dtc": ("ecommerce_retail", "dtc_brand"),
+    "d2c": ("ecommerce_retail", "dtc_brand"),
+    "cpg": ("ecommerce_retail", "cpg_food_beverage"),
+    "saas": ("software_saas", None),
+    "software": ("software_saas", None),
+    "crypto": ("fintech", "crypto_web3"),
+    "web3": ("fintech", "crypto_web3"),
+    "msp": ("professional_services", "it_msp"),
+    "legal": ("professional_services", "law_firm"),
+    "accounting": ("professional_services", "accounting_bookkeeping"),
+    "bookkeeping": ("professional_services", "accounting_bookkeeping"),
+}
+
+
+def _stem(w: str) -> str:
+    """Crude depluralize: drop a trailing 's' on longer words (never '...ss'), so
+    a plural phrase word matches a singular taxonomy token ('firms' -> 'firm')."""
+    if len(w) >= 5 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
 
 def _words(s: str | None) -> set[str]:
-    return set(_WORD_RE.findall((s or "").lower()))
+    return {_stem(w) for w in _WORD_RE.findall((s or "").lower())}
 
 
 def _token_words(value: str) -> set[str]:
-    return {w for w in value.split("_") if w}
+    return {_stem(w) for w in value.split("_") if w}
 
 
 def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str | None]:
@@ -45,6 +76,21 @@ def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str 
                     best_child, best_len = child, len(cw)
         if hit:
             found[parent] = best_child
+    # Synonym aliases recover a single distinctive industry word (e.g. "saas",
+    # "ecommerce") the all-tokens match missed — but ONLY as a fallback when the
+    # phrase mapped to nothing. If it already named a real vertical, an alias word
+    # is the prospect's own service, not a second served vertical ("managed
+    # accounting for dental practices" -> dental, never accounting).
+    if not found:
+        for word in pw:
+            alias = _ALIASES.get(word)
+            if alias is None:
+                continue
+            parent, child = alias
+            if child is not None and found.get(parent) is None:
+                found[parent] = child
+            elif child is None:
+                found.setdefault(parent, None)
     return found
 
 

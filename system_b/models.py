@@ -22,6 +22,7 @@ class Signal(BaseModel):
     date: str | None = None                 # ISO event date (posting/filing)
     date_confidence: str | None = None       # "high" | "low"
     plain_words_description: str | None = None
+    source_url: str | None = None            # leadgen link to the filing/posting/disclosure (for review evidence)
 
 
 class Lead(BaseModel):
@@ -47,6 +48,12 @@ class Lead(BaseModel):
         """Freshest signal event date (ISO). '' when unknown → sorts last."""
         dates = [s.date for s in self.signals if s.date]
         return max(dates) if dates else ""
+
+    @property
+    def primary_source_url(self) -> str | None:
+        """First signal's source link (SEC filing / job post / breach disclosure),
+        used as the lead's headline evidence URL on the review page."""
+        return next((s.source_url for s in self.signals if s.source_url), None)
 
     @property
     def effective_date_confidence(self) -> str:

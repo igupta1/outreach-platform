@@ -6,8 +6,8 @@ fact can never reach an email unless the site backs it up.
 """
 
 from system_b.research.classifier import appears_verbatim, classify, evidence_covers
-from system_b.research.models import Evidence, ResearchResult, to_airtable_fields
-from system_b.research.service import research_and_write, research_prospect
+from system_b.research.models import Evidence, ResearchResult
+from system_b.research.service import research_prospect
 
 __all__ = [
     "classify",
@@ -15,7 +15,5 @@ __all__ = [
     "evidence_covers",
     "Evidence",
     "ResearchResult",
-    "to_airtable_fields",
     "research_prospect",
-    "research_and_write",
 ]

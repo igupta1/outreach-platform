@@ -23,7 +23,7 @@ from system_b.research.models import Evidence, ResearchResult
 # Below this much total visible text, the site is "thin" -> generalist
 # regardless of what the model says (spec 2a rule 3).
 THIN_MIN_CHARS = 350
-MIN_CLIENTS = 3   # spec 2a rule 2: "3+ named clients"
+MIN_CLIENTS = 2   # 2+ named clients (copy stays soft: "worked with a bunch of X")
 
 _WS_RE = re.compile(r"\s+")
 

@@ -12,7 +12,18 @@
 **/.env
 system_b/logs/
 system_b/apollo-contacts-export.csv
-system_b/review_cards.txt
 
 # OS junk
 **/.DS_Store
+
+# exported outreach copy (prospect data — never commit). Covers the
+# sequences*.csv default AND any --out name (acct25.out.csv, cfo25.out.csv),
+# their .review.json evidence sidecars, and local dumps.
+sequences*.csv
+*.out.csv
+*.review.json
+*.dump.txt
+sequences*.json
+
+# prospect CSV exports (Apollo) — never commit
+system_b/*.csv

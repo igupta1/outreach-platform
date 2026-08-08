@@ -16,7 +16,7 @@ inventory rows onto the outreach `Lead` lives in `clients/inventory.py`.
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, _funding_phrase, framing_line
+from system_b.copy.email import _cta, framing_line
 from system_b.copy.subject import build_who_what
 from system_b.gift.engine import _cfo_what_category
 from system_b.gift.models import Gift, Prospect
@@ -28,15 +28,31 @@ from system_b.niches.base import NichePack
 # lead's leadgen signal type; plural WHAT keys off the gift's what_category
 # (raised / hiring / mixed).
 _SINGULAR_WHAT = {
-    "funding_form_d": "just raised",
-    "funding_form_c": "just raised",
-    "job_finance_lead": "is hiring finance help",
-    "job_junior_finance": "just posted a junior finance role",
+    "funding_form_d": ("just raised", "just closed a round", "just landed funding"),
+    "funding_form_c": ("just raised", "just closed a round", "just landed funding"),
+    "job_finance_lead": (
+        "is hiring finance help",
+        "is building out its finance function",
+        "is bringing on finance help",
+    ),
+    "job_junior_finance": (
+        "just posted a junior finance role",
+        "is hiring junior finance",
+        "just opened a junior finance seat",
+    ),
 }
 _PLURAL_WHAT = {
-    "raised": "that just raised",
-    "hiring": "hiring finance help right now",
-    "mixed": "that could use bookkeeping help right now",
+    "raised": ("that just raised", "that just closed a round", "that just landed funding"),
+    "hiring": (
+        "hiring finance help right now",
+        "adding finance help right now",
+        "bringing on finance help right now",
+    ),
+    "mixed": (
+        "that could use bookkeeping help right now",
+        "that could use accounting help right now",
+        "showing a bookkeeping need right now",
+    ),
 }
 
 
@@ -49,7 +65,7 @@ def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
 def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
     # One opener for the whole batch — the per-lead lines carry the specifics
     # (a fresh finance hire or a raise), so the framing need stays neutral.
-    return framing_line(gift, prospect, need="that could use bookkeeping help right now")
+    return framing_line(gift, prospect, need="looking for bookkeeping help right now")
 
 
 # 5b — left-field rotation, accounting/bookkeeping-firm voice. Lowercase, no em
@@ -72,6 +88,7 @@ ACCOUNTING_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 ACCOUNTING_PACK = NichePack(
     key="accounting",
+    followup_signal="a finance-need signal",
     signal_rank={
         "job_finance_lead": 0,
         "job_junior_finance": 0,
@@ -79,13 +96,13 @@ ACCOUNTING_PACK = NichePack(
         "funding_form_c": 1,
     },
     priority_signal=None,
-    raise_signals=frozenset({"funding_form_d", "funding_form_c"}),
+    raise_signals=frozenset(),   # EDGAR sources deleted — no raise claim is provable
     what_category=_cfo_what_category,     # pure signal logic (raised/hiring/mixed)
     subject=_accounting_subject,
     framing=_accounting_framing,
     cta=_cta,                            # vertical-aware, geo fallback (shared)
     left_field=ACCOUNTING_LEFT_FIELD,
     left_field_labels=ACCOUNTING_LEFT_FIELD_LABELS,
-    funding_phrase=_funding_phrase,      # raises are templated, never a $ figure
+    funding_phrase=None,
     priority_flag=None,
 )

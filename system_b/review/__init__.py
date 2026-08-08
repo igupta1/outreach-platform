@@ -1,42 +1,19 @@
-"""Review — Step 10 card + CRM state machine (the go-live milestone).
+"""The review gate — a local, offline, send-free review step between generation
+and the final CSV.
 
-assemble_review writes the card + queued_message + flags to the row;
-apply_decision moves review_status/stage. Only an approved item may send.
+`generate_sequence` attaches a `review` payload (see `payload.build_review`) to
+every prospect it drafts; `run.py` dumps those payloads to `<out>.review.json`.
+`serve.py` then serves one plain web page that shows the count of valid
+prospects, each one's evidence (how we classified the niche + the gift leads
+with their source links) and its editable copy, with a client-side "Download
+CSV" button that rebuilds the exact Smartlead CSV from whatever you edited.
+
+Nothing here sends, stores CRM state, or talks to Airtable — it only reads the
+generated JSON, lets you edit copy, and re-exports the CSV.
 """
 
-from system_b.review.card import build_card, build_followup_card
-from system_b.review.flags import review_flags
-from system_b.review.service import (
-    assemble_followup_review,
-    assemble_linkedin_review,
-    assemble_review,
-    format_queued_message,
-)
-from system_b.review.state import (
-    APPROVE_ADVANCE,
-    DECISIONS,
-    apply_decision,
-    is_terminal,
-    mark_do_not_contact,
-    mark_replied,
-    mark_stage,
-    stage_after_send,
-)
+from __future__ import annotations
 
-__all__ = [
-    "build_card",
-    "build_followup_card",
-    "review_flags",
-    "assemble_review",
-    "assemble_followup_review",
-    "assemble_linkedin_review",
-    "format_queued_message",
-    "apply_decision",
-    "APPROVE_ADVANCE",
-    "DECISIONS",
-    "stage_after_send",
-    "is_terminal",
-    "mark_replied",
-    "mark_do_not_contact",
-    "mark_stage",
-]
+from system_b.review.payload import build_review
+
+__all__ = ["build_review"]

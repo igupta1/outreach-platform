@@ -18,7 +18,7 @@ of leadgen inventory rows onto the outreach `Lead` lives in `clients/inventory.p
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, _funding_phrase, framing_line
+from system_b.copy.email import _cta, framing_line
 from system_b.copy.subject import build_who_what
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -30,8 +30,16 @@ _LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 # MSP — managed IT / help desk -------------------------------------------------
 
 _MSP_SINGULAR_WHAT = {
-    "job_it_support": "that just posted an it support role",
-    "job_it_leadership": "that just posted an it leadership role",
+    "job_it_support": (
+        "that just posted an it support role",
+        "that's hiring for it support",
+        "that just opened an it support seat",
+    ),
+    "job_it_leadership": (
+        "that just posted an it leadership role",
+        "that's hiring it leadership",
+        "that just opened an it leadership seat",
+    ),
 }
 
 
@@ -40,14 +48,18 @@ def _msp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="staffing up on it right now",
+        plural_what=(
+            "staffing up on it right now",
+            "adding to their it team right now",
+            "hiring for it right now",
+        ),
     )
 
 
 def _msp_framing(gift: Gift, prospect: Prospect) -> str:
     return framing_line(
         gift, prospect,
-        need="that just posted an it role and might be weighing hire vs outsource",
+        need="looking for it help right now",
     )
 
 
@@ -78,8 +90,16 @@ MSSP_PRIORITY_FLAG = (
 )
 
 _MSSP_SINGULAR_WHAT = {
-    "breach_disclosed": "that just disclosed a breach",
-    "job_security": "that just started hiring for security",
+    "breach_disclosed": (
+        "that just disclosed a breach",
+        "that just reported a breach",
+        "that just had a security incident",
+    ),
+    "job_security": (
+        "that just started hiring for security",
+        "that's staffing up on security",
+        "that just opened a security role",
+    ),
 }
 
 
@@ -88,12 +108,16 @@ def _mssp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="signaling they need security help right now",
+        plural_what=(
+            "signaling they need security help right now",
+            "showing a security need right now",
+            "flagging a security gap right now",
+        ),
     )
 
 
 def _mssp_framing(gift: Gift, prospect: Prospect) -> str:
-    return framing_line(gift, prospect, need="that just signaled they need security help")
+    return framing_line(gift, prospect, need="looking for security help right now")
 
 
 def _mssp_what_category(leads: list[Lead]) -> str:
@@ -119,8 +143,12 @@ MSSP_LEFT_FIELD: tuple[str, ...] = (
 # Cloud — cloud / devops consultancy -------------------------------------------
 
 _CLOUD_SINGULAR_WHAT = {
-    "job_cloud_devops": "that just started building out cloud",
-    "funding_form_d": "that just raised",
+    "job_cloud_devops": (
+        "that just started building out cloud",
+        "that's staffing up on cloud",
+        "that just opened a cloud/devops role",
+    ),
+    "funding_form_d": ("that just raised", "that just closed a round", "that just landed funding"),
 }
 
 
@@ -129,12 +157,16 @@ def _cloud_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what="scaling their cloud team right now",
+        plural_what=(
+            "scaling their cloud team right now",
+            "building out their cloud team right now",
+            "growing their cloud team right now",
+        ),
     )
 
 
 def _cloud_framing(gift: Gift, prospect: Prospect) -> str:
-    return framing_line(gift, prospect, need="building out their cloud setup right now")
+    return framing_line(gift, prospect, need="looking for cloud help right now")
 
 
 def _cloud_what_category(leads: list[Lead]) -> str:
@@ -158,6 +190,7 @@ CLOUD_LEFT_FIELD: tuple[str, ...] = (
 
 MSP_PACK = NichePack(
     key="msp",
+    followup_signal="an it-need signal",
     signal_rank={"job_it_support": 0, "job_it_leadership": 0},
     priority_signal=None,             # geo-matched, no lead-first signal
     raise_signals=frozenset(),        # no raises → lead lines use the plain description
@@ -173,6 +206,7 @@ MSP_PACK = NichePack(
 
 MSSP_PACK = NichePack(
     key="mssp",
+    followup_signal="a security-need signal",
     signal_rank={"breach_disclosed": 0, "job_security": 1},
     priority_signal="breach_disclosed",   # a disclosed breach is the lead-first signal
     raise_signals=frozenset(),
@@ -188,15 +222,16 @@ MSSP_PACK = NichePack(
 
 CLOUD_PACK = NichePack(
     key="cloud",
+    followup_signal="a cloud-need signal",
     signal_rank={"job_cloud_devops": 0, "funding_form_d": 1},
     priority_signal=None,
-    raise_signals=frozenset({"funding_form_d"}),   # a raise line is templated (no $)
+    raise_signals=frozenset(),   # EDGAR sources deleted — no raise claim is provable
     what_category=_cloud_what_category,
     subject=_cloud_subject,
     framing=_cloud_framing,
     cta=_cta,
     left_field=CLOUD_LEFT_FIELD,
     left_field_labels=_LEFT_FIELD_LABELS,
-    funding_phrase=_funding_phrase,
+    funding_phrase=None,
     priority_flag=None,
 )

@@ -15,8 +15,6 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from system_b.cadence import DEFAULT_CADENCE, Step
-
 
 @dataclass(frozen=True)
 class NichePack:
@@ -36,13 +34,8 @@ class NichePack:
     left_field_labels: tuple[str, ...]      # aligned A/B labels
     funding_phrase: Callable[..., str] | None   # (lead) -> templated raise line, or None
     priority_flag: str | None               # review/copy flag when a priority-signal lead is present
-
-    # --- Track F (LinkedIn + unified cadence) ---
-    # cadence is the ordered email+LinkedIn step list (tunable per pack). The DM
-    # builders are LIFTED templates (not LLM-generated); None -> the CFO defaults.
-    cadence: tuple[Step, ...] = DEFAULT_CADENCE
-    li_dm_1: Callable[..., str] | None = None   # (prospect, ctx) -> DM #1 text
-    li_dm_2: Callable[..., str] | None = None   # (prospect) -> DM #2 text
+    # descriptor for the fallback follow-up bump, e.g. "a finance-need signal"
+    followup_signal: str = "a buying signal"
 
 
 def default_pack() -> NichePack:

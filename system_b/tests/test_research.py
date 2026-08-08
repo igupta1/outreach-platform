@@ -15,7 +15,7 @@ from system_b.gift.engine import build_gift
 from system_b.gift.models import Prospect
 from system_b.research.classifier import appears_verbatim, classify, evidence_covers, locate
 from system_b.research.fetcher import discover_links, fetch_site, html_to_text
-from system_b.research.models import Evidence, ResearchResult, to_airtable_fields
+from system_b.research.models import Evidence, ResearchResult
 from system_b.tests.test_copy import TODAY
 from system_b.tests.test_gift import FakeScraper, mk
 
@@ -246,28 +246,6 @@ def test_evidence_covers_guard():
 
 
 # --------------------------------------------------------------------------
-# Airtable write payload
-# --------------------------------------------------------------------------
-
-def test_to_airtable_fields():
-    r = ResearchResult("niched", ("industry", "healthcare"), "healthcare startups", "site",
-                       [Evidence("phrase", "healthcare startups", "https://h.com")],
-                       flags=["a flag"])
-    f = to_airtable_fields(r)
-    assert f["classification"] == "niched"
-    assert f["match_param"] == "industry=healthcare"
-    assert f["niche_phrase"] == "healthcare startups"
-    assert f["niche_source"] == "site"
-    assert f["evidence"] == '[phrase] "healthcare startups" — https://h.com'
-    assert f["flags"] == "a flag"
-
-    g = to_airtable_fields(ResearchResult("generalist", None, None, "", []))
-    assert g["classification"] == "generalist"
-    assert g["match_param"] == "" and g["niche_phrase"] == "" and g["evidence"] == ""
-    assert "niche_source" not in g                       # nothing untrue stored
-
-
-# --------------------------------------------------------------------------
 # End-to-end: research -> Prospect -> copy, with the phrase provably on-site
 # --------------------------------------------------------------------------
 
@@ -285,7 +263,7 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
     leads = [mk("h1", "funding_form_d", industry="healthcare", city="Denver", state="CO",
                 date="2026-07-05", company="Acme Bio")]
     gift = build_gift(prospect, FakeScraper(leads))
-    draft = build_email_1(gift, prospect, {"h1": "closed a round"}, today=TODAY)
+    draft = build_email_1(gift, prospect, today=TODAY)
 
     # framing uses the clean mapped niche word, not the raw phrase (#7)...
     assert "you work with healthcare" in draft.body

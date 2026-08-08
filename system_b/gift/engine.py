@@ -13,13 +13,14 @@ If System A later adds `score`, it slots into the MIDDLE of each key,
 directly AFTER signal-type rank (spec 3b: "rank, then score, then newest
 date"; spec 3d: "signal type, then score, then freshness"). It is never
 appended at the end:
-  * sort_key:  rank -> [-score] -> newest-date -> confidence
+  * sort_key:  rank -> has-domain -> newest-date -> confidence
   * _best_lead: rank -> [-score] -> freshness -> match-level
 See the `# <-- score slots here` markers in both functions.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any, Protocol
@@ -27,6 +28,8 @@ from typing import Any, Protocol
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
+
+log = logging.getLogger("system_b.gift")
 
 # Strongest -> weakest, in leadgen's raw signal-type vocabulary. This is the CFO
 # pack's rank (imported by niches/cfo.py); every pack now supplies its own
@@ -83,12 +86,22 @@ def _recency(lead: Lead) -> float:
         return float("-inf")
 
 
-def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, float, int]:
+def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, int, float, int]:
     """Within-level re-sort: strongest signal (per the active pack's
-    `signal_rank`), then freshest, then high-confidence date before low."""
+    `signal_rank`), then a resolvable company, then freshest, then
+    high-confidence date before low.
+
+    The domain never appears in a sent email, so this is not about the link
+    — it is about FINDABILITY. The enrichment lookup fails to resolve a domain
+    for the same reason a recipient's google fails: the name does not identify
+    a company ("New Listings", "Good Trouble"). The gift gives them a name and
+    a city and nothing else, so a domainless lead is the one most likely to
+    read as invented. Ranked below, never dropped — the lead is still real, and
+    the inventory is not always deep enough to be choosy."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
+        0 if lead.domain else 1,
         # <-- score slots here: -(lead.score or 0), once System A serves it
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
@@ -191,6 +204,20 @@ def _find_priority_lead(
     return None
 
 
+def _same_company(lead: Lead, gift: list[Lead]) -> bool:
+    """True when this lead is a company already in the gift.
+
+    Matched on DOMAIN, not name: the same company reaches the store under
+    several names (a slug-derived one, a legal one, a hashed one) and dedup
+    upstream keys on the name, so name comparison misses exactly the duplicates
+    that survive. One domain is one company. Listing it twice makes a gift of
+    three read as a gift of two and reads as careless."""
+    domain = (lead.domain or "").strip().lower()
+    if not domain:
+        return False
+    return any((other.domain or "").strip().lower() == domain for other in gift)
+
+
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
@@ -213,6 +240,13 @@ def _pick_leads(
             for lead in leads:
                 if len(into) >= target:
                     break
+                if _same_company(lead, into):
+                    # Skip, but do NOT mark excluded: `excluded` is the sent /
+                    # already-used ledger, and this lead was never used. It stays
+                    # available for the next prospect's gift.
+                    log.debug("gift: skipping %s — %s already in this gift",
+                              lead.company, lead.domain)
+                    continue
                 into.append(lead)
                 excluded.add(lead.id)
 
@@ -272,9 +306,12 @@ def pull_one_lead(
 
 def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None = None) -> Lead:
     rank = rank if rank is not None else SIGNAL_RANK
-    def key(lead: Lead) -> tuple[int, int, int]:
+    def key(lead: Lead) -> tuple[int, int, int, int]:
         return (
             rank.get(lead.signal_type, 9),
+            # A domainless lead is the likeliest to read as invented, so it
+            # must not be the one the subject line is built from.
+            0 if lead.domain else 1,
             # <-- score slots here: -(lead.score or 0), once System A serves it
             0 if lead.freshness == "fresh" else 1,
             compute_match_level(lead, prospect) or 99,

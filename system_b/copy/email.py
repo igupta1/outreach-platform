@@ -1,5 +1,6 @@
-"""Step 5 — Email #1. Everything structural is deterministic code; the LLM
-fills ONLY the freeform per-lead descriptions (passed in as `descriptions`).
+"""Step 5 — Email #1. EVERY part is deterministic code, including each
+per-lead line (hiring, breach, funding are all templated). No model writes
+any part of a sent email.
 
 5a framing table, 5b left-field rotation, 5c CTA table, 5d template fill,
 5e honesty enforcement (dates, dollar amounts, flags).
@@ -11,7 +12,7 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import date
 
-from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts
+from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import city_display, fix_articles, niche_display, state_display
 from system_b.copy.subject import build_subject, niche_claim
 from system_b.gift.engine import compute_match_level
@@ -20,8 +21,10 @@ from system_b.models import Lead
 from system_b.niches.base import default_pack
 from system_b.niches.text import noun
 
-# 5e flag emitted when a priority-signal (job_fractional_cfo) lead is in the gift
-# — the CFO pack's `priority_flag`.
+# Retired 2026-08-04: this fired on 21 of 23 prospects, so it drowned the flags
+# that actually needed a decision. `config.MAX_JOB_LEAD_AGE_DAYS` now bounds
+# posting staleness in code instead. Kept as a named constant only so a pack
+# that wants an explicit "check this one" flag has a template to copy.
 CFO_PRIORITY_FLAG = (
     "job_fractional_cfo / low-confidence lead present — google the posting and "
     "confirm it's still live before sending (no date in copy)"
@@ -183,30 +186,85 @@ def _has_funding_signal(lead: Lead, raise_signals) -> bool:
     return any(s.type in raise_signals for s in lead.signals)
 
 
+def is_job_posting(lead: Lead) -> bool:
+    """A hiring signal — the company POSTED a role, so the seat is OPEN (that's
+    the buying signal). Every leadgen job signal type is `job_*`."""
+    return (lead.signal_type or "").startswith("job_")
+
+
+def job_phrase(lead: Lead) -> str:
+    """Deterministic hiring line for a job-posting lead: `is looking for a
+    {role}`. `{role}` is the posting's title from the lead's evidence, stripped
+    of any `| location | salary` metadata (noise in copy; it stays in the review
+    evidence). NEVER says "hired" — the role is open, which is the whole point.
+    Templated (not LLM) for the same reason funding is: honesty lives in code."""
+    raw = next((s.plain_words_description for s in lead.signals if s.plain_words_description), "") or ""
+    role = raw.split("|", 1)[0].strip().lower()
+    role, _ = strip_dollar_amounts(role)          # a salary in the title never reaches copy
+    role = role.strip()
+    if not role:
+        return "is hiring"
+    return fix_articles(f"is looking for a {role}")
+
+
+def is_breach(lead: Lead) -> bool:
+    return (lead.signal_type or "") == "breach_disclosed"
+
+
+def breach_phrase(lead: Lead) -> str:
+    """Deterministic line for a breach lead: `disclosed a security incident`.
+
+    Templated for the same reason hiring and funding are: the disclosure is a
+    matter of public record, and code cannot embellish it. Deliberately SOFT
+    and specific-free — the MSSP pack's own operator flag says to keep it that
+    way, and the underlying record ("... reported a data breach (07/24/2026,
+    California AG)") carries details this line must not repeat."""
+    return "disclosed a security incident"
+
+
+def _grounded_line(lead: Lead) -> str:
+    """Fallback for a signal type with no template of its own: the lead's own
+    verbatim evidence, never a model's paraphrase. Reached only if a new signal
+    type is added without a phrase — an honest degradation, not a normal path."""
+    return next(
+        (s.plain_words_description for s in lead.signals if s.plain_words_description),
+        "",
+    )
+
+
 def _lead_line(
-    lead: Lead, description: str, today: date, geo_level: str, *, pack,
+    lead: Lead, today: date, geo_level: str, *, pack,
+    with_date: bool = True,
 ) -> tuple[str, list[str]]:
     flags: list[str] = []
 
     if pack.funding_phrase is not None and is_raise(lead, pack.raise_signals):
         text = pack.funding_phrase(lead)                 # #10: ALL raises templated
+    elif is_breach(lead):
+        text = breach_phrase(lead)
     else:
-        text = (description or "").strip().lower()
-        text, stripped = strip_dollar_amounts(text)      # safety net on any LLM $ figure
-        text = fix_articles(text)                        # #11: a/an correction
-        if stripped:
-            flags.append(
-                f"stripped a dollar amount from {lead.company}'s line — never state a figure"
-            )
+        if is_job_posting(lead):
+            # Templated hiring line — never the raw "title | location | salary"
+            # evidence (goofy in copy).
+            text = job_phrase(lead)
+        else:
+            text = _grounded_line(lead).strip().lower()
+            text, stripped = strip_dollar_amounts(text)  # safety net on any $ figure
+            text = fix_articles(text)                    # #11: a/an correction
+            if stripped:
+                flags.append(
+                    f"stripped a dollar amount from {lead.company}'s line — never state a figure"
+                )
         # Multi-signal ("double"): a hire-primary lead that ALSO raised — mention
         # both. The raise stays code-templated (honest, never a dollar amount).
         if pack.funding_phrase is not None and _has_funding_signal(lead, pack.raise_signals):
             raise_txt = pack.funding_phrase(lead)
             text = f"{text} and {raise_txt}" if text else raise_txt
 
-    suffix = date_suffix(lead, today)          # '' when low-confidence / undated
-    if suffix:
-        text = f"{text}, {suffix}" if text else suffix
+    if with_date:                              # follow-ups pass False (Option A):
+        suffix = date_suffix(lead, today)      # they send days later, so a baked-in
+        if suffix:                             # relative date would drift by send time.
+            text = f"{text}, {suffix}" if text else suffix
 
     loc = city_display(lead.city) or state_display(lead.state)
     line = f"{lead.company}, {loc}: {text}" if loc else f"{lead.company}: {text}"
@@ -224,16 +282,15 @@ def _lead_line(
 def build_email_1(
     gift: Gift,
     prospect: Prospect,
-    descriptions: dict[str, str],
     *,
     today: date,
     rotation: int | None = None,
     pack=None,
     include_signoff: bool = True,
 ) -> EmailDraft:
-    """Render Email #1. `descriptions` maps lead id -> the LLM's freeform
-    'what they did, plain words' (no dates, no dollar amounts). The scaffolding
-    is niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
+    """Render Email #1. EVERY lead line is code-templated (hiring, breach,
+    funding) — no model writes any part of a sent email. The scaffolding is
+    niche-blind; `pack` (default CFO) supplies subject/framing/left-field/CTA
     voice and the raise/priority-signal knobs.
 
     `include_signoff=False` (the platform send path, B4a) omits the trailing
@@ -246,7 +303,7 @@ def build_email_1(
     lines: list[str] = []
     numbered = gift.gift_size >= 2                     # 5d: 1 lead folds in, no numbers
     for i, lead in enumerate(gift.leads):
-        line, lf = _lead_line(lead, descriptions.get(lead.id, ""), today, gift.geo_level, pack=pack)
+        line, lf = _lead_line(lead, today, gift.geo_level, pack=pack)
         flags.extend(lf)
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
@@ -267,7 +324,8 @@ def build_email_1(
     parts = [greeting, framing, "\n".join(lines), left_field, cta]
     if include_signoff:
         parts.append("best,\nishaan")
-    body = "\n\n".join(parts)
+    body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
+    subject = strip_em_dashes(subject)
 
     # 5e / Step-10 copy flag when a priority-signal lead is present.
     if (
@@ -300,7 +358,6 @@ def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
 def build_followup_email(
     lead: Lead | None,
     prospect: Prospect,
-    description: str,
     *,
     step: int,
     today: date,
@@ -325,37 +382,38 @@ def build_followup_email(
     final = step == 3
 
     if lead is not None:
-        line, lf = _lead_line(lead, description, today, "none", pack=pack)
+        line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
-        opener = "last one from me —" if final else f"found one more {qual}showing the same signal:"
+        opener = "last one from me." if final else f"found one more {qual}showing the same signal:"
         tail = (
             "if leads like these are useful i'll keep them coming; if not, no "
             "worries, i'll stop here."
             if final else
-            "still happy to keep sending these as they surface — want me to?"
+            "still happy to keep sending these as they surface, want me to?"
         )
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
     else:
         niche = niche_claim_or_geo(prospect)
+        sig = pack.followup_signal
         if final:
             core = (
-                f"last nudge from me — happy to keep surfacing {niche} companies "
-                "the moment they show a finance-need signal. just say the word."
+                f"last nudge from me, happy to keep surfacing {niche} companies "
+                f"the moment they show {sig}. just say the word."
             )
         else:
             core = (
-                f"circling back — still keeping an eye out for {niche} companies "
-                "showing a finance-need signal. want me to send them your way as "
+                f"circling back, still keeping an eye out for {niche} companies "
+                f"showing {sig}. want me to send them your way as "
                 "they come up?"
             )
 
     parts = [core]
     if include_signoff:
         parts.append("best,\nishaan")
-    body = "\n\n".join(parts)
+    body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
     return EmailDraft(subject="", body=body, flags=flags, left_field_variant="")
 
 

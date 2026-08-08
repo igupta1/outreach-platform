@@ -14,6 +14,7 @@ from datetime import date, timedelta
 import pytest
 
 from system_b import config
+from system_b.clients import inventory as inv
 from system_b.clients.inventory import (
     VALID_NICHES,
     adapt_leadgen_lead,
@@ -204,3 +205,264 @@ def test_snapshot_for_niche_rejects_unknown_niche(tmp_path, monkeypatch):
 
 def test_valid_niches_are_the_five():
     assert VALID_NICHES == frozenset({"accounting", "cfo", "mssp", "msp", "cloud"})
+
+
+def test_clean_company_name_strips_artifacts_only():
+    from system_b.clients.inventory import _clean_company_name
+    # clear registration artifact + doubled whitespace get removed
+    assert _clean_company_name("Intermezzo Inc. / DE /") == "Intermezzo Inc."
+    assert _clean_company_name("Foo  Bar   Inc") == "Foo Bar Inc"
+    # conservative: real names (even short/odd ones) pass through untouched
+    for n in ["Morreale", "Good Trouble", "Acme LLC", "Optimus Property Management, LLC"]:
+        assert _clean_company_name(n) == n
+
+
+# --------------------------------------------------------------------------
+# Blob mode (LEADGEN_BLOB_BASE_URL) + freshness guard
+# --------------------------------------------------------------------------
+
+_BLOB_BASE = "https://store.public.blob.vercel-storage.com"
+
+
+class _FakeResp:
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
+
+
+def _blob_doc(*, generated_at="2026-07-20", rows=None):
+    rows = rows if rows is not None else [_row(id="b1", name="Blobco")]
+    return {"generated_at": generated_at, "niche": "cfo", "count": len(rows), "leads": rows}
+
+
+def _fake_httpx(monkeypatch, *, leads_doc, taxonomy=None, record=None):
+    def fake_get(url, **kw):
+        if record is not None:
+            record.append(url)
+        if url.endswith("taxonomy.json"):
+            return _FakeResp({"taxonomy": taxonomy or {}})
+        return _FakeResp(leads_doc)
+    monkeypatch.setattr(inv.httpx, "get", fake_get)
+
+
+def test_blob_mode_reads_adapts_and_carries_source_url(monkeypatch):
+    urls: list[str] = []
+    doc = _blob_doc(rows=[_row(
+        id="b1", name="Blobco",
+        signals=[{"type": "job_finance_lead", "event_date": "2026-07-19",
+                  "evidence_text": "posted a controller role",
+                  "source_url": "https://jobs/blobco"}],
+    )])
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    _fake_httpx(monkeypatch, leads_doc=doc, taxonomy={"healthcare": ["dental"]}, record=urls)
+
+    snap = snapshot_for_niche("cfo", today=TODAY)
+    leads = snap.leads()
+    assert [lead.company for lead in leads] == ["Blobco"]
+    assert leads[0].primary_source_url == "https://jobs/blobco"     # source_url survives
+    assert snap.niches() == {"healthcare": ["dental"]}              # taxonomy from blob
+    assert any(u.endswith("cfo-leads.json") for u in urls)          # correct pathname fetched
+
+
+def test_freshness_refuses_stale_inventory(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    monkeypatch.delenv("LEADGEN_ALLOW_STALE", raising=False)
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))  # 19 days old
+    with pytest.raises(inv.StaleInventoryError):
+        snapshot_for_niche("cfo", today=TODAY)
+
+
+def test_freshness_allow_stale_bypasses(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    monkeypatch.setenv("LEADGEN_ALLOW_STALE", "1")
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))
+    snap = snapshot_for_niche("cfo", today=TODAY)                   # no raise
+    assert snap.leads()
+
+
+def test_freshness_missing_generated_at_is_allowed(monkeypatch):
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    doc = {"leads": [_row(id="b1", name="Blobco")]}                 # no generated_at
+    _fake_httpx(monkeypatch, leads_doc=doc)
+    assert snapshot_for_niche("cfo", today=TODAY).leads()           # warns, does not refuse
+
+
+def test_blob_takes_precedence_over_local_dir(monkeypatch, tmp_path):
+    # A leftover local dir must NOT win once the blob URL is set.
+    _write_inventory(tmp_path, "cfo", [_row(id="local1", name="LocalCo")], {})
+    monkeypatch.setenv("LEADGEN_INVENTORY_DIR", str(tmp_path))
+    monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
+    _fake_httpx(monkeypatch, leads_doc=_blob_doc(rows=[_row(id="blob1", name="BlobCo")]))
+    ids = {lead.id for lead in snapshot_for_niche("cfo", today=TODAY).leads()}
+    assert ids == {"blob1"}                                         # blob, not local1
+
+
+def test_no_source_configured_raises(monkeypatch):
+    monkeypatch.delenv("LEADGEN_BLOB_BASE_URL", raising=False)
+    monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
+    with pytest.raises(RuntimeError):
+        snapshot_for_niche("cfo", today=TODAY)
+
+
+# --- Job-posting age cap ---------------------------------------------------
+
+
+def _job_row(days_old: int) -> dict:
+    d = (date(2026, 8, 4) - timedelta(days=days_old)).isoformat()
+    return {
+        "id": f"j{days_old}", "name": f"Co{days_old}", "domain": "c.com",
+        "signal_type": "job_finance_lead", "niche": "dental",
+        "signals": [{"type": "job_finance_lead", "event_date": f"{d}T00:00:00",
+                     "evidence_text": "Controller", "source_url": "https://j/1"}],
+    }
+
+
+def test_expired_job_leads_never_enter_the_pool():
+    # "is looking for a controller" must not outlive the posting.
+    rows = [_job_row(3), _job_row(20), _job_row(22), _job_row(59)]
+    leads = inv._adapt_rows(rows, today=date(2026, 8, 4))
+    assert [lead.id for lead in leads] == ["j3", "j20"]
+
+
+def test_undated_job_lead_is_dropped():
+    row = _job_row(1)
+    row["signals"][0]["event_date"] = None
+    assert inv._adapt_rows([row], today=date(2026, 8, 4)) == []
+
+
+def test_age_cap_does_not_touch_breach_leads():
+    # A breach is an event that stays true; only the hiring claim decays.
+    row = _job_row(90)
+    row["signal_type"] = "breach_disclosed"
+    row["signals"][0]["type"] = "breach_disclosed"
+    leads = inv._adapt_rows([row], today=date(2026, 8, 4))
+    assert len(leads) == 1
+
+
+# --- Layer 1: the unusable-lead gate ---------------------------------------
+
+from system_b.clients.inventory import (  # noqa: E402
+    _adapt_rows,
+    _foreign_hirer,
+    _has_id_suffix,
+    _unusable_reason,
+)
+
+
+def _gate_row(**over):
+    row = {
+        "id": 1,
+        "name": "Acme Paving",
+        "domain": "acmepaving.com",
+        "insight": "Acme Paving builds roads.",
+        "signal_type": "job_finance_lead",
+        "city": "Austin",
+        "state": "TX",
+        "signals": [{
+            "type": "job_finance_lead",
+            "event_date": "2026-08-01T00:00:00",
+            "evidence_text": "Controller",
+            "source_url": "https://example.com/j/1",
+            "payload": {},
+        }],
+    }
+    row.update(over)
+    return row
+
+
+def test_id_suffix_catches_the_hash_artifact():
+    # The shape the fractional board actually produces.
+    assert _has_id_suffix("Lifesitenews 07Cfc")
+    assert _has_id_suffix("Lifesitenews Bef8C")
+    assert _has_id_suffix("Plutus Health Ddb8F")
+
+
+def test_id_suffix_leaves_real_brands_alone():
+    # Every one of these is a real company in the live store. A rule that eats
+    # them costs more than the artifacts it removes.
+    for name in (
+        "Love146", "Horizon3", "Imagine360", "4AIR", "JB3D", "Incodema3D",
+        "Delta360", "93Energy", "TRL11", "PM2CM", "Live4Lali", "hello82",
+        "SunEnergy1LLC", "Wavepoint3pl", "Enrollment123", "Transform9",
+        "F3EA Inc", "3Dt Holdings", "Studio 54", "Area 51", "Sector 9",
+        "Big Ten", "Deca Dence",     # letters-only trailing token, hex or not
+    ):
+        assert not _has_id_suffix(name), name
+
+
+def test_domainless_lead_is_kept_not_dropped():
+    """`gift.engine.sort_key` ranks a domainless lead below every resolvable
+    company. Dropping it here would make that tiebreak dead code and cost real
+    leads for a case the ranking already handles."""
+    row = _gate_row(domain=None)
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def test_clean_lead_survives():
+    row = _gate_row()
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def _gate_lead(row):
+    from datetime import date as _d
+    from system_b.clients.inventory import adapt_leadgen_lead
+    return adapt_leadgen_lead(row, today=_d(2026, 8, 5))
+
+
+def test_recruiter_posting_naming_another_company_is_dropped():
+    # The real case: the lead is the recruiter, the body names the actual hirer.
+    row = _gate_row(name="InforCapital, partnership", domain="inforcapital.com")
+    row["signals"][0]["payload"] = {
+        "description": "Amphora Equity Partners is looking for a Vice President "
+                       "of Finance to lead financial operations."
+    }
+    reason = _unusable_reason(row, _gate_lead(row))
+    assert reason is not None and "Amphora" in reason
+
+
+def test_posting_naming_the_same_company_is_kept():
+    # Same company, phrased differently — token overlap must save it.
+    row = _gate_row(name="Shipium", domain="shipium.com")
+    row["signals"][0]["payload"] = {
+        "description": "About the role Shipium is looking for a Controller."
+    }
+    assert _unusable_reason(row, _gate_lead(row)) is None
+
+
+def test_generic_opener_is_not_a_foreign_hirer():
+    for opener in (
+        "Our company is looking for a Controller.",
+        "The company is seeking a Director of Finance.",
+        "We is hiring",           # degenerate, must not match a name
+    ):
+        row = _gate_row()
+        row["signals"][0]["payload"] = {"description": opener}
+        assert _foreign_hirer(row, "Acme Paving") is None, opener
+
+
+def test_missing_description_is_not_a_foreign_hirer():
+    row = _gate_row()
+    row["signals"][0]["payload"] = {}
+    assert _foreign_hirer(row, "Acme Paving") is None
+
+
+def test_adapt_rows_drops_unusable_and_keeps_the_rest():
+    from datetime import date as _d
+    rows = [
+        _gate_row(id=1, name="Acme Paving", domain="acmepaving.com"),
+        _gate_row(id=2, name="Lifesitenews 07Cfc", domain="lifesitenews.com"),
+        _gate_row(id=3, name="No Domain Co", domain=None),
+        _gate_row(id=4, name="Good Corp", domain="goodcorp.com"),
+    ]
+    kept = _adapt_rows(rows, today=_d(2026, 8, 5))
+    # The hash-suffixed name goes; the domainless one stays (ranked, not dropped).
+    assert [lead.company for lead in kept] == ["Acme Paving", "No Domain Co", "Good Corp"]

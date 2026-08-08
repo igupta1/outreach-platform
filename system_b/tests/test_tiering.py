@@ -72,8 +72,7 @@ def _research(match_params, *, exclusivity, phrases=None, niche_phrase="stated t
 
 
 def _body(prospect, gift):
-    desc = {lead.id: "did a thing" for lead in gift.leads}
-    return build_email_1(gift, prospect, desc, today=TODAY).body
+    return build_email_1(gift, prospect, today=TODAY).body
 
 
 # --------------------------------------------------------------------------
@@ -87,6 +86,18 @@ def test_map_industry_candidates_prefers_child_over_coarse_guess():
     # a clean single-industry phrase with no child -> the parent industry
     assert map_industry_candidates("residential construction companies",
                                    "construction", TAXONOMY) == [("industry", "construction")]
+
+
+def test_map_industry_candidates_synonym_alias_fallback():
+    # a distinctive one-word synonym maps when the strict all-tokens match misses
+    # ("saas" alone never satisfies the `software_saas` key)...
+    assert map_industry_candidates("saas", None, TAXONOMY) == [("industry", "software_saas")]
+    # ...but the alias is a FALLBACK: when the phrase already names a real served
+    # vertical, the alias word is the prospect's own service, not a 2nd vertical.
+    assert map_industry_candidates("saas tools for dental practices", None, TAXONOMY) == \
+        [("niche", "dental")]
+    # a phrase with no vertical at all stays generalist (no alias, no guess)
+    assert map_industry_candidates("veteran led businesses", None, TAXONOMY) == []
 
 
 def test_map_industry_candidates_splits_multi_industry_phrase():
@@ -201,11 +212,12 @@ def test_gate_b_taxonomy_drops_when_no_niche_leads():
 
 
 # --------------------------------------------------------------------------
-# GATE B (fit) — leads ARE bucketed to the niche, but a value_prop doesn't read
-# as it (mis-tagged) -> drop the whole niche -> generalist. (The Power CFO bug.)
+# GATE B (fit) + NICHE-LIFT — a mis-tagged lead is SWAPPED OUT (never listed) and
+# the niche is kept with the fitting leads; only when NOTHING fits do we drop to
+# generalist. (Still prevents the Power CFO bug: the bad lead is never claimed.)
 # --------------------------------------------------------------------------
 
-def test_gate_b_fit_drops_mistagged_lead():
+def test_niche_lift_swaps_out_mistagged_lead_keeps_claim():
     research = _research([("industry", "manufacturing")], exclusivity="single",
                          phrases=["manufacturing"])
     leads = [
@@ -216,7 +228,23 @@ def test_gate_b_fit_drops_mistagged_lead():
     # taxonomy says all 3 are manufacturing, but the fit-check says the IT co isn't
     fit = _fit(per_id={"it": False, "m2": True, "m3": True})
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=fit)
-    assert prospect.classification == "generalist"      # one bad lead kills the claim
+    assert prospect.classification == "niched"                   # claim recovered by swapping the lead out
+    assert prospect.match_param == ("industry", "manufacturing")
+    body = _body(prospect, gift)
+    assert "Iq Sig" not in body                                  # the mis-tagged lead is NEVER listed
+    assert "manufacturing" in body                               # niche claimed, honestly
+
+
+def test_niche_lift_drops_to_generalist_when_nothing_fits():
+    research = _research([("industry", "manufacturing")], exclusivity="single",
+                         phrases=["manufacturing"])
+    leads = [
+        mk("b1", "job_finance_lead", industry="manufacturing", city="Denver", state="CO", date="2026-07-05", company="Bad One", finance_grade="medium"),
+        mk("b2", "funding_form_d", industry="manufacturing", city="Denver", state="CO", date="2026-07-04", company="Bad Two"),
+    ]
+    fit = _fit(per_id={"b1": False, "b2": False})                # no lead reads as the niche
+    prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=fit)
+    assert prospect.classification == "generalist"               # nothing fits -> honest generalist
     assert prospect.niche_exclusivity == "none"
     assert "manufacturing" not in _body(prospect, gift)
 
@@ -260,7 +288,7 @@ def test_raw_phrase_blob_never_leaks_into_copy():
         mk("r2", "job_finance_lead", industry="real_estate", city="Denver", state="CO", date="2026-07-04", finance_grade="medium"),
     ]
     prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
-    draft = build_email_1(gift, prospect, {lead.id: "did a thing" for lead in gift.leads}, today=TODAY)
+    draft = build_email_1(gift, prospect, today=TODAY)
     blob = (draft.subject + "\n" + draft.body).lower()
     for leak in ("who we serve", "designed for", "nonprofit"):
         assert leak not in blob
