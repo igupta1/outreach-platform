@@ -403,7 +403,6 @@ def build_followup_email(
     today: date,
     pack=None,
     include_signoff: bool = False,
-    segment_note: str = "",
 ) -> EmailDraft:
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
@@ -437,15 +436,7 @@ def build_followup_email(
             if final else
             "offer still stands on setting it up for you, 15 min whenever works."
         )
-        # Segment context (step 2 only): a DIFFERENT kind of value from "here is
-        # one more lead", which is what stops the follow-up reading as a bump.
-        # Empty whenever the segment is too thin to say anything (see
-        # copy.segment), so a sparse state degrades to the plain shape.
-        body_parts = [opener, line]
-        if segment_note and not final:
-            body_parts.append(segment_note)
-        body_parts.append(tail)
-        core = "\n\n".join(body_parts)
+        core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
     else:
