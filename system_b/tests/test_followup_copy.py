@@ -151,3 +151,44 @@ def test_followups_prefer_same_niche_lead():
     assert "x1" not in extra                                         # never the off-niche lead
     assert all(eid.startswith("c") for eid in extra)                # all same-niche
     assert [ld.id for ld in leads if ld] == extra                   # leads align with the pulled ids
+
+
+# --- follow-ups: a different KIND of value, and the same ask as email 1 ------
+
+def test_step2_carries_the_segment_note_and_step3_does_not():
+    """Step 2 gets market context — a different value type from 'one more lead',
+    which is what stops a follow-up reading as a bump. Step 3 is the breakup and
+    stays short."""
+    lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
+    note = "14 came through in colorado this month, 9 at companies under 50 people."
+    d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY, segment_note=note)
+    d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY, segment_note=note)
+    assert note in d2.body
+    assert note not in d3.body
+
+
+def test_thin_segment_degrades_to_the_plain_shape():
+    lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
+    d = build_followup_email(lead, _prospect(), step=2, today=TODAY, segment_note="")
+    assert "Acme" in d.body
+    assert "came through" not in d.body
+
+
+def test_followups_ask_for_the_same_thing_email_1_does():
+    """A sequence whose steps chase different outcomes converts on the easiest
+    one. The old tails recruited a subscriber ('want me to keep sending these?');
+    every step now points at the 15 minutes."""
+    lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
+    d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY)
+    d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY)
+    assert "15 min" in d2.body and "15 min" in d3.body
+    for banned in ("keep sending these as they surface", "i'll keep them coming"):
+        assert banned not in d2.body and banned not in d3.body
+    # step 3 still gives an easy out
+    assert "no worries" in d3.body and "i'll stop here" in d3.body
+
+
+def test_fallback_followup_still_asks_for_the_call():
+    d = build_followup_email(None, _prospect(), step=2, today=TODAY)
+    assert "15 min" in d.body
+    assert "want me to send them your way" not in d.body

@@ -270,3 +270,89 @@ def test_research_feeds_copy_and_every_claim_is_evidenced():
     assert "healthcare startups" not in draft.body        # raw phrase stays out of the copy
     # ...and the exact phrase is retained in evidence, backing the classification.
     assert evidence_covers("healthcare startups", r)
+
+
+# --- naming clients in copy: the guard on "you worked with X" ----------------
+
+from system_b.research.classifier import _is_client_page  # noqa: E402
+
+# Enough visible text to clear THIN_MIN_CHARS so these exercise the client path,
+# not the thin-site fallback.
+_PAD = " we are a finance firm serving mission driven organizations." * 8
+
+
+def test_client_page_guard_accepts_client_indicating_urls():
+    for url in (
+        "https://clearviewcanary.com/clients-contributions",
+        "https://acme.com/our-clients",
+        "https://acme.com/case-studies/xyz",
+        "https://acme.com/portfolio",
+        "https://acme.com/who-we-serve",
+        "https://acme.com/customers",
+        "https://acme.com/our-work",
+    ):
+        assert _is_client_page(url), url
+
+
+def test_client_page_guard_rejects_everything_else():
+    # A name in a footer, a partners strip, or an "as seen in" row is NOT
+    # evidence of a client relationship — naming it would make the copy false.
+    for url in (
+        "https://acme.com",
+        "https://acme.com/about",
+        "https://acme.com/partners",
+        "https://acme.com/services",
+        "https://acme.com/blog/we-love-maps",
+        "",
+    ):
+        assert not _is_client_page(url), url
+
+
+def _client_llm(names):
+    def fn(_site):
+        return {
+            "classification": "niched",
+            "path": "client_list",
+            "niche_guess": "nonprofit",
+            "clients": [{"name": n} for n in names],
+        }
+    return fn
+
+
+def test_only_clients_on_a_client_page_are_nameable():
+    """Both names verify verbatim, so both support the taxonomy claim. Only the
+    one on the clients page may be spoken aloud in copy."""
+    site = {
+        "https://acme.com/clients": "we work with Public Justice Foundation every day." + _PAD,
+        "https://acme.com/about": "we admire The Nemasket Group, Inc. from afar." + _PAD,
+    }
+    res = classify(site, {"nonprofit": []}, llm=_client_llm(
+        ["Public Justice Foundation", "The Nemasket Group, Inc."]))
+    assert res.classification == "niched"
+    assert len(res.evidence) == 2                       # both still evidence
+    assert res.nameable_clients == ["Public Justice Foundation"]   # only one nameable
+
+
+def test_two_clients_on_a_client_page_are_both_nameable():
+    site = {
+        "https://acme.com/our-clients": (
+            "proud to work with MAPS and Public Justice Foundation on their finances." + _PAD
+        ),
+    }
+    res = classify(site, {"nonprofit": []}, llm=_client_llm(
+        ["MAPS", "Public Justice Foundation"]))
+    assert res.classification == "niched"
+    assert res.nameable_clients == ["MAPS", "Public Justice Foundation"]
+
+
+def test_no_client_page_means_nothing_is_nameable():
+    """The niche claim survives on presence + the human flag; the NAMES do not.
+    Copy falls back to the unnamed phrasing rather than asserting a relationship."""
+    site = {
+        "https://acme.com/about": "logos: MAPS, Public Justice Foundation." + _PAD,
+    }
+    res = classify(site, {"nonprofit": []}, llm=_client_llm(
+        ["MAPS", "Public Justice Foundation"]))
+    assert res.classification == "niched"
+    assert res.nameable_clients == []
+    assert any("presence-only" in f for f in res.flags)

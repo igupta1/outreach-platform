@@ -23,7 +23,29 @@ from system_b.research.models import Evidence, ResearchResult
 # Below this much total visible text, the site is "thin" -> generalist
 # regardless of what the model says (spec 2a rule 3).
 THIN_MIN_CHARS = 350
-MIN_CLIENTS = 2   # 2+ named clients (copy stays soft: "worked with a bunch of X")
+MIN_CLIENTS = 2   # 2+ named clients, verbatim on the site
+
+# Pages that present the names on them AS clients. A name being verbatim on the
+# site is NOT enough to call it a client: the same string in a footer, a
+# "partners" strip, or an "as seen in" row would make "you worked with X" false.
+# Only names found on one of these pages may be NAMED in copy — the taxonomy
+# claim itself is unaffected, since that already survives on presence alone plus
+# a mandatory human flag.
+#
+# Matched against the URL, which is where this is cheap and reliable: the
+# fetcher already prioritizes exactly these pages when it discovers links, so a
+# real client list almost always lands on one (clearview canary's was
+# `/clients-contributions`).
+_CLIENT_PAGE_KEYWORDS = (
+    "client", "customer", "case-stud", "casestud", "case_stud",
+    "portfolio", "our-work", "ourwork", "who-we-serve", "whoweserve",
+)
+
+
+def _is_client_page(url: str) -> bool:
+    """True when the page URL presents its contents as clients/customers/work."""
+    u = (url or "").lower()
+    return any(k in u for k in _CLIENT_PAGE_KEYWORDS)
 
 _WS_RE = re.compile(r"\s+")
 
@@ -146,13 +168,19 @@ def classify(
         # Presence-only: names are verbatim on the page, but we do NOT confirm
         # they're shown AS clients (vs logos/partners/competitors) or are SMBs.
         # So a client-list niche ALWAYS gets a mandatory human review flag before
-        # copy can imply "you've worked with a bunch of X".
+        # copy can imply "you've worked with X".
         flags.append(
             "client-list niche is presence-only — verify these are real clients "
             "(not footer logos / partners / competitors) and SMBs before approving"
         )
+        # Only names on a page that presents them AS clients may be spoken aloud
+        # in copy. Everything else still supports the taxonomy claim (which is
+        # softer and human-flagged); it just never gets named.
+        nameable = [e.text for e in verified if _is_client_page(e.url)]
         guess = str(raw.get("niche_guess", "")).strip()
-        return _map_or_save(guess, taxonomy, "client_list", verified, flags)
+        result = _map_or_save(guess, taxonomy, "client_list", verified, flags)
+        result.nameable_clients = nameable
+        return result
 
     if path == "statement":
         # Change 2: a firm may state SEVERAL served industries. Verify each

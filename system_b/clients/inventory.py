@@ -200,6 +200,8 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         industry=row.get("industry"),
         niche=niche,
         value_prop=row.get("insight"),
+        headcount=row.get("headcount"),
+        headcount_band=row.get("headcount_band"),
         signal_type=row["signal_type"],
         freshness=freshness,
         signals=signals,

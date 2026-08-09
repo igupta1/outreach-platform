@@ -36,7 +36,14 @@ class Lead(BaseModel):
     industry: str | None = None              # coarse parent (~18)
     niche: str | None = None                 # granular child (~75) or null/unknown
     value_prop: str | None = None
-    signal_type: str                          # leadgen raw type: job_fractional_cfo|job_finance_lead|job_junior_finance|job_it_support|job_it_leadership|job_security|job_cloud_devops|funding_form_d|funding_form_c|breach_disclosed
+    # Company size, straight from leadgen. `headcount` is the exact count when
+    # it was discoverable (~47% of leads); `headcount_band` is the coarse range
+    # and lands on ~98%, which is why anything reading size must consult BOTH.
+    # Used for aggregate segment stats, never to make a size claim about one
+    # company in copy.
+    headcount: int | None = None
+    headcount_band: str | None = None
+    signal_type: str                        # leadgen raw type: job_fractional_cfo|job_finance_lead|job_junior_finance|job_it_support|job_it_leadership|job_security|job_cloud_devops|funding_form_d|funding_form_c|breach_disclosed
     finance_grade: str | None = None          # not in live API -> None
     freshness: str | None = None              # fresh | stale
     score: float | None = None                # not in live API -> None

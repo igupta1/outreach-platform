@@ -25,6 +25,11 @@ class Prospect:
     # with"), "none" (generalist, no industry claimed). Set by the tiering
     # resolver after Gate B, NOT by research alone.
     niche_exclusivity: str = "none"
+    # Verified client names we can NAME in copy: verbatim on the prospect's own
+    # site AND found on a page that presents them as clients. Empty whenever we
+    # cannot stand behind the word "client" (see research.classifier), which is
+    # why copy falls back to the unnamed phrasing instead of guessing.
+    client_names: list[str] = field(default_factory=list)
     sent_lead_ids: list[str] = field(default_factory=list)
 
 

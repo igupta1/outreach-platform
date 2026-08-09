@@ -30,32 +30,30 @@ CFO_PRIORITY_FLAG = (
     "confirm it's still live before sending (no date in copy)"
 )
 
-# 5b — five left-field lines. Rotation is deterministic per prospect so a
-# redraft is stable and tests are reproducible. The chosen variant's LABEL is
-# logged on the draft / review card / row so replies can be A/B'd by phrasing.
+# 5b — the left-field line. Rotation machinery is kept (a pack may supply
+# several), but the CFO pack ships ONE authored line, so every CFO email uses it.
+#
+# Three jobs in 24 words, which is why the wording is load-bearing:
+#   "i'm an engineer"        — credibility, with no title and no invitation to
+#                              ask whether this is a side project.
+#   "built this one"         — "this one" implies others exist, so the reader
+#                              infers a builder without the copy claiming range.
+#   "for fractional cfos"    — the TOOL is purpose-built for their profession.
+#                              This is what stops the reveal of a system from
+#                              reading as spray-and-pray: a machine made it, but
+#                              it was made for people like them.
+#   "hearing the same thing  — their peers said it, so the pain is theirs, not
+#    over and over"            a guess.
+#   "and nothing replaced    — the emotional beat. Naming the pain without it
+#    them"                     states a fact; with it, it lands. Do not cut.
+#
 # House style: all lowercase, no em dashes — kept EXACTLY as authored.
 LEFT_FIELD: list[str] = [
     # A
-    "most fractional cfos i talk to say referrals were great, till they dried "
-    "up. built this to catch companies the day they show a finance-need signal.",
-    # B
-    "every fractional cfo i talk to says the same thing, referrals carried them "
-    "till they didn't. so i built a feed that catches companies the day they "
-    "show a finance-need signal.",
-    # C
-    "most fractional cfos i know swear by referrals, right up until the well "
-    "runs dry. built this to catch companies the moment a finance-need signal "
-    "shows up.",
-    # D
-    "the fractional cfos i talk to say nothing beats a referral, till there "
-    "aren't any left. so i built a feed that surfaces companies the day they "
-    "signal they need finance help.",
-    # E
-    "most fractional cfos i talk to loved referrals, till the pipeline went "
-    "quiet. built this to catch companies right when a finance-need signal "
-    "shows up.",
+    "i'm an engineer. built this one for fractional cfos after hearing the same "
+    "thing over and over, referrals dried up and nothing replaced them.",
 ]
-LEFT_FIELD_LABELS: list[str] = ["A", "B", "C", "D", "E"]
+LEFT_FIELD_LABELS: list[str] = ["A"]
 
 
 @dataclass
@@ -71,6 +69,20 @@ def rotation_for(prospect: Prospect) -> int:
     return zlib.crc32(prospect.firm_name.encode("utf-8")) % len(LEFT_FIELD)
 
 
+def _client_names_phrase(prospect: Prospect) -> str:
+    """"A and B" from the prospect's nameable clients, or "" when there are
+    none to stand behind.
+
+    TWO names, not one and not five: one reads as a lucky grep, five reads as a
+    scrape. Two is the smallest number that shows someone actually read the
+    page. Names keep their own casing (they are proper nouns) inside otherwise
+    lowercase prose, exactly as the gift's company names do."""
+    names = [n.strip() for n in (prospect.client_names or []) if n and n.strip()]
+    if len(names) < 2:
+        return ""
+    return f"{names[0]} and {names[1]}"
+
+
 def _framing(gift: Gift, prospect: Prospect) -> str:
     n = gift.gift_size
     niche = niche_claim(gift, prospect)
@@ -82,22 +94,36 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     # exact phrase stays in evidence / the review card, not the sent copy.
     # The VERB stays soft — "work with", never "focus on" — so we never overclaim
     # a specialty we might be wrong about. A client list reads as a sole focus.
+    companies = noun(n, "company", "companies")
     if niche:
         if prospect.niche_source == "client_list":
+            # Naming the clients is what makes a 2-client threshold honest. The
+            # unnamed version ("a bunch of nonprofit companies") is an inference
+            # about their BUSINESS from two data points; naming them makes it a
+            # citation of two facts verbatim on their own page. `client_names`
+            # is already filtered to client-indicating pages upstream, and is
+            # empty when we can't stand behind it — in which case we fall back
+            # to the soft, unnamed phrasing.
+            named = _client_names_phrase(prospect)
+            if named:
+                return (
+                    f"noticed you've worked with {niche} companies like {named}, "
+                    f"so i pulled {n} more showing they need finance help:"
+                )
             return (
-                f"noticed you've worked with a bunch of {niche} companies, so i "
-                f"pulled {n} more showing they need finance help right now:"
+                f"noticed you've worked with {niche} companies, so i "
+                f"pulled {n} more showing they need finance help:"
             )
         if prospect.niche_exclusivity == "one_of_several":
             # one of SEVERAL stated industries — name ONLY the one we're gifting.
             return (
                 f"noticed you work with {niche} companies, so i pulled {n} more "
-                f"showing they need finance help right now:"
+                f"showing they need finance help:"
             )
         # sole — a single stated focus; still soft language ("work with").
         return (
             f"saw on your site you work with {niche}, so i pulled {n} {niche} "
-            f"companies showing they need finance help right now:"
+            f"{companies} showing they need finance help:"
         )
     # geo (all_niche FALSE): open with where they're based ONLY when the leads
     # are actually in their city or state. A geo-none gift's leads are
@@ -106,15 +132,15 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     based = city or state
     if gift.geo_level == "city" and city:
         return (
-            f"saw you're based in {city}, so i pulled {n} companies in {city} "
-            f"showing they need finance help right now:"
+            f"saw you're based in {city}, so i pulled {n} {companies} in {city} "
+            f"showing they need finance help:"
         )
     if gift.geo_level == "state" and based:
         return (
-            f"saw you're based in {based}, so i pulled {n} {state} companies "
-            f"showing they need finance help right now:"
+            f"saw you're based in {based}, so i pulled {n} {state} {companies} "
+            f"showing they need finance help:"
         )
-    return f"i pulled {n} companies showing they need finance help right now:"
+    return f"i pulled {n} {companies} showing they need finance help:"
 
 
 def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
@@ -149,21 +175,35 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     return f"i pulled {n} {companies} {need}:"
 
 
+# The ask. One goal per email: book 15 minutes.
+#
+# The previous CTA ("want me to keep an eye out for atlanta ones?") optimized
+# for the WRONG yes — it recruited subscribers to a free lead feed, which is
+# the one business this tool is not trying to be in, and it never converted to
+# a conversation. Every part of this one is deliberate:
+#
+#   "still tuning it"       — true, and it turns a sales ask into a research
+#                             ask. People delete the first and answer the
+#                             second. It also covers a weak lead honestly.
+#   "would 15 min work"     — a bounded, specific, easily-declined request.
+#   "what would make it     — the call's stated purpose is THEIR expertise, not
+#    useful for you"          a pitch, and it opens onto everything else they
+#                             need once you are actually talking.
+#   "either way"            — they get the thing whether or not they take the
+#                             call. Removes the transaction; this is the most
+#                             persuasive clause in the email precisely because
+#                             it asks for nothing.
+#
+# Niche/geo-agnostic on purpose: the opener and the leads already carried the
+# personalization, and repeating it here made the close about the feed again.
+_CTA_LINE = (
+    "still tuning it. would 15 min work to hear what would make it useful for "
+    "you? happy to set it up to run for you either way :)"
+)
+
+
 def _cta(gift: Gift, prospect: Prospect) -> str:
-    niche = niche_claim(gift, prospect)
-    if niche:
-        return f"want me to keep an eye out for {niche} ones and send them your way?"
-    if gift.geo_level == "city":
-        return (
-            f"want me to keep an eye out for {city_display(prospect.city)} ones "
-            f"and send them your way?"
-        )
-    if gift.geo_level == "state":
-        return (
-            f"want me to keep an eye out for {state_display(prospect.state)} ones "
-            f"and send them your way?"
-        )
-    return "want me to keep an eye out and send new ones your way?"
+    return _CTA_LINE
 
 
 def _funding_phrase(lead: Lead) -> str:
@@ -363,6 +403,7 @@ def build_followup_email(
     today: date,
     pack=None,
     include_signoff: bool = False,
+    segment_note: str = "",
 ) -> EmailDraft:
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
@@ -386,13 +427,25 @@ def build_followup_email(
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
         opener = "last one from me." if final else f"found one more {qual}showing the same signal:"
+        # The tails ask for the same thing email #1 did. The old ones ("want me
+        # to keep sending these?") recruited a subscriber, which is the wrong
+        # yes: a sequence whose steps chase different outcomes converts on the
+        # easiest one, and that was never the call.
         tail = (
-            "if leads like these are useful i'll keep them coming; if not, no "
-            "worries, i'll stop here."
+            "if this isn't useful no worries at all, i'll stop here. if it is, "
+            "i'd still love 15 min to tune it for you."
             if final else
-            "still happy to keep sending these as they surface, want me to?"
+            "offer still stands on setting it up for you, 15 min whenever works."
         )
-        core = f"{opener}\n\n{line}\n\n{tail}"
+        # Segment context (step 2 only): a DIFFERENT kind of value from "here is
+        # one more lead", which is what stops the follow-up reading as a bump.
+        # Empty whenever the segment is too thin to say anything (see
+        # copy.segment), so a sparse state degrades to the plain shape.
+        body_parts = [opener, line]
+        if segment_note and not final:
+            body_parts.append(segment_note)
+        body_parts.append(tail)
+        core = "\n\n".join(body_parts)
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
     else:
@@ -406,8 +459,7 @@ def build_followup_email(
         else:
             core = (
                 f"circling back, still keeping an eye out for {niche} companies "
-                f"showing {sig}. want me to send them your way as "
-                "they come up?"
+                f"showing {sig}. 15 min whenever works if you want it set up."
             )
 
     parts = [core]

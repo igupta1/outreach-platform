@@ -222,53 +222,72 @@ def test_5a_framing_table():
     # uses the clean niche word, NOT the raw scraped phrase (#7/Change 3).
     p_site = P(niche_phrase="healthcare startups", niche_source="site", niche_exclusivity="sole")
     assert _framing(G(all_niche=True, geo="city"), p_site) == \
-        "saw on your site you work with healthcare, so i pulled 3 healthcare companies showing they need finance help right now:"
+        "saw on your site you work with healthcare, so i pulled 3 healthcare companies showing they need finance help:"
 
     # TIER 2 — one of several stated industries, verb "work with"; names ONLY
     # the one niche we're gifting for.
     p_multi = P(niche_phrase="WHO WE SERVE: healthcare, real estate, nonprofits",
                 niche_source="site", niche_exclusivity="one_of_several")
     assert _framing(G(all_niche=True, geo="city"), p_multi) == \
-        "noticed you work with healthcare companies, so i pulled 3 more showing they need finance help right now:"
+        "noticed you work with healthcare companies, so i pulled 3 more showing they need finance help:"
 
+    # client_list with NO nameable clients -> the soft, unnamed phrasing.
     p_list = P(niche_source="client_list")
     assert _framing(G(all_niche=True, geo="state"), p_list) == \
-        "noticed you've worked with a bunch of healthcare companies, so i pulled 3 more showing they need finance help right now:"
+        "noticed you've worked with healthcare companies, so i pulled 3 more showing they need finance help:"
+
+    # client_list WITH nameable clients -> name exactly two. This is what makes
+    # a 2-client threshold honest: a citation, not an inference.
+    p_named = P(niche_source="client_list")
+    p_named.client_names = ["MAPS", "Public Justice Foundation", "Prizmah"]
+    assert _framing(G(all_niche=True, geo="state"), p_named) == \
+        ("noticed you've worked with healthcare companies like MAPS and Public "
+         "Justice Foundation, so i pulled 3 more showing they need finance help:")
+
+    # one nameable client is not enough to name any -> falls back to unnamed.
+    p_one = P(niche_source="client_list")
+    p_one.client_names = ["MAPS"]
+    assert _framing(G(all_niche=True, geo="state"), p_one) == \
+        "noticed you've worked with healthcare companies, so i pulled 3 more showing they need finance help:"
 
     p = P()
     # the "based in [city]" opener is used ONLY when the leads are in the
     # prospect's city or state; geo none makes no location claim.
     assert _framing(G(all_niche=False, geo="city"), p) == \
-        "saw you're based in denver, so i pulled 3 companies in denver showing they need finance help right now:"
+        "saw you're based in denver, so i pulled 3 companies in denver showing they need finance help:"
     assert _framing(G(all_niche=False, geo="state"), p) == \
-        "saw you're based in denver, so i pulled 3 colorado companies showing they need finance help right now:"
+        "saw you're based in denver, so i pulled 3 colorado companies showing they need finance help:"
     assert _framing(G(all_niche=False, geo="none"), p) == \
-        "i pulled 3 companies showing they need finance help right now:"
+        "i pulled 3 companies showing they need finance help:"
 
     # no city -> fall back to state in the intro
     p_nocity = P(city=None)
     assert _framing(G(all_niche=False, geo="state"), p_nocity) == \
-        "saw you're based in colorado, so i pulled 3 colorado companies showing they need finance help right now:"
+        "saw you're based in colorado, so i pulled 3 colorado companies showing they need finance help:"
     # no location at all -> plain open, no personalization
     p_none = P(city=None, state=None)
     assert _framing(G(all_niche=False, geo="none"), p_none) == \
-        "i pulled 3 companies showing they need finance help right now:"
+        "i pulled 3 companies showing they need finance help:"
 
 
 # --------------------------------------------------------------------------
 # 5c — CTA table (4 rows)
 # --------------------------------------------------------------------------
 
-def test_5c_cta_table():
+def test_5c_cta_asks_for_the_call():
+    """One ask, one goal: book 15 minutes. The old CTA branched on niche/geo and
+    recruited subscribers to a free lead feed — the wrong yes. This one is
+    deliberately niche/geo-agnostic: the opener and the leads already carried the
+    personalization, and repeating it here made the close about the feed."""
+    expected = (
+        "still tuning it. would 15 min work to hear what would make it useful "
+        "for you? happy to set it up to run for you either way :)"
+    )
     p = P()
-    assert _cta(G(all_niche=True, geo="city"), p) == \
-        "want me to keep an eye out for healthcare ones and send them your way?"
-    assert _cta(G(all_niche=False, geo="city"), p) == \
-        "want me to keep an eye out for denver ones and send them your way?"
-    assert _cta(G(all_niche=False, geo="state"), p) == \
-        "want me to keep an eye out for colorado ones and send them your way?"
-    assert _cta(G(all_niche=False, geo="none"), p) == \
-        "want me to keep an eye out and send new ones your way?"
+    for all_niche, geo in ((True, "city"), (False, "city"), (False, "state"), (False, "none")):
+        assert _cta(G(all_niche=all_niche, geo=geo), p) == expected
+    # it asks exactly once
+    assert expected.count("?") == 1
 
 
 # --------------------------------------------------------------------------
@@ -276,15 +295,19 @@ def test_5c_cta_table():
 # --------------------------------------------------------------------------
 
 def test_5b_left_field_rotation():
-    # five variants (A-E), all distinct, house style: all lowercase, no em dashes
-    assert len(LEFT_FIELD) == 5
-    assert len(set(LEFT_FIELD)) == 5
-    assert LEFT_FIELD_LABELS == ["A", "B", "C", "D", "E"]
+    # ONE authored line for the CFO pack. The rotation machinery stays (a pack
+    # may supply several); house style: all lowercase, no em dashes.
+    assert len(LEFT_FIELD) == len(set(LEFT_FIELD)) == 1
+    assert LEFT_FIELD_LABELS == ["A"]
     assert LEFT_FIELD[0] == (
-        "most fractional cfos i talk to say referrals were great, till they "
-        "dried up. built this to catch companies the day they show a "
-        "finance-need signal."
+        "i'm an engineer. built this one for fractional cfos after hearing the "
+        "same thing over and over, referrals dried up and nothing replaced them."
     )
+    # the three jobs the line has to keep doing
+    assert "i'm an engineer" in LEFT_FIELD[0]          # credibility
+    assert "this one" in LEFT_FIELD[0]                  # implies others exist
+    assert "for fractional cfos" in LEFT_FIELD[0]       # purpose-built, not sprayed
+    assert "nothing replaced them" in LEFT_FIELD[0]     # the emotional beat
     assert all(line == line.lower() for line in LEFT_FIELD)
     assert not any("—" in line for line in LEFT_FIELD)
     p = P(firm_name="Acme CFO")
@@ -481,7 +504,7 @@ def test_full_email_niched_example_1():
     assert "2. Acme Bio, denver: is looking for a bookkeeper, 3 days ago" in draft.body
     assert "3. Nimbus Rx, denver: is looking for a staff accountant, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
-    assert "want me to keep an eye out for healthcare ones and send them your way?" in draft.body
+    assert "would 15 min work to hear what would make it useful for you?" in draft.body
     assert draft.body.endswith("best,\nishaan")
     # no funding claim means no registered-address caveat
     assert not any("registered address" in f for f in draft.flags)
@@ -498,13 +521,13 @@ def test_full_email_generalist_example_8():
         mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, today=TODAY, rotation=1)
+    draft = build_email_1(g, p, today=TODAY, rotation=0)
 
     assert draft.subject == "companies in miami hiring finance leadership right now"
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
     assert "1. Palm Freight, miami: is looking for a vp of finance, 2 days ago" in draft.body
     assert "2. Bay Foods, miami: is looking for a controller, 3 days ago" in draft.body
-    assert "want me to keep an eye out for miami ones and send them your way?" in draft.body
+    assert "would 15 min work to hear what would make it useful for you?" in draft.body
     # ZERO niche words anywhere — subject AND body — for a generalist
     assert_no_niche_claim(draft.subject + "\n" + draft.body)
 
@@ -551,7 +574,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     # ...but the copy is generalist, because the token has no label.
     assert draft.subject == "companies in denver that need finance help right now"
     assert "saw you're based in denver, so i pulled 2 companies in denver" in draft.body
-    assert "want me to keep an eye out for denver ones and send them your way?" in draft.body
+    assert "would 15 min work to hear what would make it useful for you?" in draft.body
     for banned in ("pet_grooming", "pet grooming", "pet grooming shops"):
         assert banned not in (draft.subject + "\n" + draft.body)
     assert_no_niche_claim(draft.subject + "\n" + draft.body)

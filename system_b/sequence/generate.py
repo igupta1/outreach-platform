@@ -15,11 +15,31 @@ from datetime import date
 from typing import Any
 
 from system_b.copy.email import build_email_1, build_followup_email
+from system_b.copy.lex import state_display
+from system_b.copy.segment import segment_line
 from system_b.gift.engine import build_gift
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
 from system_b.research.service import research_prospect
 from system_b.review.payload import build_review
+
+
+def _segment_note(prospect: Any, sc: Any, today: date) -> str:
+    """Market context for the prospect's STATE, for the step-2 follow-up.
+
+    Computed from the whole inventory (one unfiltered `.leads()` call), not from
+    the gift, so it describes the segment rather than the three companies we
+    already sent. Costs nothing per prospect beyond an in-memory scan — the
+    snapshot is already loaded — and every prospect in a state gets the same
+    honest number."""
+    try:
+        all_leads = sc.leads()
+    except Exception:  # noqa: BLE001 — context is a nice-to-have, never a blocker
+        return ""
+    return segment_line(
+        all_leads, state=prospect.state, today=today,
+        label=state_display(prospect.state),
+    )
 
 
 def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
@@ -29,6 +49,7 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     entry is the lead used, or None when the well ran dry) — the review gate
     surfaces those leads' evidence too."""
     used = [lead.id for lead in gift.leads]
+    note = _segment_note(prospect, sc, today)
     drafts: list[Any] = []
     extra_ids: list[str] = []
     leads: list[Any] = []
@@ -51,7 +72,7 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
         leads.append(lead)
         drafts.append(build_followup_email(
             lead, prospect, step=step, today=today, pack=pack,
-            include_signoff=False,
+            include_signoff=False, segment_note=note,
         ))
     return drafts, extra_ids, leads
 

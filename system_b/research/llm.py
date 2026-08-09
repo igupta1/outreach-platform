@@ -25,7 +25,7 @@ _SYSTEM = (
     "focus, 'multiple' if it serves/lists several industries or client types. "
     "Keep niche_phrase/niche_guess set to the first/primary industry for "
     "compatibility.\n"
-    "2. Else if a client list makes it obvious (3+ named clients in the same "
+    "2. Else if a client list makes it obvious (2+ named clients in the same "
     "industry, all SMBs; ignore one-off or big-brand logos) -> niched, "
     "path='client_list', focus='single'. List the client names verbatim; put "
     "the industry in niche_guess.\n"
