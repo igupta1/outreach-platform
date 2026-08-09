@@ -14,7 +14,13 @@
   .sub { color:var(--muted); font-size:14px; }
   main { max-width:960px; margin:0 auto; padding:12px 20px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:14px 0; }
+  .card.removed { display:none; }
   .chead { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; margin-bottom:10px; }
+  /* Pushed to the far right of the card head, and quiet until hovered — it is
+     destructive, so it should never be the thing the eye lands on first. */
+  .chead .x { margin-left:auto; align-self:flex-start; background:none; color:var(--muted);
+              font-size:20px; line-height:1; font-weight:400; padding:0 4px; border-radius:6px; }
+  .chead .x:hover { background:#fee2e2; color:#b91c1c; }
   .chead .n { color:var(--muted); font-variant-numeric:tabular-nums; }
   .chead .co { font-weight:650; font-size:16px; }
   .chead .who { color:var(--muted); font-size:13px; }
@@ -50,6 +56,9 @@
   button { font-size:15px; font-weight:600; padding:10px 22px; border:0; border-radius:8px; background:#111; color:#fff; cursor:pointer; }
   button:hover { background:#000; }
   .foot-note { color:var(--muted); font-size:13px; }
+  #removed { color:var(--muted); font-size:13px; }
+  button.undo { font-size:13px; font-weight:600; padding:4px 10px; background:#f1f1f4; color:#111; }
+  button.undo:hover { background:#e4e4e8; }
 </style>
 </head>
 <body>
@@ -64,6 +73,7 @@
 <main id="rows"></main>
 <footer>
   <button id="download">Download CSV</button>
+  <span id="removed" hidden></span>
   <span class="foot-note" id="foot"></span>
 </footer>
 
@@ -113,18 +123,18 @@ function fieldsBlock(p, idx) {
   return wrap;
 }
 
+// Only a NICHED prospect gets this block. A generalist's card said
+// "generalist — no vertical claimed", which is already obvious from the copy
+// itself: a generalist email opens on geography ("companies in atlanta"), and
+// the reason it fell back is already a flag when there is one. Restating it on
+// every generalist card was a line that never changed a decision.
 function nicheLine(p) {
+  if (p.classification !== "niched") return null;
   const box = el("div", {class:"niche"});
-  if (p.classification === "niched") {
-    box.append(text("niched → "), el("b", {}, text(p.niche || p.match_param || "?")));
-    if (p.niche_exclusivity) box.append(text("  ·  " + p.niche_exclusivity));
-    box.append(el("div", {class:"sub"}, text("how we know: " + (p.how_we_know || ""))));
-    if (p.niche_phrase) box.append(el("div", {class:"sub"}, text('their words: "' + p.niche_phrase + '"')));
-  } else {
-    box.append(el("b", {}, text("generalist")));
-    box.append(el("div", {class:"sub"}, text(p.how_we_know || "")));
-    if (p.niche_phrase) box.append(el("div", {class:"sub"}, text('stated (unclaimed): "' + p.niche_phrase + '"')));
-  }
+  box.append(text("niched → "), el("b", {}, text(p.niche || p.match_param || "?")));
+  if (p.niche_exclusivity) box.append(text("  ·  " + p.niche_exclusivity));
+  box.append(el("div", {class:"sub"}, text("how we know: " + (p.how_we_know || ""))));
+  if (p.niche_phrase) box.append(el("div", {class:"sub"}, text('their words: "' + p.niche_phrase + '"')));
   return box;
 }
 
@@ -183,10 +193,18 @@ function evidenceBlock(p) {
 function card(p, idx) {
   const c = el("div", {class:"card", "data-idx":idx});
   const loc = [p.city, p.state].filter(Boolean).join(", ");
+  // Drop this prospect from the run. Marked, not deleted: `buildCsv` skips a
+  // removed card, so it leaves the CSV, and keeping the node is what makes
+  // undo possible — a mis-click on a 100-row page would otherwise cost work
+  // that cannot be recovered without regenerating.
+  const x = el("button", {class:"x", type:"button", title:"remove this prospect",
+                          "aria-label":"remove " + (p.company || "prospect")}, text("×"));
+  x.addEventListener("click", () => { c.classList.add("removed"); refreshCounts(); });
   c.append(el("div", {class:"chead"},
     el("span", {class:"n"}, text("#" + (idx+1))),
     el("span", {class:"co"}, text(p.company || "(no name)")),
-    el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  ")))));
+    el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  "))),
+    x));
 
   const sec = (label, node) => node ? el("div", {class:"sec"}, el("div",{class:"lbl"},text(label)), node) : null;
   // Flags first (they are the only thing that stops a send), then the copy in
@@ -202,11 +220,31 @@ function card(p, idx) {
   return c;
 }
 
-function render() {
-  const n = REVIEW.valid_count ?? (REVIEW.prospects||[]).length;
-  const flagged = (REVIEW.prospects||[]).filter(p => (p.flags||[]).length).length;
+// Counts describe what will actually be downloaded, so they are derived from
+// the live cards rather than from REVIEW — otherwise the header would keep
+// promising prospects that removal has already taken out of the CSV.
+function refreshCounts() {
+  const live = [...document.querySelectorAll(".card:not(.removed)")];
+  const flagged = live.filter(c => c.querySelector(".flags")).length;
+  const n = live.length;
   document.getElementById("count").textContent =
     n + " prospect" + (n===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged + " flagged";
+
+  const removed = document.querySelectorAll(".card.removed").length;
+  const box = document.getElementById("removed");
+  box.textContent = "";
+  box.hidden = !removed;
+  if (removed) {
+    const undo = el("button", {class:"undo", type:"button"}, text("undo all"));
+    undo.addEventListener("click", () => {
+      document.querySelectorAll(".card.removed").forEach(c => c.classList.remove("removed"));
+      refreshCounts(); autosizeAll();
+    });
+    box.append(text(removed + " removed  "), undo);
+  }
+}
+
+function render() {
   document.getElementById("meta").textContent =
     "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
   document.getElementById("foot").textContent =
@@ -223,6 +261,7 @@ function render() {
 
   const main = document.getElementById("rows");
   (REVIEW.prospects||[]).forEach((p,i) => main.append(card(p,i)));
+  refreshCounts();
   autosizeAll();
 }
 
@@ -239,7 +278,9 @@ function csvCell(v) {
 
 function buildCsv() {
   const lines = [COLUMNS.join(",")];
-  document.querySelectorAll(".card").forEach(cardEl => {
+  // `:not(.removed)` is what makes the X real: a removed prospect leaves the
+  // downloaded CSV entirely, which is the only place removal has to hold.
+  document.querySelectorAll(".card:not(.removed)").forEach(cardEl => {
     const idx = +cardEl.getAttribute("data-idx");
     const p = REVIEW.prospects[idx];
     const edited = {};
