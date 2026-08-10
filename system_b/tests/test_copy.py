@@ -238,11 +238,12 @@ def test_5a_framing_table():
 
     # client_list WITH nameable clients -> name exactly two. This is what makes
     # a 2-client threshold honest: a citation, not an inference.
+    # Ranked, not first-two: the name carrying an organizational marker leads.
     p_named = P(niche_source="client_list")
     p_named.client_names = ["MAPS", "Public Justice Foundation", "Prizmah"]
     assert _framing(G(all_niche=True, geo="state"), p_named) == \
-        ("noticed you've worked with healthcare companies like MAPS and Public "
-         "Justice Foundation, so i pulled 3 more showing they need finance help:")
+        ("noticed you've worked with healthcare companies like Public Justice "
+         "Foundation and MAPS, so i pulled 3 more showing they need finance help:")
 
     # one nameable client is not enough to name any -> falls back to unnamed.
     p_one = P(niche_source="client_list")
@@ -599,7 +600,7 @@ def test_cfo_gift_no_longer_flags_every_card():
 
 # --- job title: board metadata never reaches copy ---------------------------
 
-from system_b.copy.email import _clean_role, job_phrase  # noqa: E402
+from system_b.copy.email import _clean_role, _client_names_phrase, job_phrase  # noqa: E402
 
 
 def test_role_drops_trailing_board_metadata():
@@ -639,3 +640,35 @@ def test_role_keeps_a_dash_segment_that_describes_the_role():
 def test_role_that_is_only_metadata_degrades_to_is_hiring():
     lead = mk("x", "job_finance_lead", evidence="(Remote)")
     assert job_phrase(lead) == "is hiring"
+
+
+def test_lead_line_shows_the_fractional_word_the_title_hid():
+    lead = mk("f1", "job_fractional_cfo", company="Acme", evidence="Chief Financial Officer")
+    lead.role_qualifier = "interim"
+    assert job_phrase(lead) == "is looking for an interim chief financial officer"
+
+
+def test_lead_line_does_not_double_up_the_qualifier():
+    lead = mk("f2", "job_fractional_cfo", company="Acme",
+              evidence="Fractional Chief Financial Officer")
+    lead.role_qualifier = "fractional"
+    assert job_phrase(lead) == "is looking for a fractional chief financial officer"
+
+
+def test_client_choice_prefers_an_organization_over_a_brand():
+    """Taking whatever came back first put "Humans of New York" — a famous brand
+    — in front of a prospect as a claimed client while Public Justice Foundation
+    sat unused."""
+    p = P(niche_source="client_list")
+    p.client_names = [
+        "The Nemasket Group, Inc.", "Humans of New York",
+        "Multidisciplinary Association for Psychedelic Studies (MAPS)",
+        "Public Justice Foundation", "Round Canopy Parachuting Team - USA",
+    ]
+    assert _client_names_phrase(p) == "The Nemasket Group, Inc. and Public Justice Foundation"
+
+
+def test_client_choice_falls_back_when_nothing_looks_like_an_org():
+    p = P(niche_source="client_list")
+    p.client_names = ["Humans of New York", "Dear New York"]
+    assert _client_names_phrase(p) == "Dear New York and Humans of New York"  # shortest first

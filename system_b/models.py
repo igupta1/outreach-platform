@@ -43,6 +43,12 @@ class Lead(BaseModel):
     # company in copy.
     headcount: int | None = None
     headcount_band: str | None = None
+    # The part-time word the posting itself used ("fractional", "interim",
+    # "part-time") when the TITLE does not carry it but the body does. leadgen
+    # tags a posting `job_fractional_cfo` off either one, so without this the
+    # subject can promise a fractional role while the lead line prints a plain
+    # "chief financial officer". See clients.inventory._fractional_qualifier.
+    role_qualifier: str | None = None
     signal_type: str                        # leadgen raw type: job_fractional_cfo|job_finance_lead|job_junior_finance|job_it_support|job_it_leadership|job_security|job_cloud_devops|funding_form_d|funding_form_c|breach_disclosed
     finance_grade: str | None = None          # not in live API -> None
     freshness: str | None = None              # fresh | stale

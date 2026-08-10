@@ -145,14 +145,93 @@ _REG_ARTIFACT_RE = re.compile(r"\s*/\s*[A-Za-z]{2}\s*/\s*$")   # "Intermezzo Inc
 _MULTISPACE_RE = re.compile(r"\s{2,}")
 
 
+# Tokens that stay uppercase when a SHOUTING name is calmed down. Legal forms
+# and country codes read wrong title-cased ("Adfac, Llc"), and a 1-2 letter
+# token is almost never a word ("GP INSTALLATION" -> "GP Installation").
+# Note which legal forms are NOT here: Inc., Corp., Ltd. and Co. are
+# conventionally title-cased, so "UPSIDEHOM, INC." should read "Upsidehom, Inc."
+# while "ADFAC, LLC" keeps its LLC.
+_KEEP_UPPER = frozenset({
+    "llc", "llp", "lp", "pc", "pllc",
+    "usa", "us", "uk", "dba", "cpa", "it", "hr", "ai", "tv", "pr", "hvac",
+})
+_ALPHA_RE = re.compile(r"[A-Za-z]")
+
+
+def _decap_token(token: str) -> str:
+    core = "".join(ch for ch in token if ch.isalnum())
+    if len(core) <= 2 or core.lower() in _KEEP_UPPER:
+        return token                     # "GP", "LLC", "US" — leave them alone
+    return token[:1] + token[1:].lower()
+
+
+def _fix_shouting(name: str) -> str:
+    """`DEPENDABLE SERVICE PLUMBING & AIR` -> `Dependable Service Plumbing & Air`.
+
+    An ALL-CAPS name shouts inside otherwise-lowercase prose and reads as
+    scraped. Applied ONLY when the whole name is uppercase, so a name that
+    chose its own mixed casing ("F3EA Inc", "co:census") is untouched.
+
+    A single short token is left alone: `NACDD` and `MAPS` are acronyms, and
+    "Nacdd" would be the same mangling this is meant to prevent. Multi-word
+    names are safe to calm down — an all-caps phrase is styling, not an
+    acronym."""
+    if not _ALPHA_RE.search(name) or name != name.upper():
+        return name
+    tokens = name.split()
+    if len(tokens) == 1 and len(tokens[0]) <= 6:
+        return name                      # NACDD, MAPS, SISU — acronym, not shouting
+    return " ".join(_decap_token(t) for t in tokens)
+
+
 def _clean_company_name(name: str) -> str:
     """Tidy raw leadgen company names that get listed verbatim in the email —
     drop a trailing state-registration marker ("... / DE /"), stray separators,
-    and doubled whitespace. Conservative: only removes clear artifacts, never
-    guesses at truncated or oddly-cased names."""
+    doubled whitespace, and ALL-CAPS shouting. Conservative: only removes clear
+    artifacts, never guesses at truncated names."""
     name = _REG_ARTIFACT_RE.sub("", name)
     name = name.replace(" / ", " ").strip(" /|-")
-    return _MULTISPACE_RE.sub(" ", name).strip()
+    name = _MULTISPACE_RE.sub(" ", name).strip()
+    return _fix_shouting(name)
+
+
+# Part-time words safe to print in front of a role. leadgen matches a WIDER set
+# (contract, consultant, consulting, advisory, temp, virtual, outsourced) to tag
+# a posting fractional, but most of those appear incidentally in ordinary job
+# copy — "contract negotiation", "advisory board", "consulting engagements" —
+# and reading one of those as the role's nature would put a wrong word in a sent
+# email. These three are effectively never incidental, and they read naturally
+# as an adjective. Ordered by preference when a posting uses more than one.
+_SAFE_QUALIFIERS = ("fractional", "interim", "part-time")
+_QUALIFIER_RES = tuple(
+    (q, re.compile(r"\b" + q.replace("-", r"[\s-]") + r"\b", re.IGNORECASE))
+    for q in _SAFE_QUALIFIERS
+)
+
+
+def _fractional_qualifier(row: dict[str, Any]) -> str | None:
+    """The part-time word to prefix onto the role, or None to leave it alone.
+
+    leadgen tags a posting `job_fractional_cfo` when the qualifier appears in the
+    title OR the description, but the email prints the TITLE — so a posting whose
+    body says "this is a fractional role" renders as a plain "chief financial
+    officer" under a subject line promising a fractional one. That gap hit 17 of
+    23 emails in a real run.
+
+    Returns None when the title already says it (nothing to add) or when only a
+    lower-confidence word appears (we would rather say less than say it wrong)."""
+    for sig in row.get("signals") or []:
+        if sig.get("type") != "job_fractional_cfo":
+            continue
+        payload = sig.get("payload") or {}
+        title = str(payload.get("title") or sig.get("evidence_text") or "")
+        if any(rx.search(title) for _q, rx in _QUALIFIER_RES):
+            return None                      # already visible in the printed role
+        description = str(payload.get("description") or "")
+        for qualifier, rx in _QUALIFIER_RES:
+            if rx.search(description):
+                return qualifier
+    return None
 
 
 def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
@@ -202,6 +281,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         value_prop=row.get("insight"),
         headcount=row.get("headcount"),
         headcount_band=row.get("headcount_band"),
+        role_qualifier=_fractional_qualifier(row),
         signal_type=row["signal_type"],
         freshness=freshness,
         signals=signals,

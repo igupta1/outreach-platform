@@ -466,3 +466,82 @@ def test_adapt_rows_drops_unusable_and_keeps_the_rest():
     kept = _adapt_rows(rows, today=_d(2026, 8, 5))
     # The hash-suffixed name goes; the domainless one stays (ranked, not dropped).
     assert [lead.company for lead in kept] == ["Acme Paving", "No Domain Co", "Good Corp"]
+
+
+# --- ALL-CAPS company names stop shouting ----------------------------------
+
+from system_b.clients.inventory import _fix_shouting, _fractional_qualifier  # noqa: E402
+
+
+def test_shouting_names_are_calmed_down():
+    """An ALL-CAPS name shouts inside otherwise-lowercase prose and reads as
+    scraped. Every input here reached a real email."""
+    cases = {
+        "GROWING HOPE": "Growing Hope",
+        "DEPENDABLE SERVICE PLUMBING & AIR": "Dependable Service Plumbing & Air",
+        "TRUSTPOINT": "Trustpoint",
+        "SUMMIT LOGISTICS GROUP LLC": "Summit Logistics Group LLC",   # LLC stays
+        "ADFAC, LLC": "Adfac, LLC",
+        "UPSIDEHOM, INC.": "Upsidehom, Inc.",                        # Inc. does not
+        "GP INSTALLATION": "GP Installation",                        # initials stay
+    }
+    for raw, want in cases.items():
+        assert _fix_shouting(raw) == want, raw
+
+
+def test_short_single_token_acronyms_are_left_alone():
+    """"Nacdd" and "Maps" would be exactly the mangling this is meant to
+    prevent."""
+    for name in ("NACDD", "MAPS", "SISU", "JGO", "BWXT"):
+        assert _fix_shouting(name) == name, name
+
+
+def test_names_that_chose_their_own_casing_are_untouched():
+    for name in ("F3EA Inc", "co:census", "Orena Fragrances", "3DT Holdings", "iRobot"):
+        assert _fix_shouting(name) == name, name
+
+
+# --- the fractional word the title hid --------------------------------------
+
+def _frac_row(title, description):
+    return {"signals": [{"type": "job_fractional_cfo", "evidence_text": title,
+                         "payload": {"title": title, "description": description}}]}
+
+
+def test_qualifier_is_recovered_from_the_posting_body():
+    """leadgen tags a posting fractional off the title OR the body, but the email
+    prints the title — so a body-only qualifier left the subject promising a
+    fractional role the lead line never showed. 17 of 23 emails in a real run."""
+    assert _fractional_qualifier(
+        _frac_row("Chief Financial Officer", "this is a fractional role, 10 hrs/week")
+    ) == "fractional"
+    assert _fractional_qualifier(
+        _frac_row("Chief Financial Officer", "we need an interim CFO during the search")
+    ) == "interim"
+    assert _fractional_qualifier(
+        _frac_row("Chief Financial Officer", "a part-time engagement")
+    ) == "part-time"
+
+
+def test_no_qualifier_when_the_title_already_says_it():
+    assert _fractional_qualifier(_frac_row("Fractional CFO", "fractional role")) is None
+    assert _fractional_qualifier(_frac_row("Interim Controller", "interim")) is None
+
+
+def test_low_confidence_words_are_never_used():
+    """leadgen also matches contract/consultant/advisory/temp/virtual, but those
+    appear incidentally in ordinary job copy. Saying less beats saying it wrong."""
+    for desc in (
+        "strong contract negotiation and advisory board experience",
+        "you will lead consulting engagements for our clients",
+        "manage temp staffing and virtual meetings",
+    ):
+        assert _fractional_qualifier(_frac_row("Chief Financial Officer", desc)) is None
+
+
+def test_qualifier_only_reads_the_fractional_signal():
+    row = {"signals": [
+        {"type": "job_finance_lead", "evidence_text": "Controller",
+         "payload": {"title": "Controller", "description": "fractional work available"}},
+    ]}
+    assert _fractional_qualifier(row) is None

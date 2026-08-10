@@ -76,6 +76,34 @@ def rotation_for(prospect: Prospect) -> int:
     return zlib.crc32(prospect.firm_name.encode("utf-8")) % len(LEFT_FIELD)
 
 
+# Words that mark a name as a specific ORGANIZATION rather than a brand. A name
+# carrying one of these reads unambiguously as a company someone was engaged by,
+# which is what "you've worked with X" is claiming.
+_ORG_MARKER_RE = re.compile(
+    r"\b(?:inc|llc|llp|ltd|corp|corporation|co|company|group|partners|holdings|"
+    r"foundation|association|institute|center|centre|society|council|trust|fund|"
+    r"alliance|coalition|network|federation|ministries|church|academy|school|"
+    r"university|hospital|clinic|services|solutions|systems)\b\.?",
+    re.IGNORECASE,
+)
+
+
+def _client_sort_key(name: str) -> tuple[int, int]:
+    """Rank a verified client name for use in copy: organizations first, then
+    shortest.
+
+    Taking whatever the model returned first put "Humans of New York" — a
+    famous brand with millions of followers — in front of a solo fractional CFO
+    as a claimed client, while `MAPS` and `Public Justice Foundation` sat unused
+    two rows down. A bare brand name is both the likeliest to be something other
+    than a client (a partner, an admired project, an "as seen in" logo) and the
+    likeliest to read as name-dropping rather than as proof anyone read the page.
+
+    Length breaks the tie because these are printed inline: a 57-character name
+    swallows the sentence it is supposed to personalize."""
+    return (0 if _ORG_MARKER_RE.search(name) else 1, len(name))
+
+
 def _client_names_phrase(prospect: Prospect) -> str:
     """"A and B" from the prospect's nameable clients, or "" when there are
     none to stand behind.
@@ -87,7 +115,8 @@ def _client_names_phrase(prospect: Prospect) -> str:
     names = [n.strip() for n in (prospect.client_names or []) if n and n.strip()]
     if len(names) < 2:
         return ""
-    return f"{names[0]} and {names[1]}"
+    best = sorted(names, key=_client_sort_key)[:2]
+    return f"{best[0]} and {best[1]}"
 
 
 def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
@@ -337,6 +366,15 @@ def job_phrase(lead: Lead) -> str:
     role = role.strip()
     if not role:
         return "is hiring"
+    # Put the part-time word back when the posting said it in the body but not
+    # the title. Without this the subject promises "a fractional cfo" and the
+    # line under it reads "is looking for a chief financial officer", so the
+    # reader looks for the fractional role and cannot find it. The word is the
+    # posting's OWN (see clients.inventory._fractional_qualifier) — never a
+    # generic default — and is omitted entirely when we cannot name it.
+    qualifier = (lead.role_qualifier or "").strip().lower()
+    if qualifier and qualifier not in role:
+        role = f"{qualifier} {role}"
     return fix_articles(f"is looking for a {role}")
 
 
