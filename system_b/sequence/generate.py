@@ -24,37 +24,39 @@ from system_b.review.payload import build_review
 
 
 def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
-    """Build Email #2 and #3 up front. Each pulls one fresh lead not already used
-    across the sequence (Option A: no recency date). Returns
-    (drafts, extra_ids, leads) where `leads` is aligned to steps 2 and 3 (each
-    entry is the lead used, or None when the well ran dry) — the review gate
-    surfaces those leads' evidence too."""
+    """Build Email #2 and #3 up front. Returns (drafts, extra_ids, leads) where
+    `leads` is aligned to steps 2 and 3 — the review gate surfaces those leads'
+    evidence too.
+
+    ONLY Email #2 gifts a lead (one fresh one, not already used across the
+    sequence; Option A, so no recency date). Email #3 is the pivot: it drops the
+    gift and asks what their bottleneck actually is, so no lead is pulled or
+    consumed for it and its slot in `leads` is always None."""
     used = [lead.id for lead in gift.leads]
-    drafts: list[Any] = []
     extra_ids: list[str] = []
-    leads: list[Any] = []
-    for step in (2, 3):
-        prospect.sent_lead_ids = list(used)
-        # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
-        # as Email #1 (build_gift excludes already-used leads via sent_lead_ids),
-        # falling back to a geo lead only when the niche well has run dry.
-        g = None
-        if prospect.classification == "niched":
-            gn = build_gift(prospect, sc, target=1, niche_only=True, pack=pack)
-            if gn is not None and gn.all_niche:
-                g = gn
-        if g is None:
-            g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
-        lead = g.leads[0] if g else None
-        if lead is not None:
-            used.append(lead.id)
-            extra_ids.append(lead.id)
-        leads.append(lead)
-        drafts.append(build_followup_email(
-            lead, prospect, step=step, today=today, pack=pack,
-            include_signoff=False,
-        ))
-    return drafts, extra_ids, leads
+
+    prospect.sent_lead_ids = list(used)
+    # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
+    # as Email #1 (build_gift excludes already-used leads via sent_lead_ids),
+    # falling back to a geo lead only when the niche well has run dry.
+    g = None
+    if prospect.classification == "niched":
+        gn = build_gift(prospect, sc, target=1, niche_only=True, pack=pack)
+        if gn is not None and gn.all_niche:
+            g = gn
+    if g is None:
+        g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
+    lead = g.leads[0] if g else None
+    if lead is not None:
+        extra_ids.append(lead.id)
+
+    drafts: list[Any] = [
+        build_followup_email(lead, prospect, step=2, today=today, pack=pack,
+                             include_signoff=False),
+        build_followup_email(None, prospect, step=3, today=today, pack=pack,
+                             include_signoff=False),
+    ]
+    return drafts, extra_ids, [lead, None]
 
 
 def generate_sequence(

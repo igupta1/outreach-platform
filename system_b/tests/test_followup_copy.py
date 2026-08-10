@@ -166,10 +166,55 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
     # step 3 still gives an easy out
-    assert "no worries" in d3.body and "i'll stop here" in d3.body
+    assert "no worries" in d3.body
 
 
 def test_fallback_followup_still_asks_for_the_call():
     d = build_followup_email(None, _prospect(), step=2, today=TODAY)
     assert "15 min" in d.body
     assert "want me to send them your way" not in d.body
+
+
+# --- email #3 pivots off leads entirely ------------------------------------
+
+def test_step3_never_lists_a_lead_even_when_one_is_passed():
+    """The premise, not the quantity, is what is wrong for a reader who ignored
+    the first four companies. Email #3 drops the gift and asks about their real
+    bottleneck, so a lead handed to it is ignored rather than printed."""
+    lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
+              company="Acme", evidence="Controller")
+    d = build_followup_email(lead, _prospect(), step=3, today=TODAY)
+    assert "Acme" not in d.body
+    assert "is looking for" not in d.body
+    assert "no worries if leads aren't what you're short on" in d.body
+    # with no lead passed it renders identically — one shape, not two
+    assert d.body == build_followup_email(None, _prospect(), step=3, today=TODAY).body
+
+
+def test_step3_consumes_no_lead_from_the_inventory():
+    """Email #3 gifts nothing, so it must not burn a lead pulling one. Only
+    Email #2 appears in `extra_ids`, and step 3's slot in `leads` is None."""
+    from datetime import date
+
+    from system_b.gift.engine import build_gift
+    from system_b.niches.base import default_pack
+    from system_b.sequence.generate import _followup_drafts
+    from system_b.tests.test_gift import FakeScraper
+
+    pack = default_pack()
+    prospect = Prospect(firm_name="Acme CFOs", city="Denver", state="CO",
+                        classification="generalist", first_name="dana")
+    leads = [
+        mk(f"g{i}", "job_finance_lead", city="Denver", state="CO",
+           date=f"2026-07-0{i}", finance_grade="medium")
+        for i in range(1, 7)
+    ]
+    sc = FakeScraper(leads)
+    gift = build_gift(prospect, sc, pack=pack)
+    assert gift is not None
+    _drafts, extra, followup_leads = _followup_drafts(
+        prospect, gift, sc, pack, date(2026, 7, 8)
+    )
+    assert len(extra) == 1                       # only Email #2 pulled one
+    assert followup_leads[1] is None             # step 3 carries no lead
+    assert followup_leads[0] is not None and followup_leads[0].id == extra[0]

@@ -526,6 +526,28 @@ def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
     return ""
 
 
+# Email #3 pivots off leads entirely.
+#
+# Emails 1 and 2 already gifted four companies. A fifth changes nothing for a
+# reader who ignored the first four, because by then it is the PREMISE that is
+# wrong for them ("you are short on leads"), not the quantity — and no amount of
+# restating a wrong premise fixes it. So the last email drops the gift and asks
+# what their bottleneck actually is.
+#
+# That question is also the only one whose answer is a conversation rather than
+# a subscription, which is the whole point: the leads were never the product,
+# they were the proof that the person asking can build things. "worth 15 min?"
+# keeps the sequence's single ask intact — every step points at the same call.
+#
+# It takes no lead, so `_followup_drafts` consumes none for this step.
+_FINAL_PIVOT = (
+    "last one from me.\n\n"
+    "no worries if leads aren't what you're short on. i build custom tools, so "
+    "if something else is draining your week i'd be curious what it is. "
+    "worth 15 min?"
+)
+
+
 def build_followup_email(
     lead: Lead | None,
     prospect: Prospect,
@@ -538,10 +560,14 @@ def build_followup_email(
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
 
-    Two shapes:
+    Email #2 has two shapes:
       * value    — a genuinely NEW lead surfaced (`lead` given): one honest lead
-                   line + a soft continue-CTA.
+                   line + the same 15-minute ask Email #1 makes.
       * fallback — no new lead (`lead is None`): a light bump, no fabricated lead.
+
+    Email #3 (step 3) is ALWAYS `_FINAL_PIVOT`: no lead, no gift, one question
+    about their real bottleneck. `lead` is accepted and ignored there so the
+    signature stays uniform for callers that still pass one.
 
     Honesty is identical to Email #1: dates only for high-confidence signals,
     raises templated with no dollar figure, all via `_lead_line`. Signoff is
@@ -552,37 +578,28 @@ def build_followup_email(
     flags: list[str] = []
     final = step == 3
 
-    if lead is not None:
+    if final:
+        core = _FINAL_PIVOT
+    elif lead is not None:
         line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
-        opener = "last one from me." if final else f"found one more {qual}showing the same signal:"
-        # The tails ask for the same thing email #1 did. The old ones ("want me
+        opener = f"found one more {qual}showing the same signal:"
+        # The tail asks for the same thing email #1 did. The old one ("want me
         # to keep sending these?") recruited a subscriber, which is the wrong
         # yes: a sequence whose steps chase different outcomes converts on the
         # easiest one, and that was never the call.
-        tail = (
-            "if this isn't useful no worries at all, i'll stop here. if it is, "
-            "i'd still love 15 min to tune it for you."
-            if final else
-            "offer still stands on setting it up for you, 15 min whenever works."
-        )
+        tail = "offer still stands on setting it up for you, 15 min whenever works."
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
     else:
         niche = niche_claim_or_geo(prospect)
         sig = pack.followup_signal
-        if final:
-            core = (
-                f"last nudge from me, happy to keep surfacing {niche} companies "
-                f"the moment they show {sig}. just say the word."
-            )
-        else:
-            core = (
-                f"circling back, still keeping an eye out for {niche} companies "
-                f"showing {sig}. 15 min whenever works if you want it set up."
-            )
+        core = (
+            f"circling back, still keeping an eye out for {niche} companies "
+            f"showing {sig}. 15 min whenever works if you want it set up."
+        )
 
     parts = [core]
     if include_signoff:
