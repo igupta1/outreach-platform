@@ -206,3 +206,67 @@ def test_serve_renders_and_injects(tmp_path):
     assert "__REVIEW_DATA__" not in html          # placeholder was replaced
     assert "Beacon" in html                        # prospect data is embedded
     assert "prospect" in html                      # page shell present
+
+
+# --- personalization tiers: the review gate's sort, and the CSV's row order ---
+
+from system_b.review.payload import _personalization  # noqa: E402
+
+
+def _pg(*, niche=None, source="site", named=(), revenue=None, geo="city", all_niche=None):
+    """A (prospect, gift) pair shaped for the tier check."""
+    p = Prospect(
+        firm_name="Acme", city="Denver", state="CO",
+        classification="niched" if niche else "generalist",
+        match_param=("industry", niche) if niche else None,
+        niche_source=source, client_names=list(named), client_revenue=revenue,
+    )
+    lead = _lead("l1", "Lead Co", city="Denver", state="CO")
+    g = Gift(
+        leads=[lead], best_lead=lead, gift_size=1,
+        all_niche=bool(niche) if all_niche is None else all_niche,
+        geo_level=geo, subject_shape="singular", what_category="hiring",
+        best_lead_level=1,
+    )
+    return p, g
+
+
+def _rank(**kw):
+    return _personalization(*_pg(**kw))["rank"]
+
+
+def test_tiers_are_ordered_strongest_first():
+    assert _rank(niche="healthcare", source="client_list",
+                 named=["MAPS", "Public Justice Foundation"]) == 1
+    assert _rank(niche="healthcare", revenue=(2e6, 10e6)) == 2
+    assert _rank(niche="healthcare") == 3
+    assert _rank(revenue=(2e6, 10e6), geo="city") == 4
+    assert _rank(revenue=(2e6, 10e6), geo="state") == 5
+    assert _rank(geo="city") == 6
+    assert _rank(geo="state") == 7
+    assert _rank(geo="none") == 8
+
+
+def test_tier_follows_the_copy_gates_not_the_raw_data():
+    """A prospect can CARRY data the opener never uses. Ranking on the data
+    would sort emails by what we know rather than by what we said."""
+    # client-list openers name real clients and skip revenue entirely
+    assert _rank(niche="healthcare", source="client_list",
+                 named=["MAPS", "Public Justice"], revenue=(2e6, 10e6)) == 1
+    # one nameable client is below the two the copy requires -> not tier 1
+    assert _rank(niche="healthcare", source="client_list", named=["MAPS"]) == 3
+    # a niche the gift cannot back is not claimed in copy, so it cannot rank as one
+    assert _rank(niche="healthcare", all_niche=False, geo="city") == 6
+
+
+def test_tier_carries_a_human_label():
+    out = _personalization(*_pg(niche="healthcare", revenue=(2e6, 10e6)))
+    assert out == {"rank": 2, "label": "niche + revenue"}
+
+
+def test_payload_exposes_the_levers_for_the_card():
+    p, g = _pg(niche="healthcare", revenue=(1e6, 10e6))
+    email1 = EmailDraft(subject="s", body="b")
+    out = build_review(p, g, None, email1, [], [], {"email": "a@b.co"})
+    assert out["personalization"]["rank"] == 2
+    assert out["revenue"] == "$1m-$10m"

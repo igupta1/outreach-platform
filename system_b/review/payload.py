@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from system_b.copy.email import is_job_posting, job_phrase
-from system_b.copy.lex import niche_display
+from system_b.copy.email import _client_names_phrase, is_job_posting, job_phrase
+from system_b.copy.lex import niche_display, revenue_display
+from system_b.copy.subject import niche_claim
 from system_b.gift.models import Gift, Prospect
 
 _HOW_WE_KNOW = {
@@ -70,6 +71,58 @@ def _role(lead: Any) -> str:
     if is_job_posting(lead):
         return job_phrase(lead)
     return _grounded(lead).strip()
+
+
+# How personal the email actually reads, strongest first. Two different things
+# make an email personal and the tiers rank them together: EVIDENCE that we read
+# their site (a stated niche, named clients, a revenue range — none of which can
+# be faked from an Apollo export) and MATCH quality (whether the gift is on their
+# vertical or merely near them). The top tiers have both.
+#
+# Derived from the SAME gates the copy uses, never from the data alone: a
+# prospect can carry a revenue range that the opener does not use (client-list
+# openers skip it), and `niche_claim` can decline a vertical the prospect object
+# still has. Reading the data instead of the gates would sort emails by what we
+# know rather than by what we said.
+_PERSONALIZATION_TIERS = (
+    (1, "niche + named clients"),
+    (2, "niche + revenue"),
+    (3, "niche"),
+    (4, "revenue + city"),
+    (5, "revenue"),
+    (6, "city"),
+    (7, "state"),
+    (8, "none"),
+)
+
+
+def _personalization(prospect: Prospect, gift: Gift) -> dict[str, Any]:
+    """{rank, label} for sorting the review gate — and therefore the exported
+    CSV — most-personalized first."""
+    niche = niche_claim(gift, prospect)
+    named = bool(_client_names_phrase(prospect))
+    # Mirrors `copy.email._framing`: a client-list opener already names two real
+    # clients, so it never spends words on a revenue range.
+    revenue = bool(prospect.client_revenue) and prospect.niche_source != "client_list"
+    geo = gift.geo_level
+
+    if niche and named:
+        rank = 1
+    elif niche and revenue:
+        rank = 2
+    elif niche:
+        rank = 3
+    elif revenue and geo == "city":
+        rank = 4
+    elif revenue:
+        rank = 5
+    elif geo == "city":
+        rank = 6
+    elif geo == "state":
+        rank = 7
+    else:
+        rank = 8
+    return {"rank": rank, "label": dict(_PERSONALIZATION_TIERS)[rank]}
 
 
 def build_review(
@@ -131,6 +184,12 @@ def build_review(
         "niche_exclusivity": prospect.niche_exclusivity,
         "how_we_know": how,
         "geo_level": gift.geo_level,
+        # Drives the review gate's sort order, which is also the CSV's row order.
+        "personalization": _personalization(prospect, gift),
+        # The two extra levers, rendered exactly as the copy renders them, so the
+        # card shows what was actually said rather than the raw parsed values.
+        "named_clients": list(prospect.client_names or []),
+        "revenue": revenue_display(prospect.client_revenue),
         "left_field_variant": getattr(email1, "left_field_variant", ""),
         # evidence
         "evidence": evidence,

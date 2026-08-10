@@ -24,6 +24,8 @@
   .chead .n { color:var(--muted); font-variant-numeric:tabular-nums; }
   .chead .co { font-weight:650; font-size:16px; }
   .chead .who { color:var(--muted); font-size:13px; }
+  .chead .tier { font-size:11px; color:#3f6212; background:#f0fdf4; border:1px solid #bbf7d0;
+                 border-radius:99px; padding:1px 8px; white-space:nowrap; }
   .sec { margin:12px 0; }
   .lbl { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
   .niche { font-size:14px; }
@@ -200,9 +202,16 @@ function card(p, idx) {
   const x = el("button", {class:"x", type:"button", title:"remove this prospect",
                           "aria-label":"remove " + (p.company || "prospect")}, text("×"));
   x.addEventListener("click", () => { c.classList.add("removed"); refreshCounts(); });
+  // The tier label makes the sort legible — without it the order looks
+  // arbitrary and you cannot spot-check whether a card is where it belongs.
+  const tier = p.personalization && p.personalization.label
+    ? el("span", {class:"tier", title:"personalization: strongest sorts first"},
+         text(p.personalization.label))
+    : null;
   c.append(el("div", {class:"chead"},
     el("span", {class:"n"}, text("#" + (idx+1))),
     el("span", {class:"co"}, text(p.company || "(no name)")),
+    tier,
     el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  "))),
     x));
 
@@ -244,7 +253,24 @@ function refreshCounts() {
   }
 }
 
+// Most-personalized first. This is not just a reading order: `buildCsv` walks
+// the cards in DOM order, so sorting here sorts the exported CSV, and the
+// strongest emails are the ones that go into the campaign first.
+//
+// Sorted in place, before any card is built, so every index (`data-idx`, the
+// "#N" label, the CSV lookup) refers to the same prospect. A row from an older
+// run with no `personalization` sorts last rather than throwing.
+//
+// Worth knowing when you read the results: front-loading the best emails means
+// reply rate starts high and drifts down for reasons that have nothing to do
+// with fatigue or deliverability.
+function sortByPersonalization() {
+  const rank = (p) => (p.personalization && p.personalization.rank) || 99;
+  (REVIEW.prospects || []).sort((a, b) => rank(a) - rank(b));
+}
+
 function render() {
+  sortByPersonalization();
   document.getElementById("meta").textContent =
     "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
   document.getElementById("foot").textContent =
