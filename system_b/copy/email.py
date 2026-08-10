@@ -8,12 +8,19 @@ any part of a sent email.
 
 from __future__ import annotations
 
+import re
 import zlib
 from dataclasses import dataclass, field
 from datetime import date
 
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
-from system_b.copy.lex import city_display, fix_articles, niche_display, state_display
+from system_b.copy.lex import (
+    city_display,
+    fix_articles,
+    niche_display,
+    revenue_display,
+    state_display,
+)
 from system_b.copy.subject import build_subject, niche_claim
 from system_b.gift.engine import compute_match_level
 from system_b.gift.models import Gift, Prospect
@@ -83,11 +90,55 @@ def _client_names_phrase(prospect: Prospect) -> str:
     return f"{names[0]} and {names[1]}"
 
 
+def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
+    """The opener when the prospect stated a client-revenue range on their site.
+
+    TWO sentences, deliberately. "saw you work with $2m-$10m companies, SO i
+    pulled 3 in atlanta" would imply we filtered on revenue — and we cannot.
+    Leadgen publishes no revenue field, and a probe of 25 inventory companies
+    found grounded estimates unusable, so a revenue-matched gift is not
+    something this system can honestly assemble.
+
+    Splitting the sentence keeps each half true on its own: the first states
+    what they told us about themselves (verified verbatim), the second states
+    exactly what was matched (niche and/or geography). The reader gets the proof
+    that someone read their site without being promised a filter that isn't
+    there.
+
+    This is the biggest upgrade for GENERALIST prospects, whose opener is
+    otherwise "saw you're based in atlanta" — an Apollo merge field that proves
+    nothing about whether we looked at them at all."""
+    n = gift.gift_size
+    rev = revenue_display(prospect.client_revenue)
+    city = city_display(prospect.city)
+    state = state_display(prospect.state)
+    companies = noun(n, "company", "companies")
+
+    if niche:
+        read = f"saw you work with {rev} {niche} companies."
+        pulled = f"pulled {n} more showing they need finance help:"
+    else:
+        read = f"saw you work with {rev} companies."
+        if gift.geo_level == "city" and city:
+            pulled = f"pulled {n} {companies} in {city} showing they need finance help:"
+        elif gift.geo_level == "state" and (state or city):
+            pulled = f"pulled {n} {companies} in {state} showing they need finance help:"
+        else:
+            pulled = f"pulled {n} {companies} showing they need finance help:"
+    return f"{read} {pulled}"
+
+
 def _framing(gift: Gift, prospect: Prospect) -> str:
     n = gift.gift_size
     niche = niche_claim(gift, prospect)
     city = city_display(prospect.city)
     state = state_display(prospect.state)
+    # Revenue is the second personalization lever (23% of prospects state one).
+    # It stacks with niche and geography rather than replacing them, and it is
+    # skipped for a client-list opener, which already names two of their actual
+    # clients and needs no further proof that we read the page.
+    if prospect.client_revenue and prospect.niche_source != "client_list":
+        return _revenue_framing(gift, prospect, niche)
     # Framing ALWAYS uses the clean mapped niche word (niche_claim -> niche_display),
     # NEVER the raw scraped phrase — the verbatim phrase is often a nav blob
     # ("WHO WE SERVE...", "designed for:") and can leak a dollar figure. The
@@ -232,14 +283,56 @@ def is_job_posting(lead: Lead) -> bool:
     return (lead.signal_type or "").startswith("job_")
 
 
+# Trailing metadata job boards weld onto a title. Each was chosen against real
+# inventory titles, and each is stripped ONLY at the end of the string, because
+# the same words mid-title can be the role itself.
+#
+# Parentheticals are almost always board noise — "(Phoenix)", "(Remote)",
+# "(Full-Time)", "(In Office)", "(part-time, no agencies, pacific time zone
+# only)". Stripping every trailing one is safe; nothing in copy needs them.
+_TRAILING_PARENS_RE = re.compile(r"(?:\s*\([^()]*\))+\s*$")
+
+# A dash segment is a different matter: "- Manufacturing", "- Private Equity",
+# "- Billing & Operations" and "- FP&A" all describe the ROLE and must survive.
+# Only two shapes get cut — a place, and a work arrangement — because those are
+# the ones that duplicate or contradict the city the line already prints
+# ("F3EA Inc, savannah: is looking for a financial controller - savannah, ga").
+# Case matters differently per branch, so IGNORECASE is scoped, not global: the
+# "City, ST" branch needs the two letters to be UPPERCASE (that is what tells a
+# state from an ordinary word, so "Controller - Finance, hr" survives), while
+# the arrangement branch has to catch "Hybrid" and "Remote" as written.
+_TRAILING_LOCATION_RE = re.compile(
+    r"\s*[-–—]\s*(?:"
+    r"[A-Za-z .'\-]+,\s*[A-Z]{2}"                        # "Savannah, GA"
+    r"|(?i:(?:\d+%\s*)?(?:remote|onsite|on-site|hybrid|in[\s-]office)"
+    r"(?:[\s/](?:remote|onsite|on-site|hybrid|role))*)"  # "75% Remote", "Onsite/Hybrid role"
+    r")\s*$"
+)
+
+
+def _clean_role(raw: str) -> str:
+    """The posting title with board metadata removed, casing intact.
+
+    Runs BEFORE lowercasing on purpose: the "City, ST" test needs the two
+    capital letters to tell a state from an ordinary word."""
+    role = raw.split("|", 1)[0].strip()
+    for _ in range(3):                     # titles stack them: "... (In Office) (Phoenix)"
+        stripped = _TRAILING_LOCATION_RE.sub("", _TRAILING_PARENS_RE.sub("", role)).strip()
+        if stripped == role:
+            break
+        role = stripped
+    return role.strip(" -–—,")
+
+
 def job_phrase(lead: Lead) -> str:
     """Deterministic hiring line for a job-posting lead: `is looking for a
     {role}`. `{role}` is the posting's title from the lead's evidence, stripped
-    of any `| location | salary` metadata (noise in copy; it stays in the review
-    evidence). NEVER says "hired" — the role is open, which is the whole point.
-    Templated (not LLM) for the same reason funding is: honesty lives in code."""
+    of the `| location | salary` and trailing board metadata that reads as noise
+    in copy (it all stays in the review evidence). NEVER says "hired" — the role
+    is open, which is the whole point. Templated (not LLM) for the same reason
+    funding is: honesty lives in code."""
     raw = next((s.plain_words_description for s in lead.signals if s.plain_words_description), "") or ""
-    role = raw.split("|", 1)[0].strip().lower()
+    role = _clean_role(raw).lower()
     role, _ = strip_dollar_amounts(role)          # a salary in the title never reaches copy
     role = role.strip()
     if not role:

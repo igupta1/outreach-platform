@@ -595,3 +595,47 @@ def test_cfo_gift_no_longer_flags_every_card():
     # MAX_JOB_LEAD_AGE_DAYS cap enforces posting freshness in code instead.
     assert not any("confirm it's still live" in f for f in draft.flags)
     assert any("domainless" in f for f in draft.flags)
+
+
+# --- job title: board metadata never reaches copy ---------------------------
+
+from system_b.copy.email import _clean_role, job_phrase  # noqa: E402
+
+
+def test_role_drops_trailing_board_metadata():
+    """Every input is a real inventory title. The city especially: the line
+    already prints the company's city, so "financial controller - savannah, ga"
+    said savannah twice."""
+    cases = {
+        "Financial Controller - Savannah, GA": "Financial Controller",
+        "Assistant Controller - Hybrid (Austin)": "Assistant Controller",
+        "CPA Finance Manager - 75% Remote": "CPA Finance Manager",
+        "Senior Accountant - Onsite/Hybrid role": "Senior Accountant",
+        "Senior Accountant (Full-Time)": "Senior Accountant",
+        "Part-Time Interim Chief Financial Officer (CFO)": "Part-Time Interim Chief Financial Officer",
+        "Division Controller for Schools Division (Full-Time, Remote)": "Division Controller for Schools Division",
+        "Chief Financial Officer - Healthcare Industry (In Office) (Phoenix)":
+            "Chief Financial Officer - Healthcare Industry",
+    }
+    for raw, want in cases.items():
+        assert _clean_role(raw) == want, raw
+
+
+def test_role_keeps_a_dash_segment_that_describes_the_role():
+    """A dash segment is usually the role itself. Only a place or a work
+    arrangement gets cut."""
+    for raw in (
+        "Assistant Controller - Manufacturing",
+        "Accounting Manager - Billing & Operations",
+        "Senior Project Manager - FP&A",
+        "Controller — Medical AI Startup",
+        "Finance Manager - Security Services",
+        "Accounting Manager - Multi-State/Multi-Entity",
+        "Controller - Finance, hr",     # lowercase 'hr' is not a state
+    ):
+        assert _clean_role(raw) == raw, raw
+
+
+def test_role_that_is_only_metadata_degrades_to_is_hiring():
+    lead = mk("x", "job_finance_lead", evidence="(Remote)")
+    assert job_phrase(lead) == "is hiring"

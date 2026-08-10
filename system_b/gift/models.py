@@ -30,6 +30,9 @@ class Prospect:
     # cannot stand behind the word "client" (see research.classifier), which is
     # why copy falls back to the unnamed phrasing instead of guessing.
     client_names: list[str] = field(default_factory=list)
+    # Their stated client revenue range, (min, max) in dollars. Used to describe
+    # the PROSPECT in the opener; never to claim the gift matches it.
+    client_revenue: tuple[float | None, float | None] | None = None
     sent_lead_ids: list[str] = field(default_factory=list)
 
 

@@ -46,6 +46,7 @@ def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> 
         niche_source=research.niche_source or "site",
         first_name=row.get("first_name"),
         client_names=list(getattr(research, "nameable_clients", None) or []),
+        client_revenue=getattr(research, "client_revenue", None),
         sent_lead_ids=list(row.get("sent_lead_ids") or []),
         **kw,
     )

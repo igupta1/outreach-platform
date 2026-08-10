@@ -38,3 +38,8 @@ class ResearchResult:
     # names found on a page that presents them AS clients land here, so this is
     # empty far more often than `evidence` has client rows.
     nameable_clients: list[str] = field(default_factory=list)
+    # The prospect's stated CLIENT revenue range, (min, max) in dollars with
+    # either bound open. Verified verbatim on their site and parsed by code.
+    # Describes THEM, never the gift — see research/revenue.py.
+    client_revenue: tuple[float | None, float | None] | None = None
+    revenue_phrase: str | None = None

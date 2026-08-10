@@ -117,6 +117,36 @@ def niche_display(match_param: tuple[str, str] | None) -> str | None:
     return NICHE_DISPLAY.get(token)
 
 
+def _money_display(v: float) -> str:
+    """`2000000.0` -> `$2m`. Picks the largest unit that stays clean, and drops
+    a trailing `.0` so copy reads `$2m`, not `$2.0m`."""
+    for unit, size in (("b", 1e9), ("m", 1e6), ("k", 1e3)):
+        if v >= size:
+            n = v / size
+            return f"${n:.1f}".rstrip("0").rstrip(".") + unit if n % 1 else f"${int(n)}{unit}"
+    return f"${int(v)}"
+
+
+def revenue_display(rng: tuple[float | None, float | None] | None) -> str:
+    """The prospect's stated client-revenue range as a compact modifier that
+    reads in front of "companies": `$2m-$10m`, `$1m+`, `sub-$50m`.
+
+    Rendered from the parsed NUMBERS, never from their raw sentence — the same
+    rule the niche label follows. Their verbatim phrase is often a marketing
+    blob ("Serving CEOs of companies with $1M-$10M in annual revenue") that
+    reads badly inline; it stays in the review evidence instead."""
+    if not rng:
+        return ""
+    lo, hi = rng
+    if lo is not None and hi is not None:
+        return f"{_money_display(lo)}-{_money_display(hi)}"
+    if lo is not None:
+        return f"{_money_display(lo)}+"
+    if hi is not None:
+        return f"sub-{_money_display(hi)}"
+    return ""
+
+
 def city_display(city: str | None) -> str:
     return (city or "").strip().lower()
 

@@ -19,6 +19,7 @@ from typing import Any, Callable
 
 from system_b.gift.taxonomy import map_industry_candidates, map_prospect
 from system_b.research.models import Evidence, ResearchResult
+from system_b.research.revenue import parse_revenue_range
 
 # Below this much total visible text, the site is "thin" -> generalist
 # regardless of what the model says (spec 2a rule 3).
@@ -126,6 +127,34 @@ def _statement_industries(raw: dict[str, Any]) -> list[tuple[str, str]]:
     return []
 
 
+def _attach_revenue(result: ResearchResult, raw: dict[str, Any], site: dict[str, str]) -> None:
+    """Verify and attach the stated CLIENT revenue range, if any.
+
+    Applied on EVERY classification path, niched or not, because the biggest win
+    is the generalist: a prospect with no claimable vertical currently opens on
+    "saw you're based in atlanta", which is an Apollo merge field and proves
+    nothing. A verified revenue range proves someone read their site.
+
+    Gate A applies unchanged — the phrase must appear word-for-word on a fetched
+    page — and the NUMBERS are then read by code (`parse_revenue_range`), never
+    taken from the model. An unverifiable or unparseable statement simply leaves
+    the lever off."""
+    phrase = str(raw.get("revenue_phrase") or "").strip()
+    if not phrase:
+        return
+    url = locate(phrase, site)
+    if url is None:
+        return                                  # not verbatim on the site -> drop
+    rng = parse_revenue_range(phrase)
+    if rng is None:
+        return                                  # code could not read a range -> drop
+    result.client_revenue = rng
+    result.revenue_phrase = phrase
+    # Surfaced on the review card with its source URL, like the niche phrase, so
+    # the operator checks the sentence rather than the number we derived from it.
+    result.evidence.append(Evidence("revenue", phrase, url))
+
+
 def classify(
     site: dict[str, str],
     taxonomy: dict[str, list[str]],
@@ -134,13 +163,22 @@ def classify(
 ) -> ResearchResult:
     """Classify a fetched site. `site` is {url: visible_text}; `llm` proposes,
     code verifies. Deterministic given the same `site` and `llm` output."""
-    flags: list[str] = []
-
     total = sum(len(t) for t in site.values())
     if total < THIN_MIN_CHARS:
         return _generalist(["thin website — generalist fallback"])
-
     raw = llm(site) or {}
+    result = _classify_niche(raw, site, taxonomy)
+    _attach_revenue(result, raw, site)
+    return result
+
+
+def _classify_niche(
+    raw: dict[str, Any], site: dict[str, str], taxonomy: dict[str, list[str]]
+) -> ResearchResult:
+    """The niche half of classification (Gate A). Split out so the revenue lever
+    can be attached to whichever result this returns, on every path."""
+    flags: list[str] = []
+
     if raw.get("classification") != "niched":
         return _generalist(flags)
 
