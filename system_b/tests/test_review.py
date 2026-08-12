@@ -7,7 +7,9 @@ Run:  system_b/.venv/bin/python -m pytest system_b/tests/test_review.py -q
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
+from pathlib import Path
 
 from system_b.copy.email import EmailDraft
 from system_b.gift.models import Gift, Prospect
@@ -194,6 +196,25 @@ def test_review_path_helper():
     assert _review_path("sequences.csv").name == "sequences.review.json"
     assert _review_path("out/foo.csv").as_posix() == "out/foo.review.json"
     assert _review_path("noext").name == "noext.review.json"
+
+
+def test_card_carries_the_linkedin_url_for_connecting_in_the_same_pass():
+    """The connection request goes out while reviewing, so the URL has to be on
+    the card. It is already in the payload; this pins the page to using it."""
+    page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
+    assert "p.linkedin" in page
+    assert 'class:"connect"' in page
+    # and a row with no URL says so rather than rendering a dead link
+    assert "no linkedin" in page
+
+
+def test_page_marks_rows_past_the_daily_connection_cap():
+    """LinkedIn caps connection requests, so the gate has to show where to stop.
+    Recomputed from LIVE cards, not row numbers, or removing a card leaves the
+    line in the wrong place."""
+    page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
+    assert re.search(r"const CONNECT_CAP = \d+;", page)
+    assert 'toggle("past-cap"' in page
 
 
 def test_serve_renders_and_injects(tmp_path):

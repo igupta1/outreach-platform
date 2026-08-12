@@ -44,6 +44,11 @@
   th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
   tr.best td { background:var(--best); }
   .pill { display:inline-block; padding:1px 7px; border-radius:99px; background:#f1f1f4; font-size:11px; color:#374151; }
+  a.connect { font-size:12px; font-weight:600; padding:2px 9px; border-radius:99px;
+              background:#eef4ff; color:#1d4ed8; text-decoration:none; white-space:nowrap; }
+  a.connect:hover { background:#dbe6ff; text-decoration:none; }
+  .card.past-cap a.connect { background:#f1f1f4; color:var(--muted); font-weight:500; }
+  .card.past-cap .n::after { content:' email only'; font-size:11px; color:var(--muted); }
   .warn { color:#b45309; font-weight:600; }
   a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration:underline; }
   .fields { display:grid; gap:10px; }
@@ -219,11 +224,19 @@ function card(p, idx) {
     ? el("span", {class:"tier", title:"personalization: strongest sorts first"},
          text(p.personalization.label))
     : null;
+  // Open their profile straight from the card: the connection request is sent
+  // while reviewing, in the same pass, rather than from a second list later.
+  const li = p.linkedin
+    ? el("a", {class:"connect", href:p.linkedin, target:"_blank", rel:"noopener",
+               title:"open LinkedIn to send the connection request"}, text("connect ↗"))
+    : el("span", {class:"pill", title:"no LinkedIn URL in the Apollo export"},
+         text("no linkedin"));
   c.append(el("div", {class:"chead"},
     el("span", {class:"n"}, text("#" + (idx+1))),
     el("span", {class:"co"}, text(p.company || "(no name)")),
     tier,
     el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  "))),
+    li,
     x));
 
   const sec = (label, node) => node ? el("div", {class:"sec"}, el("div",{class:"lbl"},text(label)), node) : null;
@@ -243,12 +256,20 @@ function card(p, idx) {
 // Counts describe what will actually be downloaded, so they are derived from
 // the live cards rather than from REVIEW — otherwise the header would keep
 // promising prospects that removal has already taken out of the CSV.
+// LinkedIn allows roughly 100 connection requests a week. Cards past that many
+// are email-only, and marking them here means the cutoff moves when a card is
+// removed — counting raw row numbers would leave the line in the wrong place the
+// moment you × someone above it.
+const CONNECT_CAP = 20;
+
 function refreshCounts() {
   const live = [...document.querySelectorAll(".card:not(.removed)")];
+  live.forEach((c, i) => c.classList.toggle("past-cap", i >= CONNECT_CAP));
   const flagged = live.filter(c => c.querySelector(".flags")).length;
   const n = live.length;
   document.getElementById("count").textContent =
-    n + " prospect" + (n===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged + " flagged";
+    n + " prospect" + (n===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged
+    + " flagged  ·  connect with the top " + Math.min(n, CONNECT_CAP);
 
   const removed = document.querySelectorAll(".card.removed").length;
   const box = document.getElementById("removed");
