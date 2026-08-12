@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from system_b.copy.email import _client_names_phrase, is_job_posting, job_phrase
-from system_b.copy.lex import niche_display, revenue_display
+from system_b.copy.lex import niche_display, niche_noun, revenue_display
 from system_b.copy.subject import niche_claim
 from system_b.gift.models import Gift, Prospect
 
@@ -125,6 +125,89 @@ def _personalization(prospect: Prospect, gift: Gift) -> dict[str, Any]:
     return {"rank": rank, "label": dict(_PERSONALIZATION_TIERS)[rank]}
 
 
+def _evidence_url(research: Any, kind: str, text: str | None = None) -> str:
+    """The page a piece of evidence was found on: the row matching `text` when
+    given, else the first row of that kind. "" when there is none."""
+    rows = list(getattr(research, "evidence", None) or [])
+    if text:
+        for e in rows:
+            if e.kind == kind and e.text == text:
+                return e.url or ""
+    for e in rows:
+        if e.kind == kind:
+            return e.url or ""
+    return ""
+
+
+def _claims(prospect: Prospect, gift: Gift, research: Any, body: str) -> list[dict[str, Any]]:
+    """Every claim the copy makes ABOUT THE PROSPECT, keyed by the exact
+    substring it appears as, so the gate can underline the words themselves and
+    show what backs them on hover.
+
+    This replaces reading a list at the bottom of the card and matching it up by
+    eye. The evidence was always there; it was just not attached to the sentence
+    that depends on it.
+
+    Only claims whose text is really IN the rendered copy survive — the same
+    verbatim discipline the rest of the pipeline uses. A claim the copy did not
+    end up making must not be highlighted, and a template change that renames a
+    phrase silently highlights nothing rather than pointing at the wrong words.
+
+    `city`/`state` deliberately carry no URL and say so: they come from the
+    Apollo export, not from the prospect's own site, which makes them the one
+    claim on the card nobody verified."""
+    mp = prospect.match_param
+    niche = niche_claim(gift, prospect) if mp else None
+    out: list[dict[str, Any]] = []
+
+    if niche:
+        kind = "client" if prospect.niche_source == "client_list" else "phrase"
+        out.append({
+            "text": niche_noun(niche),
+            "label": "vertical",
+            "quote": prospect.niche_phrase or "",
+            "how": _HOW_WE_KNOW.get(prospect.niche_source, "classified from their site"),
+            "url": _evidence_url(research, kind, prospect.niche_phrase),
+        })
+
+    named = _client_names_phrase(prospect)
+    if named:
+        rows = [e for e in (getattr(research, "evidence", None) or []) if e.kind == "client"]
+        out.append({
+            "text": named,
+            "label": "clients",
+            "quote": "  ·  ".join(e.text for e in rows[:6]),
+            "how": "found on a page that presents them as clients",
+            "url": rows[0].url if rows else "",
+        })
+
+    rev = revenue_display(getattr(prospect, "client_revenue", None))
+    if rev:
+        phrase = getattr(research, "revenue_phrase", None) or ""
+        out.append({
+            "text": rev,
+            "label": "client revenue",
+            "quote": phrase,
+            "how": "stated verbatim on their own site",
+            "url": _evidence_url(research, "revenue", phrase),
+        })
+
+    # Geography ONLY when the copy actually opens on it. A niched email makes no
+    # location claim about the prospect, but the word still appears in the body
+    # because a GIFT LEAD is based there — underlining that would attach the
+    # prospect's city to a sentence about someone else entirely.
+    if not niche and gift.geo_level in ("city", "state"):
+        for value, label in ((prospect.city, "city"), (prospect.state, "state")):
+            said = (value or "").strip().lower()
+            if said:
+                out.append({
+                    "text": said, "label": label, "quote": value or "",
+                    "how": "from the Apollo export, NOT from their site", "url": "",
+                })
+
+    return [c for c in out if c["text"] and c["text"] in body]
+
+
 def build_review(
     prospect: Prospect,
     gift: Gift,
@@ -196,6 +279,10 @@ def build_review(
         "left_field_variant": getattr(email1, "left_field_variant", ""),
         # evidence
         "evidence": evidence,
+        # Claims about the PROSPECT, attached to the words that make them. The
+        # gate underlines these in the copy and shows the proof on hover, which
+        # is what the bottom-of-card evidence list used to be for.
+        "claims": _claims(prospect, gift, research, getattr(email1, "body", "")),
         "flags": flags,
         # Advisory, and kept OUT of `flags` on purpose: those are stop-signs a
         # human has to clear, these are suggestions. Mixing them would teach the

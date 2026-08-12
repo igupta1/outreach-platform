@@ -58,6 +58,21 @@ card and appear once in a collapsed panel at the top. They are authored constant
 in code, so read-only is the honest treatment — change them where the reasoning
 for each line is written down.
 
+Each card underlines the claims the copy makes ABOUT THE PROSPECT and shows
+what backs them on hover: their verbatim words, how we know, and a link to the
+page it was found on. `build_review` emits those as `claims` — the exact
+substring as it appears in the rendered copy, so the page matches text rather
+than tracking offsets, and a claim the copy did not end up making highlights
+nothing instead of pointing at the wrong words. Geography is only claimed when
+the copy actually opens on it (a niched email names no location, and the city
+still appears in the body because a GIFT LEAD is there), each claim underlines
+once at its first occurrence, and city/state are marked as coming from Apollo
+rather than the prospect's site — the one claim on the card nobody verified.
+
+Email 1 is therefore READ-FIRST: a styled div that swaps to the real textarea on
+click and back on blur. The textarea stays in the DOM throughout, so `buildCsv`
+keeps reading `.value` and knows nothing about any of it.
+
 `copy/naturalness.py` adds an advisory read of the varying copy: an LLM returns
 SPANS that look machine-written and code keeps only spans that appear verbatim,
 capped at 3, swallowing every failure. It never writes copy, so the "no model

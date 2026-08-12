@@ -45,6 +45,22 @@
   .sounds q { font-weight:600; color:#111; }
   .shared-tail { white-space:pre-wrap; color:#9ca3af; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
                  padding:8px 10px; border:1px dashed var(--line); border-radius:8px; background:#fcfcfd; }
+  /* Read mode for email 1: same box as the textarea it swaps with, so clicking
+     into it to edit does not make the card jump. */
+  .read { white-space:pre-wrap; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+          padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:text; }
+  .read:hover { border-color:#cfcfd6; }
+  .claim { position:relative; border-bottom:1px dotted #1d4ed8; cursor:help; }
+  .claim .pop { display:none; position:absolute; left:0; top:100%; z-index:20;
+                width:340px; max-width:min(340px, 78vw);
+                background:#111; color:#f4f4f5; border-radius:8px; padding:8px 10px; margin-top:2px;
+                font:12px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+                box-shadow:0 6px 20px rgba(0,0,0,.22); white-space:normal; cursor:default; }
+  .claim:hover .pop { display:block; }
+  .claim .pop .k { color:#a1a1aa; text-transform:uppercase; letter-spacing:.06em; font-size:10px; }
+  .claim .pop q { color:#fff; font-weight:600; }
+  .claim .pop a { color:#93c5fd; }
+  .claim.unverified { border-bottom-color:#b45309; }
   button.secondary { background:#f1f1f4; color:#111; }
   button.secondary:hover { background:#e4e4e8; }
   .shared { max-width:960px; margin:0 auto; padding:0 20px; }
@@ -138,6 +154,92 @@ function autosize(ta) {
 }
 function autosizeAll() { document.querySelectorAll("textarea.f").forEach(autosize); }
 
+// Email 1, read first. The claims it makes about the PROSPECT are underlined,
+// and hovering one shows their own words plus the page it was found on.
+//
+// Read-first rather than always-editable because most cards are never edited:
+// the review question is "is this safe to send", and answering it means checking
+// the claims, not retyping the copy. Clicking swaps in the real textarea, which
+// stays in the DOM the whole time so `buildCsv` keeps reading `.value` and knows
+// nothing about any of this.
+function claimSpan(c) {
+  const span = el("span", {class: "claim" + (c.url ? "" : " unverified")}, text(c.text));
+  const pop = el("span", {class:"pop"});
+  pop.append(el("div", {class:"k"}, text(c.label)));
+  if (c.quote) pop.append(el("div", {}, el("q", {}, text(c.quote))));
+  if (c.how) pop.append(el("div", {class:"k"}, text(c.how)));
+  if (c.url) pop.append(el("div", {}, link(c.url, "open the page ↗")));
+  // A claim near either edge would push the popover off-screen, taking the
+  // source link with it. Nudge it back inside on hover.
+  //
+  // The width is COMPUTED, not measured: the popover is display:none until
+  // :hover, and a hidden element reports offsetWidth 0 — which silently made an
+  // earlier version of this never move anything at all.
+  span.addEventListener("mouseenter", () => {
+    const vw = document.documentElement.clientWidth;
+    const w = Math.min(340, vw * 0.78);
+    // The FIRST fragment, not the bounding box: a claim that wraps across lines
+    // has a union box starting at the paragraph's left edge, while the popover
+    // is actually anchored to where the span begins.
+    const box = span.getClientRects()[0] || span.getBoundingClientRect();
+    const want = Math.max(8, Math.min(box.left, vw - w - 8));
+    pop.style.left = (want - box.left) + "px";
+  });
+  span.append(pop);
+  return span;
+}
+
+// Underline each claim ONCE, at its first occurrence, leftmost-first and never
+// overlapping — a claim inside another claim's span would nest popovers.
+//
+// Once, not everywhere: the prospect's city is also the city of some gift lead
+// often enough that underlining every occurrence would label a sentence about a
+// different company with the prospect's evidence. The opener always comes first,
+// so the first hit is the one the claim is actually about.
+function highlight(body, claims) {
+  const frag = document.createDocumentFragment();
+  const used = new Set();
+  let i = 0;
+  while (i < body.length) {
+    let best = null, at = -1;
+    for (const c of claims) {
+      if (used.has(c)) continue;
+      const k = body.indexOf(c.text, i);
+      if (k >= 0 && (at < 0 || k < at || (k === at && c.text.length > best.text.length))) {
+        best = c; at = k;
+      }
+    }
+    if (!best) break;
+    used.add(best);
+    if (at > i) frag.append(text(body.slice(i, at)));
+    frag.append(claimSpan(best));
+    i = at + best.text.length;
+  }
+  if (i < body.length) frag.append(text(body.slice(i)));
+  return frag;
+}
+
+function email1Field(p) {
+  const claims = p.claims || [];
+  const ta = el("textarea", {class:"f", "data-key":"email_1_head"});
+  ta.value = p.email_1_head !== undefined ? p.email_1_head : (p.email_1 || "");
+  ta.hidden = true;
+  ta.addEventListener("input", () => autosize(ta));
+
+  const read = el("div", {class:"read", title:"click to edit"});
+  const paint = () => { read.textContent = ""; read.append(highlight(ta.value, claims)); };
+  paint();
+
+  read.addEventListener("click", (ev) => {
+    if (ev.target.closest("a")) return;          // let a source link through
+    read.hidden = true; ta.hidden = false; autosize(ta); ta.focus();
+  });
+  ta.addEventListener("blur", () => { paint(); ta.hidden = true; read.hidden = false; });
+
+  const box = el("div", {class:"field"}, el("label", {}, text("Email 1")), read, ta);
+  return box;
+}
+
 function fieldsBlock(p, idx) {
   const wrap = el("div", {class:"fields"});
   const mk = (key, label, multiline) => {
@@ -154,7 +256,7 @@ function fieldsBlock(p, idx) {
   // three DMs are byte-identical on every card in the run, so they are shown
   // once at the top instead of thirty times here. They still ship in the CSVs.
   mk("subject", "Subject");
-  mk("email_1_head", "Email 1", true);
+  wrap.append(email1Field(p));
   // The closing, dimmed and read-only: you can see the whole email in context
   // without re-reading the same two paragraphs on every card. `buildCsv` joins
   // it back on, so the exported email_1 is unchanged.
@@ -181,17 +283,6 @@ function nicheLine(p) {
   return box;
 }
 
-function evidenceList(p) {
-  if (!p.evidence || !p.evidence.length) return null;
-  const ul = el("ul", {class:"ev"});
-  for (const e of p.evidence) {
-    ul.append(el("li", {},
-      el("span", {class:"k"}, text(e.kind)),
-      el("span", {class:"quote"}, text('"' + e.text + '"  ')),
-      link(e.url, "source")));
-  }
-  return ul;
-}
 
 // The advisory read (copy/naturalness.py). Deliberately NOT merged into
 // `flags`: those are stop-signs a human has to clear, these are suggestions, and
@@ -289,7 +380,6 @@ function card(p, idx) {
     sec("copy", fieldsBlock(p, idx)),
     sec("evidence", evidenceBlock(p)),
     sec("who they serve", nicheLine(p)),
-    sec("niche evidence", evidenceList(p)),
   ].forEach(s => { if (s) c.append(s); });
   return c;
 }
