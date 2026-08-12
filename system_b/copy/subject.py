@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import zlib
 
-from system_b.copy.lex import apply_article, city_display, niche_display, state_display
+from system_b.copy.lex import (
+    apply_article,
+    city_display,
+    niche_display,
+    niche_noun,
+    state_display,
+)
 from system_b.gift.models import Gift, Prospect
 
 # 4b WHAT (plural), first match wins. `what_category` already encodes the
@@ -77,10 +83,10 @@ def _plural_who(gift: Gift, prospect: Prospect) -> str:
     state = state_display(prospect.state)
     if niche:
         if gift.geo_level == "city":
-            return f"{niche} companies in {city}"
+            return f"{niche_noun(niche)} in {city}"
         if gift.geo_level == "state":
-            return f"{niche} companies in {state}"
-        return f"{niche} companies"
+            return f"{niche_noun(niche)} in {state}"
+        return niche_noun(niche)
     if gift.geo_level == "city":
         return f"companies in {city}"
     if gift.geo_level == "state":
@@ -99,11 +105,11 @@ def _singular_who(gift: Gift, prospect: Prospect) -> str:
     # did not. Mirrors `_plural_who` so singular and plural stay equally honest.
     if niche:
         if gift.geo_level == "city":
-            who = f"a {niche} company in {city}"
+            who = f"a {niche_noun(niche, 1)} in {city}"
         elif gift.geo_level == "state":
-            who = f"a {niche} company in {state}"
+            who = f"a {niche_noun(niche, 1)} in {state}"
         else:
-            who = f"a {niche} company"
+            who = f"a {niche_noun(niche, 1)}"
     elif gift.geo_level == "city":
         who = f"a company in {city}"
     elif gift.geo_level == "state":

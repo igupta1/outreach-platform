@@ -131,7 +131,7 @@ def test_tier1_sole_focus_construction():
     assert prospect.match_param == ("industry", "construction")
     assert prospect.niche_phrase == "managing construction operations"   # claimed phrase
     assert gift is not None and gift.all_niche is True
-    assert "saw on your site you work with construction, so i pulled 3 construction companies" in _body(prospect, gift)
+    assert "saw on your site you work with construction companies, so i pulled 3 more" in _body(prospect, gift)
 
 
 # --------------------------------------------------------------------------

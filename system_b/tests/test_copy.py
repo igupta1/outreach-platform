@@ -189,13 +189,13 @@ def test_child_niche_keeps_its_word_in_subject():
     p = Prospect(firm_name="Legal CFO", city="Denver", state="CO",
                  classification="niched", match_param=("niche", "law_firm"))
     g = G(all_niche=True, geo="none", shape="singular", best_level=3, best_signal="job_fractional_cfo")
-    assert build_subject(g, p) == "a legal company is hiring a fractional cfo"
+    assert build_subject(g, p) == "a law firm is hiring a fractional cfo"
     # firm_name -> the canonical subject variant (crc32 % 3 == 0), since this test
     # pins the exact WHAT wording; rotation itself is covered separately.
     p2 = Prospect(firm_name="Test Firm", city="Austin", state="TX",
                   classification="niched", match_param=("niche", "consulting"))
     g2 = G(all_niche=True, geo="city", shape="plural", what="hiring")
-    assert build_subject(g2, p2) == "consulting companies in austin hiring finance leadership right now"
+    assert build_subject(g2, p2) == "consulting firms in austin hiring finance leadership right now"
 
 
 def test_4c_an_before_vowel():
@@ -222,7 +222,7 @@ def test_5a_framing_table():
     # uses the clean niche word, NOT the raw scraped phrase (#7/Change 3).
     p_site = P(niche_phrase="healthcare startups", niche_source="site", niche_exclusivity="sole")
     assert _framing(G(all_niche=True, geo="city"), p_site) == \
-        "saw on your site you work with healthcare, so i pulled 3 healthcare companies showing they need finance help:"
+        "saw on your site you work with healthcare companies, so i pulled 3 more showing they need finance help:"
 
     # TIER 2 — one of several stated industries, verb "work with"; names ONLY
     # the one niche we're gifting for.
@@ -498,7 +498,7 @@ def test_full_email_niched_example_1():
 
     assert draft.subject == "healthcare companies in denver hiring finance leadership right now"
     assert draft.body.startswith("hey dana,\n\n")
-    assert "saw on your site you work with healthcare, so i pulled 3 healthcare companies" in draft.body
+    assert "saw on your site you work with healthcare companies, so i pulled 3 more" in draft.body
     # a finance-lead hire (rank 1) outranks the junior-finance leads (rank 2)
     # in the within-level re-sort, so the finance-lead line is #1.
     assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body
@@ -645,14 +645,14 @@ def test_role_that_is_only_metadata_degrades_to_is_hiring():
 def test_lead_line_shows_the_fractional_word_the_title_hid():
     lead = mk("f1", "job_fractional_cfo", company="Acme", evidence="Chief Financial Officer")
     lead.role_qualifier = "interim"
-    assert job_phrase(lead) == "is looking for an interim chief financial officer"
+    assert job_phrase(lead) == "is looking for an interim cfo"
 
 
 def test_lead_line_does_not_double_up_the_qualifier():
     lead = mk("f2", "job_fractional_cfo", company="Acme",
               evidence="Fractional Chief Financial Officer")
     lead.role_qualifier = "fractional"
-    assert job_phrase(lead) == "is looking for a fractional chief financial officer"
+    assert job_phrase(lead) == "is looking for a fractional cfo"
 
 
 def test_client_choice_prefers_an_organization_over_a_brand():
@@ -665,10 +665,102 @@ def test_client_choice_prefers_an_organization_over_a_brand():
         "Multidisciplinary Association for Psychedelic Studies (MAPS)",
         "Public Justice Foundation", "Round Canopy Parachuting Team - USA",
     ]
-    assert _client_names_phrase(p) == "The Nemasket Group, Inc. and Public Justice Foundation"
+    # the legal suffix is stripped where the name is SPOKEN (nobody says "Inc.")
+    assert _client_names_phrase(p) == "The Nemasket Group and Public Justice Foundation"
 
 
 def test_client_choice_falls_back_when_nothing_looks_like_an_org():
     p = P(niche_source="client_list")
     p.client_names = ["Humans of New York", "Dear New York"]
     assert _client_names_phrase(p) == "Dear New York and Humans of New York"  # shortest first
+
+
+# --- speech, not filings ----------------------------------------------------
+
+def test_titles_people_say_as_initials_are_abbreviated():
+    """A job board writes "Chief Financial Officer". Nobody says that out loud to
+    another finance person, and the expanded form in a casual lowercase line is a
+    tell that the sentence was assembled rather than written."""
+    from system_b.copy.email import job_phrase
+
+    cases = {
+        "Chief Financial Officer": "is looking for a cfo",
+        "VP of Finance": "is looking for a vp of finance",
+        "Chief Information Security Officer": "is looking for a ciso",
+        # longest-first: CISO must not be half-matched into "chief information officer"
+        "Chief Information Officer": "is looking for a cio",
+    }
+    for title, expected in cases.items():
+        assert job_phrase(mk("l", "job_finance_lead", evidence=title)) == expected
+
+
+def test_spelled_out_term_does_not_keep_its_own_initials_in_parens():
+    """"head of financial planning & analysis (fp&a)" abbreviates to
+    "head of fp&a (fp&a)" unless the redundant parenthetical is dropped."""
+    from system_b.copy.email import job_phrase
+
+    lead = mk("l", "job_finance_lead",
+              evidence="Head of Financial Planning & Analysis (FP&A)")
+    assert job_phrase(lead) == "is looking for a head of fp&a"
+
+
+def test_chief_accounting_officer_is_left_spelled_out():
+    """CFO and CISO are universally spoken as initials. CAO is not, so expanding
+    it is the honest default."""
+    from system_b.copy.email import job_phrase
+
+    lead = mk("l", "job_finance_lead", evidence="Chief Accounting Officer")
+    assert "cao" not in job_phrase(lead)
+
+
+def test_legal_suffixes_are_dropped_where_the_name_is_spoken():
+    from system_b.copy.lex import spoken_name
+
+    assert spoken_name("Antilles Power Depot, Inc.") == "Antilles Power Depot"
+    assert spoken_name("Gwen Fonarow LLC") == "Gwen Fonarow"
+    assert spoken_name("The Nemasket Group, Inc.") == "The Nemasket Group"
+    # "& Co." is how those firms are actually known — stripping it reads wrong
+    assert spoken_name("DP Mende & Co.") == "DP Mende & Co."
+    # only the TRAILING suffix, and never down to nothing
+    assert spoken_name("BooGoo Inc. (BGB)") == "BooGoo Inc. (BGB)"
+    assert spoken_name("LLC") == "LLC"
+
+
+def test_lead_line_says_the_company_the_way_a_person_would():
+    from system_b.copy.email import _lead_line
+    from system_b.niches.base import default_pack
+
+    lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
+              company="Antilles Power Depot, Inc.", evidence="Chief Financial Officer")
+    line, _ = _lead_line(lead, TODAY, "none", pack=default_pack())
+    assert line.startswith("Antilles Power Depot, denver: is looking for a cfo")
+    assert "Inc." not in line
+
+
+def test_niches_that_are_not_companies_are_not_called_companies():
+    """"nonprofit companies" is the fastest way to sound like a slot got filled.
+    A nonprofit is not a company; a law firm is not a "legal company"."""
+    from system_b.copy.lex import niche_noun
+
+    assert niche_noun("nonprofit") == "nonprofits"
+    assert niche_noun("nonprofit", 1) == "nonprofit"
+    assert niche_noun("legal") == "law firms"
+    assert niche_noun("dental") == "dental practices"
+    assert niche_noun("restaurant") == "restaurants"
+    # anything not listed keeps the default, so this stays a short exception list
+    assert niche_noun("healthcare") == "healthcare companies"
+    assert niche_noun("healthcare", 1) == "healthcare company"
+    # a geography reads correctly through the same default
+    assert niche_noun("atlanta") == "atlanta companies"
+
+
+def test_nonprofit_framing_and_subject_read_as_speech():
+    # "Test Firm" pins the canonical WHAT variant (crc32 % 3 == 0); rotation
+    # itself is covered separately.
+    p = Prospect(firm_name="Test Firm", city="Denver", state="CO",
+                 classification="niched", match_param=("industry", "nonprofit"),
+                 niche_exclusivity="one_of_several")
+    g = G(all_niche=True, geo="none", shape="plural", what="hiring")
+    assert "nonprofits" in _framing(g, p)
+    assert "nonprofit companies" not in _framing(g, p)
+    assert build_subject(g, p) == "nonprofits hiring finance leadership right now"

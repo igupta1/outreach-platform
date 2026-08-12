@@ -18,7 +18,9 @@ from system_b.copy.lex import (
     city_display,
     fix_articles,
     niche_display,
+    niche_noun,
     revenue_display,
+    spoken_name,
     state_display,
 )
 from system_b.copy.subject import build_subject, niche_claim
@@ -115,7 +117,7 @@ def _client_names_phrase(prospect: Prospect) -> str:
     names = [n.strip() for n in (prospect.client_names or []) if n and n.strip()]
     if len(names) < 2:
         return ""
-    best = sorted(names, key=_client_sort_key)[:2]
+    best = [spoken_name(n) for n in sorted(names, key=_client_sort_key)[:2]]
     return f"{best[0]} and {best[1]}"
 
 
@@ -144,7 +146,7 @@ def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
     companies = noun(n, "company", "companies")
 
     if niche:
-        read = f"saw you work with {rev} {niche} companies."
+        read = f"saw you work with {rev} {niche_noun(niche)}."
         pulled = f"pulled {n} more showing they need finance help:"
     else:
         read = f"saw you work with {rev} companies."
@@ -187,23 +189,26 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
             named = _client_names_phrase(prospect)
             if named:
                 return (
-                    f"noticed you've worked with {niche} companies like {named}, "
+                    f"noticed you've worked with {niche_noun(niche)} like {named}, "
                     f"so i pulled {n} more showing they need finance help:"
                 )
             return (
-                f"noticed you've worked with {niche} companies, so i "
+                f"noticed you've worked with {niche_noun(niche)}, so i "
                 f"pulled {n} more showing they need finance help:"
             )
         if prospect.niche_exclusivity == "one_of_several":
             # one of SEVERAL stated industries — name ONLY the one we're gifting.
             return (
-                f"noticed you work with {niche} companies, so i pulled {n} more "
+                f"noticed you work with {niche_noun(niche)}, so i pulled {n} more "
                 f"showing they need finance help:"
             )
         # sole — a single stated focus; still soft language ("work with").
         return (
-            f"saw on your site you work with {niche}, so i pulled {n} {niche} "
-            f"{companies} showing they need finance help:"
+            # "you work with nonprofits, so i pulled 3 nonprofits" repeats the
+            # noun two clauses apart. "more" says the same thing and carries the
+            # claim that they already work with these — which is the point.
+            f"saw on your site you work with {niche_noun(niche)}, so i pulled "
+            f"{n} more showing they need finance help:"
         )
     # geo (all_niche FALSE): open with where they're based ONLY when the leads
     # are actually in their city or state. A geo-none gift's leads are
@@ -241,12 +246,13 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     if niche:
         if prospect.niche_source == "client_list":
             return (
-                f"noticed you've worked with a bunch of {niche} companies, so i "
+                f"noticed you've worked with a bunch of {niche_noun(niche)}, so i "
                 f"pulled {n} more {need}:"
             )
         if prospect.niche_exclusivity == "one_of_several":
-            return f"noticed you work with {niche} companies, so i pulled {n} more {need}:"
-        return f"saw on your site you work with {niche}, so i pulled {n} {niche} {companies} {need}:"
+            return f"noticed you work with {niche_noun(niche)}, so i pulled {n} more {need}:"
+        return (f"saw on your site you work with {niche_noun(niche)}, so i pulled "
+                f"{n} more {need}:")
     based = city or state
     if gift.geo_level == "city" and city:
         return f"saw you're based in {city}, so i pulled {n} {companies} in {city} {need}:"
@@ -353,6 +359,48 @@ def _clean_role(raw: str) -> str:
     return role.strip(" -–—,")
 
 
+# Titles a person says as initials. A job board writes "Chief Financial Officer";
+# nobody says that out loud to another finance person, they say "CFO" — and the
+# expanded form in an otherwise casual lowercase line is a tell that the sentence
+# was assembled rather than written.
+#
+# Longest-first, because "chief information security officer" contains "chief
+# information officer" and would otherwise be half-replaced into nonsense.
+# Deliberately excludes "chief accounting officer": CFO and CISO are universally
+# spoken as initials, CAO is not.
+_ROLE_ABBREVIATIONS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rf"\b{p}\b", re.IGNORECASE), r)
+    for p, r in (
+        ("chief information security officer", "ciso"),
+        ("chief financial officer", "cfo"),
+        ("chief technology officer", "cto"),
+        ("chief information officer", "cio"),
+        ("chief operating officer", "coo"),
+        ("chief executive officer", "ceo"),
+        ("chief revenue officer", "cro"),
+        ("financial planning and analysis", "fp&a"),
+        ("financial planning & analysis", "fp&a"),
+        ("vice president", "vp"),
+    )
+)
+
+# A title that spelled a term out AND parenthesised its initials reads as
+# "head of fp&a (fp&a)" once abbreviated. Drop the parenthetical when it merely
+# repeats something already in the line.
+_TRAILING_ABBREV_RE = re.compile(r"\s*\(([^()]{1,12})\)\s*$")
+
+
+def _spoken_role(role: str) -> str:
+    """The role as a person would say it: initials where initials are what gets
+    said, and no parenthetical that just repeats them."""
+    for pattern, replacement in _ROLE_ABBREVIATIONS:
+        role = pattern.sub(replacement, role)
+    m = _TRAILING_ABBREV_RE.search(role)
+    if m and m.group(1).strip().lower() in role[: m.start()].lower():
+        role = role[: m.start()].strip()
+    return role
+
+
 def job_role(lead: Lead) -> str:
     """The posting's role WITH its article — `a head of finance`, `an interim
     cfo` — or `""` when the title yields nothing usable.
@@ -377,7 +425,7 @@ def job_role(lead: Lead) -> str:
     qualifier = (lead.role_qualifier or "").strip().lower()
     if qualifier and qualifier not in role:
         role = f"{qualifier} {role}"
-    return fix_articles(f"a {role}")
+    return fix_articles(f"a {_spoken_role(role)}")
 
 
 def job_phrase(lead: Lead) -> str:
@@ -451,7 +499,8 @@ def _lead_line(
             text = f"{text}, {suffix}" if text else suffix
 
     loc = city_display(lead.city) or state_display(lead.state)
-    line = f"{lead.company}, {loc}: {text}" if loc else f"{lead.company}: {text}"
+    said = spoken_name(lead.company)          # "Antilles Power Depot, Inc." -> no "Inc."
+    line = f"{said}, {loc}: {text}" if loc else f"{said}: {text}"
 
     if lead.domain is None:
         flags.append(f"domainless lead ({lead.company}) — google the name to confirm it's real")
@@ -610,7 +659,7 @@ def build_followup_email(
         niche = niche_claim_or_geo(prospect)
         sig = pack.followup_signal
         core = (
-            f"circling back, still keeping an eye out for {niche} companies "
+            f"circling back, still keeping an eye out for {niche_noun(niche)} "
             f"showing {sig}. 15 min whenever works if you want it set up."
         )
 

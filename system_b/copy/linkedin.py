@@ -35,7 +35,7 @@ from typing import Any
 
 from system_b.copy.email import is_job_posting, job_role
 from system_b.copy.honesty import strip_em_dashes
-from system_b.copy.lex import city_display, state_display
+from system_b.copy.lex import city_display, niche_noun, spoken_name, state_display
 from system_b.copy.subject import niche_claim
 from system_b.gift.models import Gift, Prospect
 from system_b.niches.base import NichePack, default_pack
@@ -67,7 +67,7 @@ def _opener(gift: Gift, prospect: Prospect) -> str:
     Empty when neither holds, so the DM simply opens on what we built."""
     niche = niche_claim(gift, prospect)
     if niche:
-        return f"noticed you work with {niche} companies"
+        return f"noticed you work with {niche_noun(niche)}"
     city = city_display(prospect.city)
     state = state_display(prospect.state)
     if gift.geo_level == "city" and city:
@@ -118,7 +118,8 @@ def _lead_clause(lead: Any, pack: NichePack) -> str:
     if not role:
         return ""
     where = city_display(lead.city) or state_display(lead.state)
-    who = f"{lead.company} in {where}" if where else lead.company
+    said = spoken_name(lead.company)
+    who = f"{said} in {where}" if where else said
     return f"{who}, hiring {role}"
 
 
@@ -150,7 +151,7 @@ def build_dm_1_evergreen(
     pack = pack or default_pack()
     vertical = _vertical(gift, prospect)
     opener = _opener(gift, prospect)
-    what = f"{vertical} companies" if vertical else "companies"
+    what = niche_noun(vertical) if vertical else "companies"
     built = (
         f"i built something that flags {what} posting {pack.dm_role_plural}, so "
         "i can send you a few whenever."

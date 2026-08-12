@@ -78,6 +78,72 @@ NICHE_DISPLAY: dict[str, str] = {
     "membership_association": "membership", "social_services": "social services",
 }
 
+# What to CALL companies in a niche. The copy is built as "{label} companies",
+# which reads fine for most labels ("healthcare companies") and badly for the
+# ones whose label is already a noun or names a different kind of organization:
+# "nonprofit companies", "legal companies", "dental companies". A nonprofit is
+# not a company at all, and calling one that is the single fastest way to sound
+# like a machine filled a slot.
+#
+# Only the labels that read wrong are listed; everything else keeps the default,
+# so this stays a short exception list rather than a second copy of NICHE_DISPLAY.
+NICHE_NOUNS: dict[str, tuple[str, str]] = {
+    "nonprofit": ("nonprofit", "nonprofits"),
+    "faith-based": ("faith-based organization", "faith-based organizations"),
+    "membership": ("membership organization", "membership organizations"),
+    "social services": ("social services organization", "social services organizations"),
+    "legal": ("law firm", "law firms"),
+    "accounting": ("accounting firm", "accounting firms"),
+    "consulting": ("consulting firm", "consulting firms"),
+    "staffing": ("staffing firm", "staffing firms"),
+    "creative agency": ("creative agency", "creative agencies"),
+    "dental": ("dental practice", "dental practices"),
+    "veterinary": ("veterinary practice", "veterinary practices"),
+    "medical practice": ("medical practice", "medical practices"),
+    "behavioral health": ("behavioral health practice", "behavioral health practices"),
+    "restaurant": ("restaurant", "restaurants"),
+    "k-12 education": ("school", "schools"),
+}
+
+
+def niche_noun(label: str | None, n: int = 2) -> str:
+    """What to call companies in this niche, singular when ``n == 1``.
+
+    `niche_noun("nonprofit", 2)` -> "nonprofits";
+    `niche_noun("healthcare", 2)` -> "healthcare companies". The caller supplies
+    any article, so the singular form comes back bare ("nonprofit", not "a
+    nonprofit") and `apply_article` can still fix a/an afterwards."""
+    if not label:
+        return "company" if n == 1 else "companies"
+    singular, plural = NICHE_NOUNS.get(label, (f"{label} company", f"{label} companies"))
+    return singular if n == 1 else plural
+
+
+# Legal suffixes, stripped from a company name when it is SPOKEN in copy. Nobody
+# says "Inc." out loud, and a line that does reads as a filing rather than as a
+# person telling you about a company they found.
+#
+# Only the rendered string changes. `lead.company` keeps its full legal name, so
+# the review evidence, the source link and the domain-keyed duplicate check are
+# all untouched — and the name still googles to the same place.
+#
+# "Co." is deliberately absent: "DP Mende & Co." -> "DP Mende" reads wrong, and
+# the ampersand form is how those firms are actually known.
+_LEGAL_SUFFIX_RE = re.compile(
+    r"[,\s]+(?:inc|llc|l\.l\.c|ltd|limited|corp|corporation|incorporated|"
+    r"plc|llp|lp|pllc|pc)\.?\s*$",
+    re.IGNORECASE,
+)
+
+
+def spoken_name(name: str | None) -> str:
+    """A company name as a person would say it aloud: `Antilles Power Depot,
+    Inc.` -> `Antilles Power Depot`. A name that is ONLY a suffix is returned
+    unchanged rather than emptied."""
+    stripped = _LEGAL_SUFFIX_RE.sub("", (name or "").strip()).strip().rstrip(",")
+    return stripped or (name or "")
+
+
 _STATE_FULL: dict[str, str] = {
     "al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas",
     "ca": "california", "co": "colorado", "ct": "connecticut", "de": "delaware",
