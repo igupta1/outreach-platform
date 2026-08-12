@@ -353,19 +353,21 @@ def _clean_role(raw: str) -> str:
     return role.strip(" -–—,")
 
 
-def job_phrase(lead: Lead) -> str:
-    """Deterministic hiring line for a job-posting lead: `is looking for a
-    {role}`. `{role}` is the posting's title from the lead's evidence, stripped
-    of the `| location | salary` and trailing board metadata that reads as noise
-    in copy (it all stays in the review evidence). NEVER says "hired" — the role
-    is open, which is the whole point. Templated (not LLM) for the same reason
-    funding is: honesty lives in code."""
+def job_role(lead: Lead) -> str:
+    """The posting's role WITH its article — `a head of finance`, `an interim
+    cfo` — or `""` when the title yields nothing usable.
+
+    Factored out of `job_phrase` because both channels need the same words in
+    different frames: the email says "is looking for {role}", the LinkedIn DM
+    says "hiring {role}". Deriving the DM's wording from the email's rendered
+    sentence would mean string-surgery on copy, so the shared unit is the role
+    itself."""
     raw = next((s.plain_words_description for s in lead.signals if s.plain_words_description), "") or ""
     role = _clean_role(raw).lower()
     role, _ = strip_dollar_amounts(role)          # a salary in the title never reaches copy
     role = role.strip()
     if not role:
-        return "is hiring"
+        return ""
     # Put the part-time word back when the posting said it in the body but not
     # the title. Without this the subject promises "a fractional cfo" and the
     # line under it reads "is looking for a chief financial officer", so the
@@ -375,7 +377,18 @@ def job_phrase(lead: Lead) -> str:
     qualifier = (lead.role_qualifier or "").strip().lower()
     if qualifier and qualifier not in role:
         role = f"{qualifier} {role}"
-    return fix_articles(f"is looking for a {role}")
+    return fix_articles(f"a {role}")
+
+
+def job_phrase(lead: Lead) -> str:
+    """Deterministic hiring line for a job-posting lead: `is looking for a
+    {role}`. `{role}` is the posting's title from the lead's evidence, stripped
+    of the `| location | salary` and trailing board metadata that reads as noise
+    in copy (it all stays in the review evidence). NEVER says "hired" — the role
+    is open, which is the whole point. Templated (not LLM) for the same reason
+    funding is: honesty lives in code."""
+    role = job_role(lead)
+    return f"is looking for {role}" if role else "is hiring"
 
 
 def is_breach(lead: Lead) -> bool:

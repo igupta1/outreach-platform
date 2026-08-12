@@ -34,6 +34,17 @@ class NichePack:
     left_field_labels: tuple[str, ...]      # aligned A/B labels
     funding_phrase: Callable[..., str] | None   # (lead) -> templated raise line, or None
     priority_flag: str | None               # review/copy flag when a priority-signal lead is present
+
+    # --- LinkedIn DM voice (read by copy/linkedin.py) ---
+    # Who the tool was built for, as the DM names them: "fractional cfos",
+    # "msps". Reads "built this one for {dm_audience}."
+    dm_audience: str
+    # The role a gift lead posted, singular WITH its article and plural without:
+    # "a finance role" / "finance roles". Two fields rather than one derived
+    # from the other because the article is not mechanical ("an it role").
+    dm_role_singular: str
+    dm_role_plural: str
+
     # descriptor for the fallback follow-up bump, e.g. "a finance-need signal"
     followup_signal: str = "a buying signal"
 

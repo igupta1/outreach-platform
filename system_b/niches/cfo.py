@@ -37,4 +37,7 @@ CFO_PACK = NichePack(
     # 21-day MAX_JOB_LEAD_AGE_DAYS cap now enforces the same thing structurally.
     # Removing it splits a run into 10 clean / 13 worth-a-look.
     priority_flag=None,
+    dm_audience="fractional cfos",
+    dm_role_singular="a finance role",
+    dm_role_plural="finance roles",
 )

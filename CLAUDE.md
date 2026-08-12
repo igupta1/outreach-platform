@@ -20,11 +20,40 @@ cd .. && system_b/.venv/bin/python -m system_b.run \
     --in system_b/apollo-contacts-export.csv --out sequences.csv --pack cfo
 ```
 
-Output columns (one row per prospect): `email, first_name, company, subject,
-email_1, email_2, email_3`. In Smartlead, build a 3-step sequence whose bodies
-are `{{email_1}}`, `{{email_2}}`, `{{email_3}}`, and add your signature + the
-CAN-SPAM footer ONCE in the sequence editor. Follow-ups have a blank subject so
-they thread off email 1.
+Output columns (one row per prospect): `email, first_name, last_name, company,
+linkedin_url, subject, email_1, email_2, email_3, li_dm_1, li_dm_1_evergreen,
+li_dm_2`. In Smartlead, build a 3-step sequence whose bodies are `{{email_1}}`,
+`{{email_2}}`, `{{email_3}}`, and add your signature + the CAN-SPAM footer ONCE
+in the sequence editor. Follow-ups have a blank subject so they thread off
+email 1. Rows are ordered most-personalized first — the operator works the file
+down and stops at LinkedIn's daily connection cap, so row order decides who gets
+the second channel.
+
+Two companions land next to the CSV: `<out>.review.json` (the evidence, below)
+and `<out>.new.csv` (only prospects no earlier run sequenced, for pasting onto
+the outreach history sheet). The latter is backed by `--ledger`, a flat list of
+every email ever written. It stores NO status: who accepted and who replied
+lives in the hand-maintained sheet, so no tool can race the human editing it.
+
+## The second channel (`copy/linkedin.py`)
+
+Email is 3 of the 6 touches; the other 3 are LinkedIn (connection request, then
+two DMs), pasted by hand — automating them is against LinkedIn's ToS and the
+account is attached to a day job. The DM copy is templated here under the same
+rules as the email: no model writes it, the vertical claim passes the same
+`niche_claim` gate, every string is em-dash scrubbed.
+
+**DM #1 ships in two shapes on every row.** The fresh one names a gift company
+that "just posted" a role; the evergreen one names nothing that can go stale.
+A connection request has no expiry, so an accept can land six weeks later, by
+which time the fresh text asserts a role that closed — the same decay
+`MAX_JOB_LEAD_AGE_DAYS` bounds on the email side, except a saved DM has no code
+left to protect it. Use the evergreen past ~3 weeks. `build_dm_1` also falls
+back to it whenever the best lead is not a job posting (a breach describes an
+event, not an open role).
+
+No DM references the email: while the sending mailboxes carry a name other than
+the LinkedIn profile's, the prospect cannot connect the two.
 
 ## Review gate (optional, local, send-free)
 

@@ -133,6 +133,7 @@ def build_review(
     followups: list[Any],
     followup_leads: list[Any],
     row: dict[str, Any],
+    dms: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """One prospect's review card as a plain dict.
 
@@ -171,6 +172,7 @@ def build_review(
         # identity (drives the header + the exported CSV)
         "company": prospect.firm_name,
         "first_name": prospect.first_name or "",
+        "last_name": row.get("last_name") or "",
         "email": (row.get("email") or "").strip(),
         "city": prospect.city,
         "state": prospect.state,
@@ -200,4 +202,9 @@ def build_review(
         "email_1": getattr(email1, "body", ""),
         "email_2": getattr(followups[0], "body", "") if followups else "",
         "email_3": getattr(followups[1], "body", "") if len(followups) > 1 else "",
+        # The LinkedIn half, editable on the same card: one review pass covers
+        # both channels, and an edit here reaches the exported CSV.
+        "li_dm_1": (dms or {}).get("li_dm_1", ""),
+        "li_dm_1_evergreen": (dms or {}).get("li_dm_1_evergreen", ""),
+        "li_dm_2": (dms or {}).get("li_dm_2", ""),
     }

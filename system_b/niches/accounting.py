@@ -105,4 +105,7 @@ ACCOUNTING_PACK = NichePack(
     left_field_labels=ACCOUNTING_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
+    dm_audience="accountants",
+    dm_role_singular="a finance role",
+    dm_role_plural="finance roles",
 )

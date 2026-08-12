@@ -7,6 +7,24 @@ import csv
 from system_b.prospects import read_apollo_csv, row_from_apollo
 
 
+def test_last_name_is_carried_for_findability():
+    """Not for copy: a LinkedIn reply weeks later shows a full name, and
+    "Paul" + a company column is a bad key for searching the history sheet."""
+    row = row_from_apollo({
+        "First Name": "Paul", "Last Name": "Whitley", "Company Name": "Acme",
+        "Email": "paul@acme.com", "Website": "acme.com",
+    })
+    assert row["first_name"] == "Paul" and row["last_name"] == "Whitley"
+
+
+def test_missing_last_name_is_none_not_a_crash():
+    row = row_from_apollo({
+        "First Name": "Paul", "Company Name": "Acme",
+        "Email": "paul@acme.com", "Website": "acme.com",
+    })
+    assert row["last_name"] is None
+
+
 def test_row_from_apollo_maps_and_normalizes():
     row = row_from_apollo({
         "First Name": "Dana",

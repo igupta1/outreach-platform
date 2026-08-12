@@ -15,6 +15,7 @@ from datetime import date
 from typing import Any
 
 from system_b.copy.email import build_email_1, build_followup_email
+from system_b.copy.linkedin import build_dm_1, build_dm_1_evergreen, build_dm_2
 from system_b.gift.engine import build_gift
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
@@ -83,20 +84,32 @@ def generate_sequence(
         gift, prospect, today=today, pack=pack, include_signoff=False
     )
     followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today)
+    # The LinkedIn half of the sequence, rendered now so the operator pastes
+    # rather than assembles. Both DM #1 shapes ship on every row: which one is
+    # correct depends on how long the connection request sat before it was
+    # accepted, which is not knowable at generation time (see copy.linkedin).
+    dms = {
+        "li_dm_1": build_dm_1(gift, prospect, pack=pack),
+        "li_dm_1_evergreen": build_dm_1_evergreen(gift, prospect, pack=pack),
+        "li_dm_2": build_dm_2(),
+    }
     return {
         "firm": row.get("firm_name", ""),
         "status": "ok",
         "gift_size": gift.gift_size,
         "email": (row.get("email") or "").strip(),
         "first_name": row.get("first_name") or "",
+        "last_name": row.get("last_name") or "",
         "company": row.get("firm_name") or "",
+        "linkedin_url": row.get("linkedin") or "",
         "subject": email1.subject,
         "email_1": email1.body,
         "email_2": followups[0].body if followups else "",
         "email_3": followups[1].body if len(followups) > 1 else "",
+        **dms,
         # Full evidence + copy for the review gate (run.py dumps this to the
         # companion review JSON; the CSV writer ignores it).
         "review": build_review(
-            prospect, gift, research, email1, followups, followup_leads, row
+            prospect, gift, research, email1, followups, followup_leads, row, dms
         ),
     }

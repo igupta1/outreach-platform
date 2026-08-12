@@ -21,6 +21,8 @@ system_b/apollo-contacts-export.csv
 # their .review.json evidence sidecars, and local dumps.
 sequences*.csv
 *.out.csv
+*.new.csv
+system_b/data/seen-prospects.csv
 *.review.json
 *.dump.txt
 sequences*.json

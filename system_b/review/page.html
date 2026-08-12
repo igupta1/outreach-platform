@@ -81,7 +81,11 @@
 
 <script>
 const REVIEW = __REVIEW_DATA__;
-const COLUMNS = ["email","first_name","company","subject","email_1","email_2","email_3"];
+// Must stay identical to run.py COLUMNS — the download is meant to be
+// byte-identical to the run's own CSV, edits aside.
+const COLUMNS = ["email","first_name","last_name","company","linkedin_url",
+                 "subject","email_1","email_2","email_3",
+                 "li_dm_1","li_dm_1_evergreen","li_dm_2"];
 
 const el = (tag, attrs={}, ...kids) => {
   const n = document.createElement(tag);
@@ -122,6 +126,12 @@ function fieldsBlock(p, idx) {
   mk("email_1", "Email 1", true);
   mk("email_2", "Email 2 (follow-up, blank subject)", true);
   mk("email_3", "Email 3 (follow-up, blank subject)", true);
+  // The LinkedIn half. Both DM #1 shapes are shown because the choice is made
+  // at SEND time, not here: the fresh one names a company that "just posted",
+  // which stops being true if the connection sits unaccepted for weeks.
+  mk("li_dm_1", "LinkedIn DM 1 — on accept", true);
+  mk("li_dm_1_evergreen", "LinkedIn DM 1 — if accepted 3+ weeks later", true);
+  mk("li_dm_2", "LinkedIn DM 2 — 3 days after DM 1", true);
   return wrap;
 }
 
@@ -274,7 +284,7 @@ function render() {
   document.getElementById("meta").textContent =
     "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
   document.getElementById("foot").textContent =
-    "downloads: email, first_name, company, subject, email_1, email_2, email_3";
+    "downloads: " + COLUMNS.join(", ");
 
   if (REVIEW.skipped && REVIEW.skipped.length) {
     const d = document.getElementById("skips");
@@ -312,9 +322,12 @@ function buildCsv() {
     const edited = {};
     cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
     const row = {
-      email: p.email, first_name: p.first_name, company: p.company,
+      email: p.email, first_name: p.first_name, last_name: p.last_name,
+      company: p.company, linkedin_url: p.linkedin,
       subject: edited.subject, email_1: edited.email_1,
       email_2: edited.email_2, email_3: edited.email_3,
+      li_dm_1: edited.li_dm_1, li_dm_1_evergreen: edited.li_dm_1_evergreen,
+      li_dm_2: edited.li_dm_2,
     };
     lines.push(COLUMNS.map(c => csvCell(row[c])).join(","));
   });

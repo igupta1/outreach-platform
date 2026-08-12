@@ -202,6 +202,9 @@ MSP_PACK = NichePack(
     left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
+    dm_audience="msps",
+    dm_role_singular="an it role",
+    dm_role_plural="it roles",
 )
 
 MSSP_PACK = NichePack(
@@ -218,6 +221,9 @@ MSSP_PACK = NichePack(
     left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=MSSP_PRIORITY_FLAG,
+    dm_audience="mssps",
+    dm_role_singular="a security role",
+    dm_role_plural="security roles",
 )
 
 CLOUD_PACK = NichePack(
@@ -234,4 +240,7 @@ CLOUD_PACK = NichePack(
     left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
+    dm_audience="cloud shops",
+    dm_role_singular="a cloud role",
+    dm_role_plural="cloud roles",
 )

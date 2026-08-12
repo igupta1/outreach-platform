@@ -4,6 +4,7 @@ expects. No network, no state — just column mapping + light cleaning.
 Apollo's export is wide (60+ columns); we use only what a sequence needs:
 
     First Name  -> first_name
+    Last Name   -> last_name      (only for finding the row again later)
     Company Name-> firm_name / company
     Email       -> email
     Website     -> website        (required; rows without one are skipped)
@@ -54,6 +55,10 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
         "city": _clean(record.get("City")) or None,
         "state": _clean(record.get("State")) or None,
         "first_name": _clean(record.get("First Name")) or None,
+        # Carried for ONE reason: a LinkedIn reply weeks later shows a full
+        # name, and "Paul" + a company column is a bad key to search a
+        # thousand-row history by. Never rendered into copy.
+        "last_name": _clean(record.get("Last Name")) or None,
         "email": email,
         "linkedin": _clean(record.get("Person Linkedin Url")),
     }
