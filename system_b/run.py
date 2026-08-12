@@ -20,14 +20,19 @@ Rows come out most-personalized first, because the operator works the file down
 and stops at LinkedIn's daily connection cap: row order decides who gets the
 second channel.
 
-Two companion files land next to the CSV:
-  * `<out>.review.json` — the evidence behind every sequence (see review/).
-  * `<out>.new.csv`     — only prospects no earlier run has sequenced, ready to
-                          paste onto the bottom of the outreach history sheet.
-                          Backed by `--ledger`, a flat list of every email ever
-                          written. It holds no status: who accepted and who
-                          replied stays in the sheet, where a human edits it and
-                          no tool can race them.
+Only NEW prospects are processed. `--ledger` records every email ever
+sequenced, and the next run drops those people before it fetches a site or calls
+a model — so the review gate always holds exactly the sequences you have not seen
+yet, and nobody is reviewed or pasted into the history sheet twice. Pass
+`--ignore-ledger` to re-run a fixed list while iterating on copy.
+
+The ledger holds NO status. Who accepted and who replied lives in the history
+sheet, which a human edits and no tool writes to.
+
+`<out>.review.json` lands next to the CSV with the evidence behind every
+sequence. Review it, edit what needs it, and the gate's Download CSV is the file
+that goes BOTH to the sequencer and into the history sheet — it is the only one
+carrying your edits and your removals.
 
 Nothing is ever sent — this only writes spreadsheets for you to review.
 """
@@ -65,7 +70,7 @@ COLUMNS = [
 DEFAULT_LEDGER = Path(__file__).resolve().parent / "data" / "seen-prospects.csv"
 
 # The outreach history sheet: one row per prospect ever sequenced, filled by
-# PASTING `<out>.new.csv` under the header each morning. Generated columns first
+# PASTING the review gate's downloaded CSV under the header each morning. Generated columns first
 # (identical to COLUMNS, so a paste lands exactly under them), hand-kept status
 # columns to their right, where a paste never reaches.
 #
@@ -104,13 +109,6 @@ def _review_path(out_path: str) -> Path:
     p = Path(out_path)
     stem = p.name[: -len(p.suffix)] if p.suffix else p.name
     return p.with_name(f"{stem}.review.json")
-
-
-def _new_rows_path(out_path: str) -> Path:
-    """`sequences.csv` -> `sequences.new.csv`."""
-    p = Path(out_path)
-    stem = p.name[: -len(p.suffix)] if p.suffix else p.name
-    return p.with_name(f"{stem}.new.csv")
 
 
 def _load_ledger(path: Path) -> set[str]:
@@ -158,9 +156,20 @@ def main() -> None:
     ap.add_argument("--review-out", dest="review_out", default=None,
                     help="review-gate JSON path (default: <out> with a .review.json suffix)")
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER),
-                    help="every prospect ever sequenced, so <out>.new.csv holds only "
-                         "the ones an earlier run has not already covered "
-                         f"(default: {DEFAULT_LEDGER})")
+                    help="every prospect ever sequenced; the next run skips them "
+                         f"before doing any work (default: {DEFAULT_LEDGER})")
+    ap.add_argument("--ignore-ledger", action="store_true",
+                    help="re-sequence prospects an earlier run already covered, and "
+                         "do NOT record this run. For iterating on copy against a "
+                         "fixed list: without it, a second run of the same export "
+                         "produces nothing, because everyone in it is already done.")
+    ap.add_argument("--target", type=int, default=0,
+                    help="stop once this many VALID sequences exist, walking the "
+                         "input in order (0 = process every row). Skipped prospects "
+                         "do not count, so `--target 30` means 30 rows on the review "
+                         "gate, not 30 rows read. Every prospect costs a site fetch "
+                         "and LLM calls, so this is also what stops a 200-row export "
+                         "from being paid for in full.")
     ap.add_argument("--init-history", action="store_true",
                     help="create the outreach history sheet (header only) and exit. "
                          "Safe to re-run: it refuses to touch an existing file.")
@@ -173,7 +182,7 @@ def main() -> None:
         if init_history(path):
             print(f"[history] created {path}")
             print(f"[history] {len(HISTORY_COLUMNS)} columns: "
-                  f"{len(COLUMNS)} generated (paste <out>.new.csv under them) "
+                  f"{len(COLUMNS)} generated (paste the gate's CSV under them) "
                   f"+ {len(_STATUS_COLUMNS)} you keep by hand")
         else:
             print(f"[history] {path} already exists — left untouched")
@@ -188,12 +197,32 @@ def main() -> None:
     prospects = read_apollo_csv(args.in_path)
     print(f"[run] {len(prospects)} prospect(s) from {args.in_path} · pack={args.pack}")
 
+    # Drop anyone an earlier run already sequenced, BEFORE the expensive part.
+    # Every prospect past this line costs a site fetch and several LLM calls, and
+    # a re-sequenced person is worse than wasted money: they would reach the
+    # review gate, be reviewed again, and be pasted into the history sheet twice.
+    if args.ignore_ledger:
+        print("[ledger] --ignore-ledger: no filtering, and this run is not recorded")
+    else:
+        seen = _load_ledger(Path(args.ledger))
+        kept = [p for p in prospects if (p.get("email") or "").strip().lower() not in seen]
+        if len(kept) != len(prospects):
+            print(f"[ledger] skipping {len(prospects) - len(kept)} prospect(s) "
+                  "sequenced in an earlier run")
+        prospects = kept
+
     taxonomy = load_taxonomy()
     scraper = snapshot_for_niche(args.pack, today=today)
+
+    target = args.target if args.target > 0 else None
+    if target:
+        print(f"[run] target {target} valid sequence(s) — stopping as soon as they land")
 
     results: list[dict] = []
     skipped: list[tuple[str, str]] = []
     for p in prospects:
+        if target is not None and len(results) >= target:
+            break
         firm = p.get("firm_name", "?")
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack)
@@ -207,6 +236,10 @@ def main() -> None:
             continue
         results.append(res)
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift)")
+
+    if target is not None and len(results) < target:
+        print(f"[run] input exhausted at {len(results)} of {target} — "
+              "the export ran out before the target did")
 
     # Most-personalized first, matching the review gate's own order (it sorts the
     # same way client-side). The operator works the top of this file down and
@@ -235,27 +268,17 @@ def main() -> None:
     }
     review_path.write_text(json.dumps(review_doc, indent=2), encoding="utf-8")
 
-    # New-prospects-only companion, for pasting onto the bottom of the outreach
-    # history sheet. Written as a SEPARATE file rather than by editing the sheet:
-    # the sheet is hand-maintained (accepted / replied live there), and a tool
-    # that rewrites a file a human has open is a tool that eventually eats a
-    # month of status.
-    ledger_path = Path(args.ledger)
-    seen = _load_ledger(ledger_path)
-    fresh = [r for r in results if (r.get("email") or "").strip().lower() not in seen]
-    new_rows_path = _new_rows_path(args.out_path)
-    with open(new_rows_path, "w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=COLUMNS)
-        w.writeheader()
-        w.writerows({c: res.get(c, "") for c in COLUMNS} for res in fresh)
-    _append_ledger(
-        ledger_path, [(r.get("email") or "").strip().lower() for r in fresh], today
-    )
+    # Record what was sequenced, so tomorrow's run skips these people at the door.
+    # Only VALID results: a prospect the inventory could not gift was never
+    # contacted, so it should be retried once the leads move.
+    if not args.ignore_ledger:
+        _append_ledger(
+            Path(args.ledger),
+            [(r.get("email") or "").strip().lower() for r in results],
+            today,
+        )
 
     print(f"\n[done] wrote {len(results)} sequence(s) to {args.out_path}")
-    repeats = len(results) - len(fresh)
-    print(f"[new] {len(fresh)} new prospect(s) -> {new_rows_path}"
-          + (f"  ({repeats} already sequenced in an earlier run)" if repeats else ""))
     print(f"[review] wrote {review_path}  ·  review with: "
           f"system_b/.venv/bin/python -m system_b.review.serve --review {review_path}")
     if skipped:

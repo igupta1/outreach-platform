@@ -1,10 +1,11 @@
 """The dedup ledger + the CSV column contract.
 
-The ledger exists so `<out>.new.csv` holds only prospects no earlier run has
-sequenced — the rows that are safe to paste onto the bottom of the outreach
-history sheet. It is deliberately a flat email list: it never learns who
-accepted or replied, because that record is hand-maintained and a tool that
-rewrites a file a human has open eventually eats a month of status.
+The ledger exists so a run only ever processes prospects no earlier run has
+sequenced — the filter runs before any site fetch or LLM call, so the review
+gate holds exactly the sequences not yet seen. It is deliberately a flat email
+list: it never learns who accepted or replied, because that record is
+hand-maintained and a tool that rewrites a file a human has open eventually eats
+a month of status.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from system_b.run import (
     COLUMNS,
     _append_ledger,
     _load_ledger,
-    _new_rows_path,
     _review_path,
 )
 
@@ -83,10 +83,9 @@ def test_unreadable_ledger_degrades_to_empty(tmp_path: Path):
 # --- path helpers ----------------------------------------------------------
 
 def test_companion_paths_sit_next_to_the_out_csv():
-    assert _new_rows_path("out/cfo25.out.csv").name == "cfo25.out.new.csv"
     assert _review_path("out/cfo25.out.csv").name == "cfo25.out.review.json"
     # no suffix -> still appends rather than mangling the name
-    assert _new_rows_path("sequences").name == "sequences.new.csv"
+    assert _review_path("sequences").name == "sequences.review.json"
 
 
 # --- the column contract ---------------------------------------------------

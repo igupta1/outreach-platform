@@ -32,11 +32,21 @@ the second channel.
 Set the history sheet up once with `python -m system_b.run --init-history`
 (header only, and it refuses to overwrite a populated file).
 
-Two companions land next to the CSV: `<out>.review.json` (the evidence, below)
-and `<out>.new.csv` (only prospects no earlier run sequenced, for pasting onto
-the outreach history sheet). The latter is backed by `--ledger`, a flat list of
-every email ever written. It stores NO status: who accepted and who replied
-lives in the hand-maintained sheet, so no tool can race the human editing it.
+Only NEW prospects are processed. `--ledger` records every email ever sequenced,
+and the next run drops those people BEFORE it fetches a site or calls a model, so
+the review gate always holds exactly the sequences not yet seen and nobody is
+reviewed or pasted into the history sheet twice. `--ignore-ledger` re-runs a
+fixed list without recording it — necessary while iterating on copy, since a
+second run of the same export otherwise produces nothing. `--target N` stops at
+N valid sequences so a 200-row export is not paid for in full.
+
+The ledger stores NO status. Who accepted and who replied lives in the
+hand-maintained history sheet, so no tool can race the human editing it.
+
+**The review gate's Download CSV is the artifact.** `<out>.csv` is written before
+review, so it lacks the edits and still contains prospects removed on the gate;
+the download is the only file carrying both, and it is what goes to the sequencer
+AND into the history sheet. `<out>.review.json` is what the gate reads.
 
 ## The second channel (`copy/linkedin.py`)
 
