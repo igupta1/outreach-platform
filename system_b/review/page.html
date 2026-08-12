@@ -43,8 +43,12 @@
   .sounds { border-left:3px solid #d4d4d8; padding:2px 0 2px 10px; font-size:13px; color:#52525b; }
   .sounds ul { margin:3px 0 0; padding-left:16px; }
   .sounds q { font-weight:600; color:#111; }
-  .shared-tail { white-space:pre-wrap; color:#9ca3af; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
-                 padding:8px 10px; border:1px dashed var(--line); border-radius:8px; background:#fcfcfd; }
+  /* Email 1 is ONE box. A textarea cannot style part of its own content, so
+     this is a contenteditable div: the closing lives inside the same field,
+     dimmed, and edits to it are kept like any other edit. */
+  div.f { white-space:pre-wrap; min-height:64px; }
+  div.f .dim { color:#a1a1aa; }
+  div.f:focus { outline:2px solid #bfd4ff; outline-offset:-1px; }
   button.secondary { background:#f1f1f4; color:#111; }
   button.secondary:hover { background:#e4e4e8; }
   .shared { max-width:960px; margin:0 auto; padding:0 20px; }
@@ -137,6 +141,40 @@ function autosize(ta) {
   ta.style.height = (ta.scrollHeight + 2) + "px";
 }
 function autosizeAll() { document.querySelectorAll("textarea.f").forEach(autosize); }
+// (the email-1 box is a div, so it grows with its content on its own)
+
+// Email 1 as a single editable box whose closing is dimmed.
+//
+// The closing is byte-identical on every card, so re-reading it thirty times is
+// the bulk of the review; dimming it lets the eye skip to the part that varies
+// while the email still reads as one piece. It stays EDITABLE — a separate
+// read-only block would have meant two fields for one email, which is what this
+// replaces.
+//
+// `plaintext-only` is what makes a contenteditable behave: Enter inserts a
+// newline instead of a <div>, and a paste arrives as text, so `innerText` round
+// trips exactly. Older engines fall back to plain `true` plus a paste handler.
+function richEmail1(p) {
+  const head = p.email_1_head !== undefined ? p.email_1_head : (p.email_1 || "");
+  const tail = p.email_1_tail || "";
+  const box = el("div", {class:"f", "data-key":"email_1", role:"textbox"});
+  try { box.contentEditable = "plaintext-only"; }
+  catch (e) { box.contentEditable = "true"; }
+  if (box.contentEditable !== "plaintext-only") {
+    box.contentEditable = "true";
+    box.addEventListener("paste", (ev) => {
+      ev.preventDefault();
+      const t = (ev.clipboardData || window.clipboardData).getData("text");
+      document.execCommand("insertText", false, t);
+    });
+  }
+  box.append(text(head));
+  if (tail) {
+    box.append(text("\n\n"));
+    box.append(el("span", {class:"dim"}, text(tail)));
+  }
+  return box;
+}
 
 function fieldsBlock(p, idx) {
   const wrap = el("div", {class:"fields"});
@@ -154,14 +192,8 @@ function fieldsBlock(p, idx) {
   // three DMs are byte-identical on every card in the run, so they are shown
   // once at the top instead of thirty times here. They still ship in the CSVs.
   mk("subject", "Subject");
-  mk("email_1_head", "Email 1", true);
-  // The closing, dimmed and read-only: you can see the whole email in context
-  // without re-reading the same two paragraphs on every card. `buildCsv` joins
-  // it back on, so the exported email_1 is unchanged.
-  if (p.email_1_tail) {
-    wrap.append(el("div", {class:"field"},
-      el("div", {class:"shared-tail"}, text(p.email_1_tail))));
-  }
+  wrap.append(el("div", {class:"field"},
+    el("label", {}, text("Email 1")), richEmail1(p)));
   mk("email_2", "Email 2 (follow-up, blank subject)", true);
   return wrap;
 }
@@ -403,17 +435,17 @@ function buildCsv(columns) {
     const idx = +cardEl.getAttribute("data-idx");
     const p = REVIEW.prospects[idx];
     const edited = {};
-    cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
-    // Re-join the edited head with the dimmed closing, so the exported email is
-    // the whole email exactly as run.py wrote it, carrying only your edits.
-    const tail = p.email_1_tail || "";
-    const head = (edited.email_1_head !== undefined ? edited.email_1_head : p.email_1_head) || "";
-    const email1 = tail ? (head.replace(/\s+$/, "") + "\n\n" + tail) : head;
+    // inputs and textareas carry `.value`; the email-1 box is a contenteditable
+    // div, whose text is `innerText` (which respects the rendered line breaks).
+    cardEl.querySelectorAll(".f").forEach(f => {
+      const v = f.value !== undefined ? f.value : f.innerText;
+      edited[f.getAttribute("data-key")] = (v || "").replace(/\r\n/g, "\n").replace(/\s+$/, "");
+    });
     const row = {
       pack: REVIEW.pack, cohort_date: REVIEW.generated_at,
       email: p.email, first_name: p.first_name, last_name: p.last_name,
       company: p.company, linkedin_url: p.linkedin,
-      subject: edited.subject, email_1: email1,
+      subject: edited.subject, email_1: edited.email_1,
       email_2: edited.email_2, email_3: p.email_3,
       li_dm_1: p.li_dm_1, li_dm_1_evergreen: p.li_dm_1_evergreen, li_dm_2: p.li_dm_2,
     };

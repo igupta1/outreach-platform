@@ -51,10 +51,15 @@ LinkedIn CSV** goes into the history sheet and is read WEEKS later, when someone
 finally accepts a connection request and you need the message written for them.
 `HISTORY_COLUMNS` mirrors the second, so a paste lands exactly under the header.
 
-The card shows only what VARIES per prospect: subject, email 1's head, email 2.
-Email 1's closing is dimmed and read-only beneath it (the export re-joins head
-and tail into the original body); email 3 and the DMs are byte-identical on every
-card and appear once in a collapsed panel at the top. They are authored constants
+The card shows only what VARIES per prospect: subject, email 1, email 2. Email 1
+is ONE editable box whose closing is DIMMED inside it — a textarea cannot style
+part of its own content, so that field is a `contenteditable="plaintext-only"`
+div and its text is read back with `innerText`. Dimming the closing is what makes
+a 30-card pass quick (it is byte-identical on every card, so re-reading it is
+most of the work) without splitting one email across two fields.
+
+Email 3 and the DMs are off the cards entirely and appear once in a collapsed
+panel at the top: they are byte-identical everywhere and are authored constants
 in code, so read-only is the honest treatment — change them where the reasoning
 for each line is written down.
 
