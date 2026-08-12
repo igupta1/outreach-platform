@@ -23,6 +23,7 @@ sequences*.csv
 *.out.csv
 *.new.csv
 system_b/data/seen-prospects.csv
+system_b/data/outreach-history.csv
 *.review.json
 *.dump.txt
 sequences*.json

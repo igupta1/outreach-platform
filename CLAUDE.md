@@ -29,6 +29,9 @@ email 1. Rows are ordered most-personalized first — the operator works the fil
 down and stops at LinkedIn's daily connection cap, so row order decides who gets
 the second channel.
 
+Set the history sheet up once with `python -m system_b.run --init-history`
+(header only, and it refuses to overwrite a populated file).
+
 Two companions land next to the CSV: `<out>.review.json` (the evidence, below)
 and `<out>.new.csv` (only prospects no earlier run sequenced, for pasting onto
 the outreach history sheet). The latter is backed by `--ledger`, a flat list of

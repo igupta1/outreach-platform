@@ -7,7 +7,7 @@ For each prospect it researches the site, builds a gift from the lead platform's
 `<pack>` inventory, and writes the full sequence for BOTH channels. One row per
 prospect:
 
-    email, first_name, last_name, company, linkedin_url,
+    pack, cohort_date, email, first_name, last_name, company, linkedin_url,
     subject, email_1, email_2, email_3,
     li_dm_1, li_dm_1_evergreen, li_dm_2
 
@@ -49,6 +49,10 @@ from system_b.sequence import generate_sequence
 # maps and ignores the rest, so a single file is also the row you paste into the
 # outreach history sheet — one artifact instead of two that drift apart.
 COLUMNS = [
+    # `pack` and `cohort_date` lead because they are what the history sheet is
+    # filtered and dated by: which campaign a row belongs to, and the day email 1
+    # went out (every LinkedIn step is that date plus an offset).
+    "pack", "cohort_date",
     "email", "first_name", "last_name", "company", "linkedin_url",
     "subject", "email_1", "email_2", "email_3",
     "li_dm_1", "li_dm_1_evergreen", "li_dm_2",
@@ -59,6 +63,39 @@ COLUMNS = [
 # NOT a status record: this file never learns whether anyone accepted or
 # replied, which stays where a human can edit it without a tool racing them.
 DEFAULT_LEDGER = Path(__file__).resolve().parent / "data" / "seen-prospects.csv"
+
+# The outreach history sheet: one row per prospect ever sequenced, filled by
+# PASTING `<out>.new.csv` under the header each morning. Generated columns first
+# (identical to COLUMNS, so a paste lands exactly under them), hand-kept status
+# columns to their right, where a paste never reaches.
+#
+# The tool creates this file once and then never touches it again. Everything to
+# the right of the generated block is the answer to a question only the operator
+# can answer, and a writer that came back later to "update" a row is how a month
+# of that gets lost.
+_STATUS_COLUMNS = [
+    "connect_sent",     # date the connection request went out
+    "accepted",         # date they accepted (blank = still pending)
+    "dm1_sent",         # date DM #1 went out; use the evergreen text past ~3 weeks
+    "dm2_sent",         # date DM #2 went out (dm1_sent + 3)
+    "replied_channel",  # email | linkedin — stop every channel the moment this is set
+    "replied_date",
+    "status",           # free text: booked, not interested, bounced, ...
+]
+HISTORY_COLUMNS = [*COLUMNS, *_STATUS_COLUMNS]
+DEFAULT_HISTORY = Path(__file__).resolve().parent / "data" / "outreach-history.csv"
+
+
+def init_history(path: Path) -> bool:
+    """Create the history sheet with just its header. Returns False (and touches
+    nothing) when the file already exists — this is the one file the operator
+    owns, so re-running the command must never blank a populated sheet."""
+    if path.exists():
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerow(HISTORY_COLUMNS)
+    return True
 
 
 def _review_path(out_path: str) -> Path:
@@ -111,7 +148,10 @@ def _append_ledger(path: Path, emails: list[str], today: date) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate an outreach sequence per prospect from an Apollo CSV.")
-    ap.add_argument("--in", dest="in_path", required=True, help="Apollo contacts export CSV")
+    # Not `required`: --init-history is a standalone setup command with no input
+    # CSV. Enforced below instead, so the missing-argument error still fires for
+    # a normal run.
+    ap.add_argument("--in", dest="in_path", help="Apollo contacts export CSV")
     ap.add_argument("--out", dest="out_path", default="sequences.csv", help="output CSV")
     ap.add_argument("--pack", default="cfo", choices=sorted(VALID_NICHES),
                     help="niche pack for the whole run (voice + which gifts fit)")
@@ -121,7 +161,26 @@ def main() -> None:
                     help="every prospect ever sequenced, so <out>.new.csv holds only "
                          "the ones an earlier run has not already covered "
                          f"(default: {DEFAULT_LEDGER})")
+    ap.add_argument("--init-history", action="store_true",
+                    help="create the outreach history sheet (header only) and exit. "
+                         "Safe to re-run: it refuses to touch an existing file.")
+    ap.add_argument("--history", default=str(DEFAULT_HISTORY),
+                    help=f"path for --init-history (default: {DEFAULT_HISTORY})")
     args = ap.parse_args()
+
+    if args.init_history:
+        path = Path(args.history)
+        if init_history(path):
+            print(f"[history] created {path}")
+            print(f"[history] {len(HISTORY_COLUMNS)} columns: "
+                  f"{len(COLUMNS)} generated (paste <out>.new.csv under them) "
+                  f"+ {len(_STATUS_COLUMNS)} you keep by hand")
+        else:
+            print(f"[history] {path} already exists — left untouched")
+        return
+
+    if not args.in_path:
+        ap.error("--in is required (or pass --init-history to set up the sheet)")
 
     config.require("OPENAI_API_KEY")
     today = date.today()

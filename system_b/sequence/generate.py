@@ -97,6 +97,11 @@ def generate_sequence(
         "firm": row.get("firm_name", ""),
         "status": "ok",
         "gift_size": gift.gift_size,
+        # Which campaign this row belongs to, and the day email 1 goes out. Every
+        # LinkedIn step is an offset from that date, so carrying it means the
+        # schedule is arithmetic rather than something to remember.
+        "pack": pack_key,
+        "cohort_date": today.isoformat(),
         "email": (row.get("email") or "").strip(),
         "first_name": row.get("first_name") or "",
         "last_name": row.get("last_name") or "",

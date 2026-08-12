@@ -83,7 +83,8 @@
 const REVIEW = __REVIEW_DATA__;
 // Must stay identical to run.py COLUMNS — the download is meant to be
 // byte-identical to the run's own CSV, edits aside.
-const COLUMNS = ["email","first_name","last_name","company","linkedin_url",
+const COLUMNS = ["pack","cohort_date",
+                 "email","first_name","last_name","company","linkedin_url",
                  "subject","email_1","email_2","email_3",
                  "li_dm_1","li_dm_1_evergreen","li_dm_2"];
 
@@ -322,6 +323,7 @@ function buildCsv() {
     const edited = {};
     cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
     const row = {
+      pack: REVIEW.pack, cohort_date: REVIEW.generated_at,
       email: p.email, first_name: p.first_name, last_name: p.last_name,
       company: p.company, linkedin_url: p.linkedin,
       subject: edited.subject, email_1: edited.email_1,

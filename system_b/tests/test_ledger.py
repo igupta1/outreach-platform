@@ -94,11 +94,25 @@ def test_companion_paths_sit_next_to_the_out_csv():
 def test_csv_carries_both_channels_and_a_findable_name():
     """One row per prospect covering email AND LinkedIn, so the file the
     operator pastes into the history sheet is the same one Smartlead reads."""
-    for col in ("email", "first_name", "last_name", "company", "linkedin_url",
+    for col in ("pack", "cohort_date",
+                "email", "first_name", "last_name", "company", "linkedin_url",
                 "subject", "email_1", "email_2", "email_3",
                 "li_dm_1", "li_dm_1_evergreen", "li_dm_2"):
         assert col in COLUMNS
     assert len(COLUMNS) == len(set(COLUMNS))
+
+
+def test_history_header_starts_with_the_generated_columns():
+    """The sheet is filled by PASTING `<out>.new.csv` rows under the header, so
+    the generated columns must be the leftmost ones, in exactly CSV order. The
+    hand-kept status columns sit to their right, where a paste never lands."""
+    from system_b.run import HISTORY_COLUMNS
+
+    assert HISTORY_COLUMNS[:len(COLUMNS)] == COLUMNS
+    assert set(HISTORY_COLUMNS[len(COLUMNS):]) == {
+        "connect_sent", "accepted", "dm1_sent", "dm2_sent",
+        "replied_channel", "replied_date", "status",
+    }
 
 
 def test_review_page_columns_match_run_columns():
