@@ -38,6 +38,18 @@
   details > summary { cursor:pointer; color:#555; font-size:13px; user-select:none; }
   details[open] > summary { margin-bottom:6px; }
   .flags { background:var(--flag); border:1px solid var(--flagbd); border-radius:8px; padding:8px 12px; font-size:13px; }
+  /* Suggestions, not stop-signs: quieter than .flags on purpose, so the
+     orange box keeps meaning 'this one needs a decision'. */
+  .sounds { border-left:3px solid #d4d4d8; padding:2px 0 2px 10px; font-size:13px; color:#52525b; }
+  .sounds ul { margin:3px 0 0; padding-left:16px; }
+  .sounds q { font-weight:600; color:#111; }
+  .shared-tail { white-space:pre-wrap; color:#9ca3af; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+                 padding:8px 10px; border:1px dashed var(--line); border-radius:8px; background:#fcfcfd; }
+  button.secondary { background:#f1f1f4; color:#111; }
+  button.secondary:hover { background:#e4e4e8; }
+  .shared { max-width:960px; margin:0 auto; padding:0 20px; }
+  .shared pre { white-space:pre-wrap; color:#6b7280; font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+                background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:6px 0 0; }
   .flags ul { margin:4px 0 0; padding-left:18px; }
   table { width:100%; border-collapse:collapse; font-size:12.5px; }
   th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -77,21 +89,31 @@
     <table id="skips-body"></table>
   </details>
 </header>
+<div class="shared"><details id="shared"><summary></summary></details></div>
 <main id="rows"></main>
 <footer>
-  <button id="download">Download CSV</button>
+  <button id="download">Download email CSV</button>
+  <button id="download-li" class="secondary">Download LinkedIn CSV</button>
   <span id="removed" hidden></span>
   <span class="foot-note" id="foot"></span>
 </footer>
 
 <script>
 const REVIEW = __REVIEW_DATA__;
-// Must stay identical to run.py COLUMNS — the download is meant to be
-// byte-identical to the run's own CSV, edits aside.
-const COLUMNS = ["pack","cohort_date",
-                 "email","first_name","last_name","company","linkedin_url",
-                 "subject","email_1","email_2","email_3",
-                 "li_dm_1","li_dm_1_evergreen","li_dm_2"];
+// TWO exports, because they have different lifetimes. The email CSV goes into
+// the sequencer today and is never looked at again — the copy lives in the
+// campaign after that. The LinkedIn CSV goes into the history sheet and is read
+// WEEKS later, when someone finally accepts a connection request and you need
+// the message that was written for them.
+//
+// EMAIL_COLUMNS must stay identical to run.py COLUMNS minus the LinkedIn ones,
+// so the file is byte-identical to the run's own CSV, edits aside.
+const EMAIL_COLUMNS = ["pack","cohort_date",
+                       "email","first_name","last_name","company",
+                       "subject","email_1","email_2","email_3"];
+const LINKEDIN_COLUMNS = ["pack","cohort_date",
+                          "email","first_name","last_name","company","linkedin_url",
+                          "li_dm_1","li_dm_1_evergreen","li_dm_2"];
 
 const el = (tag, attrs={}, ...kids) => {
   const n = document.createElement(tag);
@@ -128,16 +150,19 @@ function fieldsBlock(p, idx) {
     wrap.append(box);
     return f;
   };
+  // ONLY the copy that varies per prospect. Email 1's closing, email 3, and the
+  // three DMs are byte-identical on every card in the run, so they are shown
+  // once at the top instead of thirty times here. They still ship in the CSVs.
   mk("subject", "Subject");
-  mk("email_1", "Email 1", true);
+  mk("email_1_head", "Email 1", true);
+  // The closing, dimmed and read-only: you can see the whole email in context
+  // without re-reading the same two paragraphs on every card. `buildCsv` joins
+  // it back on, so the exported email_1 is unchanged.
+  if (p.email_1_tail) {
+    wrap.append(el("div", {class:"field"},
+      el("div", {class:"shared-tail"}, text(p.email_1_tail))));
+  }
   mk("email_2", "Email 2 (follow-up, blank subject)", true);
-  mk("email_3", "Email 3 (follow-up, blank subject)", true);
-  // The LinkedIn half. Both DM #1 shapes are shown because the choice is made
-  // at SEND time, not here: the fresh one names a company that "just posted",
-  // which stops being true if the connection sits unaccepted for weeks.
-  mk("li_dm_1", "LinkedIn DM 1 — on accept", true);
-  mk("li_dm_1_evergreen", "LinkedIn DM 1 — if accepted 3+ weeks later", true);
-  mk("li_dm_2", "LinkedIn DM 2 — 3 days after DM 1", true);
   return wrap;
 }
 
@@ -166,6 +191,21 @@ function evidenceList(p) {
       link(e.url, "source")));
   }
   return ul;
+}
+
+// The advisory read (copy/naturalness.py). Deliberately NOT merged into
+// `flags`: those are stop-signs a human has to clear, these are suggestions, and
+// mixing them teaches you to skim the box that matters.
+function soundsBlock(p) {
+  if (!p.sounds_off || !p.sounds_off.length) return null;
+  const ul = el("ul");
+  for (const s of p.sounds_off) {
+    const li = el("li", {}, el("q", {}, text(s.quote)));
+    if (s.why) li.append(text("  " + s.why));
+    ul.append(li);
+  }
+  return el("div", {class:"sounds"},
+    el("span", {}, text("reads as machine-written:")), ul);
 }
 
 function flagsBlock(p) {
@@ -245,6 +285,7 @@ function card(p, idx) {
   // evidence, one click away.
   [
     flagsBlock(p) ? el("div",{class:"sec"}, flagsBlock(p)) : null,
+    soundsBlock(p) ? el("div",{class:"sec"}, soundsBlock(p)) : null,
     sec("copy", fieldsBlock(p, idx)),
     sec("evidence", evidenceBlock(p)),
     sec("who they serve", nicheLine(p)),
@@ -306,7 +347,7 @@ function render() {
   document.getElementById("meta").textContent =
     "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
   document.getElementById("foot").textContent =
-    "downloads: " + COLUMNS.join(", ");
+    "email CSV -> your sequencer  ·  LinkedIn CSV -> your history sheet";
 
   if (REVIEW.skipped && REVIEW.skipped.length) {
     const d = document.getElementById("skips");
@@ -315,6 +356,26 @@ function render() {
     const body = document.getElementById("skips-body");
     for (const s of REVIEW.skipped)
       body.append(el("tr", {}, el("td",{},text(s.firm||"?")), el("td",{},text(s.reason||"?"))));
+  }
+
+  // Identical on every prospect, so it is shown ONCE. These are authored
+  // constants in the code, not per-run copy — read-only here because the place
+  // to change them is where the reasoning for each line is written down.
+  const first = (REVIEW.prospects||[])[0] || {};
+  const shared = [
+    ["email 1, closing", first.email_1_tail],
+    ["email 3 (in full)", first.email_3],
+  ].filter(([, v]) => v);
+  const sd = document.getElementById("shared");
+  if (shared.length) {
+    sd.querySelector("summary").textContent =
+      "identical on all " + (REVIEW.prospects||[]).length + " prospects — show";
+    for (const [label, body] of shared) {
+      sd.append(el("div", {class:"lbl"}, text(label)));
+      sd.append(el("pre", {}, text(body)));
+    }
+  } else {
+    sd.hidden = true;
   }
 
   const main = document.getElementById("rows");
@@ -334,8 +395,8 @@ function csvCell(v) {
   return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 }
 
-function buildCsv() {
-  const lines = [COLUMNS.join(",")];
+function buildCsv(columns) {
+  const lines = [columns.join(",")];
   // `:not(.removed)` is what makes the X real: a removed prospect leaves the
   // downloaded CSV entirely, which is the only place removal has to hold.
   document.querySelectorAll(".card:not(.removed)").forEach(cardEl => {
@@ -343,28 +404,36 @@ function buildCsv() {
     const p = REVIEW.prospects[idx];
     const edited = {};
     cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
+    // Re-join the edited head with the dimmed closing, so the exported email is
+    // the whole email exactly as run.py wrote it, carrying only your edits.
+    const tail = p.email_1_tail || "";
+    const head = (edited.email_1_head !== undefined ? edited.email_1_head : p.email_1_head) || "";
+    const email1 = tail ? (head.replace(/\s+$/, "") + "\n\n" + tail) : head;
     const row = {
       pack: REVIEW.pack, cohort_date: REVIEW.generated_at,
       email: p.email, first_name: p.first_name, last_name: p.last_name,
       company: p.company, linkedin_url: p.linkedin,
-      subject: edited.subject, email_1: edited.email_1,
-      email_2: edited.email_2, email_3: edited.email_3,
-      li_dm_1: edited.li_dm_1, li_dm_1_evergreen: edited.li_dm_1_evergreen,
-      li_dm_2: edited.li_dm_2,
+      subject: edited.subject, email_1: email1,
+      email_2: edited.email_2, email_3: p.email_3,
+      li_dm_1: p.li_dm_1, li_dm_1_evergreen: p.li_dm_1_evergreen, li_dm_2: p.li_dm_2,
     };
-    lines.push(COLUMNS.map(c => csvCell(row[c])).join(","));
+    lines.push(columns.map(c => csvCell(row[c])).join(","));
   });
   return lines.join("\r\n") + "\r\n";
 }
 
-document.getElementById("download").addEventListener("click", () => {
-  const blob = new Blob([buildCsv()], {type:"text/csv;charset=utf-8"});
+function download(name, columns) {
+  const blob = new Blob([buildCsv(columns)], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "sequences.csv";
+  a.download = name;
   document.body.append(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
-});
+}
+document.getElementById("download")
+  .addEventListener("click", () => download("sequences.csv", EMAIL_COLUMNS));
+document.getElementById("download-li")
+  .addEventListener("click", () => download("linkedin.csv", LINKEDIN_COLUMNS));
 
 render();
 </script>

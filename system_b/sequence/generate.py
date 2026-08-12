@@ -62,7 +62,7 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
 
 def generate_sequence(
     row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
-    *, pack_key: str = "cfo",
+    *, pack_key: str = "cfo", naturalness: Any | None = None,
 ) -> dict[str, Any]:
     """Research + gift + the full 3-email sequence for ONE prospect.
 
@@ -93,6 +93,14 @@ def generate_sequence(
         "li_dm_1_evergreen": build_dm_1_evergreen(gift, prospect, pack=pack),
         "li_dm_2": build_dm_2(),
     }
+    # Advisory read of the copy that actually VARIES: the greeting, the framing
+    # and the lead lines. The closing, email 3 and the DMs are authored
+    # constants, and including them bought the same three objections to house
+    # style on all 30 cards — noise that buries the one card with a real defect.
+    sounds_off = (
+        naturalness(email1.head) if naturalness is not None else []
+    )
+
     return {
         "firm": row.get("firm_name", ""),
         "status": "ok",
@@ -115,6 +123,7 @@ def generate_sequence(
         # Full evidence + copy for the review gate (run.py dumps this to the
         # companion review JSON; the CSV writer ignores it).
         "review": build_review(
-            prospect, gift, research, email1, followups, followup_leads, row, dms
+            prospect, gift, research, email1, followups, followup_leads, row, dms,
+            sounds_off,
         ),
     }

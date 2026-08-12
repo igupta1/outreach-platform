@@ -101,25 +101,45 @@ def test_csv_carries_both_channels_and_a_findable_name():
     assert len(COLUMNS) == len(set(COLUMNS))
 
 
-def test_history_header_starts_with_the_generated_columns():
-    """The sheet is filled by PASTING `<out>.new.csv` rows under the header, so
-    the generated columns must be the leftmost ones, in exactly CSV order. The
+def test_history_header_starts_with_the_linkedin_columns():
+    """The sheet is filled by PASTING the gate's LinkedIn CSV under the header,
+    so those columns must be the leftmost ones, in exactly that order. The
     hand-kept status columns sit to their right, where a paste never lands."""
-    from system_b.run import HISTORY_COLUMNS
+    from system_b.run import HISTORY_COLUMNS, LINKEDIN_COLUMNS
 
-    assert HISTORY_COLUMNS[:len(COLUMNS)] == COLUMNS
-    assert set(HISTORY_COLUMNS[len(COLUMNS):]) == {
+    assert HISTORY_COLUMNS[:len(LINKEDIN_COLUMNS)] == LINKEDIN_COLUMNS
+    assert set(HISTORY_COLUMNS[len(LINKEDIN_COLUMNS):]) == {
         "connect_sent", "accepted", "dm1_sent", "dm2_sent",
         "replied_channel", "replied_date", "status",
     }
 
 
-def test_review_page_columns_match_run_columns():
-    """The gate's Download CSV rebuilds the run's own CSV from edited fields.
-    If the two lists drift, the downloaded file silently loses or reorders
-    columns — so the page's COLUMNS is asserted against run.py's here."""
+def test_history_sheet_carries_no_email_copy():
+    """The email lives in the sequencer within the hour; the sheet exists for the
+    LinkedIn lookup weeks later. Carrying both doubles its width for nothing."""
+    from system_b.run import HISTORY_COLUMNS
+
+    for col in ("subject", "email_1", "email_2", "email_3"):
+        assert col not in HISTORY_COLUMNS
+
+
+def _page_columns(name: str) -> list[str]:
     page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
-    m = re.search(r"const COLUMNS = \[(.*?)\];", page, re.S)
-    assert m is not None, "page.html no longer declares COLUMNS"
-    page_cols = re.findall(r'"([^"]+)"', m.group(1))
-    assert page_cols == COLUMNS
+    m = re.search(rf"const {name} = \[(.*?)\];", page, re.S)
+    assert m is not None, f"page.html no longer declares {name}"
+    return re.findall(r'"([^"]+)"', m.group(1))
+
+
+def test_page_linkedin_export_matches_the_history_schema():
+    """A drift here misaligns every future paste into the sheet."""
+    from system_b.run import LINKEDIN_COLUMNS
+
+    assert _page_columns("LINKEDIN_COLUMNS") == LINKEDIN_COLUMNS
+
+
+def test_page_email_export_is_run_columns_minus_the_linkedin_ones():
+    """The email CSV must stay a faithful subset of what run.py writes, or the
+    file uploaded to the sequencer stops matching the run that produced it."""
+    page_cols = _page_columns("EMAIL_COLUMNS")
+    assert page_cols == [c for c in COLUMNS
+                         if not c.startswith("li_") and c != "linkedin_url"]

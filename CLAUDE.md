@@ -43,7 +43,31 @@ N valid sequences so a 200-row export is not paid for in full.
 The ledger stores NO status. Who accepted and who replied lives in the
 hand-maintained history sheet, so no tool can race the human editing it.
 
-**The review gate's Download CSV is the artifact.** `<out>.csv` is written before
+## The review gate exports TWO files
+
+They have different lifetimes. **Download email CSV** goes to the sequencer today
+and is never read again — the copy lives in the campaign after that. **Download
+LinkedIn CSV** goes into the history sheet and is read WEEKS later, when someone
+finally accepts a connection request and you need the message written for them.
+`HISTORY_COLUMNS` mirrors the second, so a paste lands exactly under the header.
+
+The card shows only what VARIES per prospect: subject, email 1's head, email 2.
+Email 1's closing is dimmed and read-only beneath it (the export re-joins head
+and tail into the original body); email 3 and the DMs are byte-identical on every
+card and appear once in a collapsed panel at the top. They are authored constants
+in code, so read-only is the honest treatment — change them where the reasoning
+for each line is written down.
+
+`copy/naturalness.py` adds an advisory read of the varying copy: an LLM returns
+SPANS that look machine-written and code keeps only spans that appear verbatim,
+capped at 3, swallowing every failure. It never writes copy, so the "no model
+writes any part of a sent email" rule holds. Kept OUT of `flags` on purpose —
+those are stop-signs, these are suggestions, and mixing them teaches the operator
+to skim the box that matters. The prompt is tuned to be QUIET (measured: 5 of 30
+cards on a live run); if it starts firing on most cards it has stopped being
+useful and the prompt, not the threshold, is what to fix.
+
+**The review gate's downloads are the artifact.** `<out>.csv` is written before
 review, so it lacks the edits and still contains prospects removed on the gate;
 the download is the only file carrying both, and it is what goes to the sequencer
 AND into the history sheet. `<out>.review.json` is what the gate reads.

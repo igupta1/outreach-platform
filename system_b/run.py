@@ -46,6 +46,7 @@ from datetime import date
 from pathlib import Path
 
 from system_b import config
+from system_b.copy.naturalness import check_naturalness
 from system_b.clients.inventory import VALID_NICHES, load_taxonomy, snapshot_for_niche
 from system_b.prospects import read_apollo_csv
 from system_b.sequence import generate_sequence
@@ -70,9 +71,16 @@ COLUMNS = [
 DEFAULT_LEDGER = Path(__file__).resolve().parent / "data" / "seen-prospects.csv"
 
 # The outreach history sheet: one row per prospect ever sequenced, filled by
-# PASTING the review gate's downloaded CSV under the header each morning. Generated columns first
-# (identical to COLUMNS, so a paste lands exactly under them), hand-kept status
-# columns to their right, where a paste never reaches.
+# PASTING the review gate's LinkedIn CSV under the header each morning.
+#
+# It carries NO email copy. The email is in the sequencer within the hour and is
+# never read from here again; the LinkedIn copy is read WEEKS later, when someone
+# finally accepts a connection request and you need the message written for them.
+# Storing both would double the width of a sheet whose only job is that lookup.
+#
+# Generated columns first (identical to LINKEDIN_COLUMNS, so a paste lands
+# exactly under them), hand-kept status columns to their right, where a paste
+# never reaches.
 #
 # The tool creates this file once and then never touches it again. Everything to
 # the right of the generated block is the answer to a question only the operator
@@ -87,7 +95,14 @@ _STATUS_COLUMNS = [
     "replied_date",
     "status",           # free text: booked, not interested, bounced, ...
 ]
-HISTORY_COLUMNS = [*COLUMNS, *_STATUS_COLUMNS]
+# What the gate's LinkedIn export writes, in order. Mirrors LINKEDIN_COLUMNS in
+# review/page.html; a test pins the two together.
+LINKEDIN_COLUMNS = [
+    "pack", "cohort_date",
+    "email", "first_name", "last_name", "company", "linkedin_url",
+    "li_dm_1", "li_dm_1_evergreen", "li_dm_2",
+]
+HISTORY_COLUMNS = [*LINKEDIN_COLUMNS, *_STATUS_COLUMNS]
 DEFAULT_HISTORY = Path(__file__).resolve().parent / "data" / "outreach-history.csv"
 
 
@@ -158,6 +173,10 @@ def main() -> None:
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER),
                     help="every prospect ever sequenced; the next run skips them "
                          f"before doing any work (default: {DEFAULT_LEDGER})")
+    ap.add_argument("--skip-naturalness", action="store_true",
+                    help="skip the advisory read that flags phrases which do not "
+                         "sound like a person wrote them. One extra model call per "
+                         "prospect; it never edits copy, only points at spans.")
     ap.add_argument("--ignore-ledger", action="store_true",
                     help="re-sequence prospects an earlier run already covered, and "
                          "do NOT record this run. For iterating on copy against a "
@@ -182,7 +201,7 @@ def main() -> None:
         if init_history(path):
             print(f"[history] created {path}")
             print(f"[history] {len(HISTORY_COLUMNS)} columns: "
-                  f"{len(COLUMNS)} generated (paste the gate's CSV under them) "
+                  f"{len(LINKEDIN_COLUMNS)} generated (paste the gate's LinkedIn CSV under them) "
                   f"+ {len(_STATUS_COLUMNS)} you keep by hand")
         else:
             print(f"[history] {path} already exists — left untouched")
@@ -218,6 +237,10 @@ def main() -> None:
     if target:
         print(f"[run] target {target} valid sequence(s) — stopping as soon as they land")
 
+    naturalness = None if args.skip_naturalness else check_naturalness
+    if naturalness is None:
+        print("[run] --skip-naturalness: no advisory copy read")
+
     results: list[dict] = []
     skipped: list[tuple[str, str]] = []
     for p in prospects:
@@ -225,7 +248,8 @@ def main() -> None:
             break
         firm = p.get("firm_name", "?")
         try:
-            res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack)
+            res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
+                                    naturalness=naturalness)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))

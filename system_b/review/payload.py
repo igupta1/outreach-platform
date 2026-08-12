@@ -134,6 +134,7 @@ def build_review(
     followup_leads: list[Any],
     row: dict[str, Any],
     dms: dict[str, str] | None = None,
+    sounds_off: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """One prospect's review card as a plain dict.
 
@@ -196,10 +197,18 @@ def build_review(
         # evidence
         "evidence": evidence,
         "flags": flags,
+        # Advisory, and kept OUT of `flags` on purpose: those are stop-signs a
+        # human has to clear, these are suggestions. Mixing them would teach the
+        # operator to skim the box that matters.
+        "sounds_off": list(sounds_off or []),
         "leads": leads,
-        # editable copy (these four are the only editable fields on the page)
+        # editable copy. `email_1` is split at the seam between the part that
+        # varies per prospect and the closing that is byte-identical on every
+        # card: the gate edits the head and dims the tail, then re-joins them.
         "subject": getattr(email1, "subject", ""),
         "email_1": getattr(email1, "body", ""),
+        "email_1_head": getattr(email1, "head", getattr(email1, "body", "")),
+        "email_1_tail": getattr(email1, "shared_tail", ""),
         "email_2": getattr(followups[0], "body", "") if followups else "",
         "email_3": getattr(followups[1], "body", "") if len(followups) > 1 else "",
         # The LinkedIn half, editable on the same card: one review pass covers

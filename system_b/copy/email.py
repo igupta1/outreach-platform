@@ -71,6 +71,19 @@ class EmailDraft:
     body: str
     flags: list[str] = field(default_factory=list)
     left_field_variant: str = ""             # which 5b line (A-E) — logged for A/B
+    # The trailing part of `body` that is IDENTICAL on every prospect in a run
+    # (the left-field line + the CTA). Carried as an exact suffix so the review
+    # gate can dim it instead of showing the same two paragraphs on every card,
+    # and can re-join head + tail into the original body without guessing where
+    # the seam was. Empty on follow-ups, which have no shared tail.
+    shared_tail: str = ""
+
+    @property
+    def head(self) -> str:
+        """`body` minus `shared_tail` — the part that actually varies."""
+        if self.shared_tail and self.body.endswith(self.shared_tail):
+            return self.body[: -len(self.shared_tail)].rstrip("\n")
+        return self.body
 
 
 def rotation_for(prospect: Prospect) -> int:
@@ -559,6 +572,9 @@ def build_email_1(
         parts.append("best,\nishaan")
     body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
     subject = strip_em_dashes(subject)
+    # The same scrub over the same two parts, so this is an exact suffix of
+    # `body` rather than a reconstruction that could drift from it.
+    shared_tail = strip_em_dashes("\n\n".join([left_field, cta]))
 
     # 5e / Step-10 copy flag when a priority-signal lead is present.
     if (
@@ -567,7 +583,8 @@ def build_email_1(
     ):
         flags.append(pack.priority_flag)
 
-    return EmailDraft(subject=subject, body=body, flags=flags, left_field_variant=variant)
+    return EmailDraft(subject=subject, body=body, flags=flags,
+                      left_field_variant=variant, shared_tail=shared_tail)
 
 
 def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
