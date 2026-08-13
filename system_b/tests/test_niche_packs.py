@@ -32,9 +32,12 @@ EXPECTED_PACKS = {
         {"job_fractional_cfo": 0, "job_finance_lead": 1, "funding_form_d": 2},
         "job_fractional_cfo",
     ),
+    # the controller rung, and it now HAS a lead-first signal: a company
+    # shopping for a fractional controller is shopping for exactly what an
+    # outsourced accounting firm sells
     "accounting": (
-        {"job_finance_lead": 0, "job_junior_finance": 0, "funding_form_d": 1, "funding_form_c": 1},
-        None,
+        {"job_fractional_controller": 0, "job_finance_lead": 1},
+        "job_fractional_controller",
     ),
     "mssp": (
         {"breach_disclosed": 0, "job_security": 1},
@@ -42,6 +45,12 @@ EXPECTED_PACKS = {
     ),
     "msp": (
         {"job_it_support": 0, "job_it_leadership": 0},
+        None,
+    ),
+    # the junior rung: no lead-first signal exists for it, because outsourced
+    # bookkeeping is not a role a company advertises for
+    "bookkeeping": (
+        {"job_junior_finance": 0},
         None,
     ),
     "cloud": (
@@ -60,10 +69,23 @@ def test_pack_signal_rank_and_priority(key, expected):
     assert pack.priority_signal == expected_priority
 
 
-def test_pack_for_covers_all_five_niches():
-    # each of the five leadgen niches resolves to a pack keyed to it
-    assert {pack_for(k).key for k in ("accounting", "cfo", "mssp", "msp", "cloud")} == \
-        {"accounting", "cfo", "mssp", "msp", "cloud"}
+def test_pack_for_covers_every_niche():
+    # each leadgen niche resolves to a pack keyed to it
+    keys = ("bookkeeping", "accounting", "cfo", "mssp", "msp", "cloud")
+    assert {pack_for(k).key for k in keys} == set(keys)
+
+
+def test_the_three_finance_packs_never_borrow_each_others_word():
+    """Calling a CPA a bookkeeper reads as not having looked, and the reverse
+    leaves a bookkeeper feeling the mail was meant for someone else. The PACK
+    decides the word, and the operator decides the pack via --pack."""
+    bk, acc, cfo = pack_for("bookkeeping"), pack_for("accounting"), pack_for("cfo")
+    assert bk.dm_audience == "bookkeepers"
+    assert acc.dm_audience == "accountants"
+    assert cfo.dm_audience == "fractional cfos"
+    assert all("accountant" not in line for line in bk.left_field)
+    assert all("bookkeep" not in line for line in acc.left_field)
+    assert all("bookkeep" not in line for line in cfo.left_field)
 
 
 # --------------------------------------------------------------------------

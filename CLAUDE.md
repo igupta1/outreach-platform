@@ -87,6 +87,26 @@ review, so it lacks the edits and still contains prospects removed on the gate;
 the download is the only file carrying both, and it is what goes to the sequencer
 AND into the history sheet. `<out>.review.json` is what the gate reads.
 
+## The finance ladder: three packs, three rungs
+
+`bookkeeping` (junior: bookkeeper, AP/AR, payroll) · `accounting` (controller,
+led by a FRACTIONAL controller posting) · `cfo` (fractional CFO). Each is a
+different sale to a different buyer, and leadgen keeps the inventories separate
+— only 1.7% of companies carry both a junior and a controller-level signal.
+
+**No pack is ever inferred.** The operator hands a list to `--pack` and that
+decides the voice; nothing reads a company name. So each pack owns its word
+absolutely: `bookkeeping` never says "accountant", `accounting` never says
+"bookkeeper". Calling a CPA a bookkeeper reads as not having looked, and the
+reverse leaves a bookkeeper feeling the mail was meant for someone else. A test
+pins this.
+
+`accounting` and `cfo` do share `job_finance_lead` — neither a
+fractional-controller nor a fractional-CFO pool is deep enough to gift from
+alone — but each LEADS with its own in-market signal, so the gifts differ even
+where the pool is shared. `bookkeeping` has no lead-first signal and cannot get
+one: outsourced bookkeeping is not a role a company advertises for.
+
 ## The second channel (`copy/linkedin.py`)
 
 Email is 3 of the 6 touches; the other 3 are LinkedIn (connection request, then

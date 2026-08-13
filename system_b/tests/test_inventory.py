@@ -203,8 +203,10 @@ def test_snapshot_for_niche_rejects_unknown_niche(tmp_path, monkeypatch):
         snapshot_for_niche("insurance", today=TODAY)
 
 
-def test_valid_niches_are_the_five():
-    assert VALID_NICHES == frozenset({"accounting", "cfo", "mssp", "msp", "cloud"})
+def test_valid_niches_are_the_six():
+    assert VALID_NICHES == frozenset(
+        {"bookkeeping", "accounting", "cfo", "mssp", "msp", "cloud"}
+    )
 
 
 def test_clean_company_name_strips_artifacts_only():

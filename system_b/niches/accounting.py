@@ -1,17 +1,17 @@
-"""The accounting / bookkeeping niche pack.
+"""The accounting niche pack — the CONTROLLER rung of the finance ladder.
 
-Buyer: an accounting or bookkeeping firm. Gift: small companies that just posted
-a finance role (finance lead or a junior finance hire — bookkeeper, staff
-accountant, AP/AR clerk) or that just raised — companies with a finance need that
-haven't committed to an in-house finance department yet, i.e. the outsource
-window.
+Buyer: an outsourced accounting firm. It sells a finance function — the close,
+the reporting, a controller — so the gift is companies hiring at that rung, led
+by the ones explicitly shopping for a FRACTIONAL controller. That is this
+pack's in-market signal, the same shape as a fractional-CFO posting for the cfo
+pack.
 
-Unlike the geo-only trucking/legacy-bookkeeping shape, the copy here is
-VERTICAL-AWARE with a geo fallback: it claims the firm's served vertical only
-when the prospect is `niched` (via the shared `niche_claim` gate in the copy
-scaffolding), otherwise it opens on the prospect's city/state. This mirrors the
-CFO pack; the accounting voice is the only difference. Adaptation of leadgen
-inventory rows onto the outreach `Lead` lives in `clients/inventory.py`.
+The junior rung moved to `bookkeeping`. Every word here says "accountant", never
+"bookkeeper": accountants treat bookkeeping as a rung below them, and being
+addressed as one reads as not having looked. The operator decides which pack a
+list belongs to via `--pack`; nothing infers it from a company name.
+
+Vertical-aware with a geo fallback, like every other pack.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ from system_b.niches.base import NichePack
 _SINGULAR_WHAT = {
     "funding_form_d": ("just raised", "just closed a round", "just landed funding"),
     "funding_form_c": ("just raised", "just closed a round", "just landed funding"),
-    "job_finance_lead": (
-        "is hiring finance help",
-        "is building out its finance function",
-        "is bringing on finance help",
+    "job_fractional_controller": (
+        "is hiring a fractional controller",
+        "is looking for a fractional controller",
+        "just posted a fractional controller role",
     ),
-    "job_junior_finance": (
-        "just posted a junior finance role",
-        "is hiring junior finance",
-        "just opened a junior finance seat",
+    "job_finance_lead": (
+        "is hiring a controller",
+        "is building out its finance function",
+        "is bringing on finance leadership",
     ),
 }
 _PLURAL_WHAT = {
@@ -49,15 +49,15 @@ _PLURAL_WHAT = {
         "bringing on finance help right now",
     ),
     "mixed": (
-        "that could use bookkeeping help right now",
         "that could use accounting help right now",
-        "showing a bookkeeping need right now",
+        "showing an accounting need right now",
+        "that need a finance function right now",
     ),
 }
 
 
 def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
-    singular = _SINGULAR_WHAT.get(gift.best_lead.signal_type, "that could use bookkeeping help")
+    singular = _SINGULAR_WHAT.get(gift.best_lead.signal_type, "that could use accounting help")
     plural = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])
     return build_who_what(gift, prospect, singular_what=singular, plural_what=plural)
 
@@ -65,7 +65,7 @@ def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
 def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
     # One opener for the whole batch — the per-lead lines carry the specifics
     # (a fresh finance hire or a raise), so the framing need stays neutral.
-    return framing_line(gift, prospect, need="looking for bookkeeping help right now")
+    return framing_line(gift, prospect, need="building out their finance function right now")
 
 
 # 5b — left-field rotation, accounting/bookkeeping-firm voice. Lowercase, no em
@@ -73,14 +73,14 @@ def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
 ACCOUNTING_LEFT_FIELD: tuple[str, ...] = (
     "most accountants i talk to say clients come by referral, till it slows down. "
     "built this to catch companies the week they start hiring finance help.",
-    "every bookkeeper i talk to says the same thing, the best clients are the ones "
-    "who just realized they need help. so i built a feed that catches them the day "
-    "they post a finance role.",
+    "every accountant i talk to says the same thing, the best clients are the ones "
+    "who just realized they need a finance function. so i built a feed that catches "
+    "them the day they post a controller role.",
     "most accounting firms i know wait for the referral. built this to surface "
-    "companies the moment they post their first finance hire or file to raise.",
-    "the accountants i talk to say the hire-vs-outsource moment is the whole game. "
-    "so i built a feed that flags companies right when they post a finance role.",
-    "most bookkeepers i talk to say timing is everything. built this to catch "
+    "companies the moment they post their first finance hire.",
+    "the accountants i talk to say the build-vs-outsource moment is the whole game. "
+    "so i built a feed that flags companies right when they post a controller role.",
+    "most accounting firms i talk to say timing is everything. built this to catch "
     "companies the week a finance-need signal shows up.",
 )
 ACCOUNTING_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
@@ -90,12 +90,13 @@ ACCOUNTING_PACK = NichePack(
     key="accounting",
     followup_signal="a finance-need signal",
     signal_rank={
-        "job_finance_lead": 0,
-        "job_junior_finance": 0,
-        "funding_form_d": 1,
-        "funding_form_c": 1,
+        "job_fractional_controller": 0,
+        "job_finance_lead": 1,
     },
-    priority_signal=None,
+    # A company shopping for a fractional controller is shopping for exactly
+    # what this buyer sells — the same in-market logic cfo gets from a
+    # fractional-CFO posting.
+    priority_signal="job_fractional_controller",
     raise_signals=frozenset(),   # EDGAR sources deleted — no raise claim is provable
     what_category=_cfo_what_category,     # pure signal logic (raised/hiring/mixed)
     subject=_accounting_subject,
@@ -106,6 +107,6 @@ ACCOUNTING_PACK = NichePack(
     funding_phrase=None,
     priority_flag=None,
     dm_audience="accountants",
-    dm_role_singular="a finance role",
-    dm_role_plural="finance roles",
+    dm_role_singular="a controller role",
+    dm_role_plural="controller roles",
 )

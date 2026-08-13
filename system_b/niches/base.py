@@ -61,7 +61,13 @@ def pack_for(key: str | None) -> NichePack:
     """Resolve a pack by key (the row's `niche_pack`). Lazy imports keep this a
     leaf module. Unknown / blank -> the CFO default."""
     k = (key or "cfo").strip().lower()
-    if k in ("accounting", "bookkeeping"):   # bookkeeping kept as a legacy alias
+    # bookkeeping is no longer an alias for accounting: they are two rungs of
+    # the finance ladder with different leads, different buyers and different
+    # words for who the tool was built for.
+    if k == "bookkeeping":
+        from system_b.niches.bookkeeping import BOOKKEEPING_PACK
+        return BOOKKEEPING_PACK
+    if k == "accounting":
         from system_b.niches.accounting import ACCOUNTING_PACK
         return ACCOUNTING_PACK
     if k == "msp":

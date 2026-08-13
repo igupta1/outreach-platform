@@ -41,9 +41,14 @@ from system_b.models import Lead, Signal
 
 log = logging.getLogger("system_b.inventory")
 
-# The five leadgen niches. `niche_key` must be one of these.
+# The six leadgen niches. `niche_key` must be one of these.
+#
+# The three finance niches are one ladder split by the rung a company hires at:
+# bookkeeping (junior) · accounting (controller) · cfo (fractional CFO). Which
+# one a prospect belongs to is the OPERATOR's call, passed as --pack; nothing
+# here infers it from a company name.
 VALID_NICHES: frozenset[str] = frozenset(
-    {"accounting", "cfo", "mssp", "msp", "cloud"}
+    {"bookkeeping", "accounting", "cfo", "mssp", "msp", "cloud"}
 )
 
 _NONWORD_RE = re.compile(r"[^a-z0-9]+")
