@@ -34,23 +34,11 @@ from system_b.niches.base import NichePack
 # actual seat rather than a generic "finance role" — "a bookkeeper" is the
 # recognizable thing to this reader.
 _SINGULAR_WHAT = {
-    "job_junior_finance": (
-        "is hiring a bookkeeper",
-        "just posted a bookkeeping role",
-        "is bringing on bookkeeping help",
-    ),
+    "job_junior_finance": "is hiring a bookkeeper",
 }
 _PLURAL_WHAT = {
-    "hiring": (
-        "hiring bookkeeping help right now",
-        "bringing on bookkeeping help right now",
-        "adding bookkeeping help right now",
-    ),
-    "mixed": (
-        "that could use bookkeeping help right now",
-        "showing a bookkeeping need right now",
-        "that need their books handled right now",
-    ),
+    "hiring": "hiring bookkeeping help right now",
+    "mixed": "that could use bookkeeping help right now",
 }
 
 
@@ -64,23 +52,6 @@ def _bookkeeping_framing(gift: Gift, prospect: Prospect) -> str:
     return framing_line(gift, prospect, need="looking for bookkeeping help right now")
 
 
-# 5b — left-field rotation, bookkeeping-firm voice. Every line says
-# "bookkeeper", because the pack IS the answer to who this is for. Lowercase,
-# no em dashes; kept EXACTLY as authored.
-BOOKKEEPING_LEFT_FIELD: tuple[str, ...] = (
-    "most bookkeepers i talk to say clients come by referral, till it slows down. "
-    "built this to catch companies the week they start hiring for the books.",
-    "every bookkeeper i talk to says the same thing, the best clients are the ones "
-    "who just realized they need help. so i built a feed that catches them the day "
-    "they post a bookkeeping role.",
-    "most bookkeepers i know wait for the referral. built this to surface companies "
-    "the moment they post their first finance hire.",
-    "the bookkeepers i talk to say the hire-vs-outsource moment is the whole game. "
-    "so i built a feed that flags companies right when they post for the books.",
-    "most bookkeepers i talk to say timing is everything. built this to catch "
-    "companies the week they start looking for bookkeeping help.",
-)
-BOOKKEEPING_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 
 BOOKKEEPING_PACK = NichePack(
@@ -96,8 +67,6 @@ BOOKKEEPING_PACK = NichePack(
     subject=_bookkeeping_subject,
     framing=_bookkeeping_framing,
     cta=_cta,
-    left_field=BOOKKEEPING_LEFT_FIELD,
-    left_field_labels=BOOKKEEPING_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
     dm_audience="bookkeepers",

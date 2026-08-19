@@ -30,29 +30,13 @@ from system_b.niches.base import NichePack
 _SINGULAR_WHAT = {
     "funding_form_d": ("just raised", "just closed a round", "just landed funding"),
     "funding_form_c": ("just raised", "just closed a round", "just landed funding"),
-    "job_fractional_controller": (
-        "is hiring a fractional controller",
-        "is looking for a fractional controller",
-        "just posted a fractional controller role",
-    ),
-    "job_finance_lead": (
-        "is hiring a controller",
-        "is building out its finance function",
-        "is bringing on finance leadership",
-    ),
+    "job_fractional_controller": "is hiring a fractional controller",
+    "job_finance_lead": "is hiring a controller",
 }
 _PLURAL_WHAT = {
     "raised": ("that just raised", "that just closed a round", "that just landed funding"),
-    "hiring": (
-        "hiring finance help right now",
-        "adding finance help right now",
-        "bringing on finance help right now",
-    ),
-    "mixed": (
-        "that could use accounting help right now",
-        "showing an accounting need right now",
-        "that need a finance function right now",
-    ),
+    "hiring": "hiring finance help right now",
+    "mixed": "that could use accounting help right now",
 }
 
 
@@ -68,22 +52,6 @@ def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
     return framing_line(gift, prospect, need="building out their finance function right now")
 
 
-# 5b — left-field rotation, accounting/bookkeeping-firm voice. Lowercase, no em
-# dashes; kept EXACTLY as authored.
-ACCOUNTING_LEFT_FIELD: tuple[str, ...] = (
-    "most accountants i talk to say clients come by referral, till it slows down. "
-    "built this to catch companies the week they start hiring finance help.",
-    "every accountant i talk to says the same thing, the best clients are the ones "
-    "who just realized they need a finance function. so i built a feed that catches "
-    "them the day they post a controller role.",
-    "most accounting firms i know wait for the referral. built this to surface "
-    "companies the moment they post their first finance hire.",
-    "the accountants i talk to say the build-vs-outsource moment is the whole game. "
-    "so i built a feed that flags companies right when they post a controller role.",
-    "most accounting firms i talk to say timing is everything. built this to catch "
-    "companies the week a finance-need signal shows up.",
-)
-ACCOUNTING_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 
 ACCOUNTING_PACK = NichePack(
@@ -102,8 +70,6 @@ ACCOUNTING_PACK = NichePack(
     subject=_accounting_subject,
     framing=_accounting_framing,
     cta=_cta,                            # vertical-aware, geo fallback (shared)
-    left_field=ACCOUNTING_LEFT_FIELD,
-    left_field_labels=ACCOUNTING_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
     dm_audience="accountants",

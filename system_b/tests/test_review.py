@@ -77,8 +77,7 @@ def _built():
         flags=["stated niche ok"],
     )
     email1 = EmailDraft(subject="a dental company is hiring", body="hey dana,\n\ngift...",
-                        flags=["domainless lead (Beta Dental) — google the name"],
-                        left_field_variant="C")
+                        flags=["domainless lead (Beta Dental) — google the name"])
     fu2 = EmailDraft(subject="", body="found one more:",
                      flags=["domainless lead (Beta Dental) — google the name"])  # dup flag
     fu3 = EmailDraft(subject="", body="last one from me.")

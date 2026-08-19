@@ -30,8 +30,6 @@ class NichePack:
     subject: Callable[..., str]             # (gift, prospect) -> subject line
     framing: Callable[..., str]             # (gift, prospect) -> opening framing line
     cta: Callable[..., str]                 # (gift, prospect) -> closing CTA line
-    left_field: tuple[str, ...]             # 5b rotation lines
-    left_field_labels: tuple[str, ...]      # aligned A/B labels
     funding_phrase: Callable[..., str] | None   # (lead) -> templated raise line, or None
     priority_flag: str | None               # review/copy flag when a priority-signal lead is present
 

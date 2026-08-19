@@ -7,12 +7,7 @@ so this is the default pack and nothing about CFO output changes.
 
 from __future__ import annotations
 
-from system_b.copy.email import (
-    LEFT_FIELD,
-    LEFT_FIELD_LABELS,
-    _cta,
-    _framing,
-)
+from system_b.copy.email import _cta, _framing
 from system_b.copy.subject import _cfo_subject
 from system_b.gift.engine import SIGNAL_RANK, _cfo_what_category
 from system_b.niches.base import NichePack
@@ -27,8 +22,6 @@ CFO_PACK = NichePack(
     subject=_cfo_subject,
     framing=_framing,
     cta=_cta,
-    left_field=tuple(LEFT_FIELD),
-    left_field_labels=tuple(LEFT_FIELD_LABELS),
     funding_phrase=None,
     # No priority flag. CFO_PRIORITY_FLAG ("google the posting and confirm
     # it's still live") fired on 21 of 23 prospects in a real run — a flag that

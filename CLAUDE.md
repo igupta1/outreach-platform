@@ -94,6 +94,22 @@ led by a FRACTIONAL controller posting) · `cfo` (fractional CFO). Each is a
 different sale to a different buyer, and leadgen keeps the inventories separate
 — only 1.7% of companies carry both a junior and a controller-level signal.
 
+**One voice, one line.** Every pack renders the SAME left-field line with only
+the audience word swapped (`copy.email.left_field_for`, keyed on `dm_audience`):
+"i'm an engineer. built this one for {bookkeepers|accountants|fractional cfos}
+after hearing the same thing over and over, referrals dried up and nothing
+replaced them." The engineer reveal is what stops a machine-built gift reading
+as spray-and-pray, and nothing about it is CFO-specific. What legitimately
+differs per pack is the LEADS and the need clause that describes them
+("looking for bookkeeping help" / "building out their finance function" /
+"showing they need finance help") — not the voice.
+
+**No rotation anywhere.** Subject WHATs and the left-field line used to hold
+several equivalent phrasings picked by a hash of the firm name. That bought
+variety nobody could act on and made the copy harder to reason about, so each
+key holds exactly one phrasing. The subject already varies per prospect through
+the WHO — their city, their vertical, the lead's role.
+
 **No pack is ever inferred.** The operator hands a list to `--pack` and that
 decides the voice; nothing reads a company name. So each pack owns its word
 absolutely: `bookkeeping` never says "accountant", `accounting` never says

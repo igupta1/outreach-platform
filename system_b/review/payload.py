@@ -276,7 +276,6 @@ def build_review(
         # card shows what was actually said rather than the raw parsed values.
         "named_clients": list(prospect.client_names or []),
         "revenue": revenue_display(prospect.client_revenue),
-        "left_field_variant": getattr(email1, "left_field_variant", ""),
         # evidence
         "evidence": evidence,
         # Claims about the PROSPECT, attached to the words that make them. The

@@ -24,22 +24,13 @@ from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack
 
-_LEFT_FIELD_LABELS: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 
 # MSP — managed IT / help desk -------------------------------------------------
 
 _MSP_SINGULAR_WHAT = {
-    "job_it_support": (
-        "that just posted an it support role",
-        "that's hiring for it support",
-        "that just opened an it support seat",
-    ),
-    "job_it_leadership": (
-        "that just posted an it leadership role",
-        "that's hiring it leadership",
-        "that just opened an it leadership seat",
-    ),
+    "job_it_support": "that just posted an it support role",
+    "job_it_leadership": "that just posted an it leadership role",
 }
 
 
@@ -48,11 +39,7 @@ def _msp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what=(
-            "staffing up on it right now",
-            "adding to their it team right now",
-            "hiring for it right now",
-        ),
+        plural_what="staffing up on it right now",
     )
 
 
@@ -67,19 +54,6 @@ def _msp_what_category(leads: list[Lead]) -> str:
     return "it_support"
 
 
-MSP_LEFT_FIELD: tuple[str, ...] = (
-    "most msps i talk to say clients come by referral, till the pipeline slows. "
-    "built this to catch companies the week they start hiring for it support.",
-    "every msp i talk to says the same thing, the best clients are the ones who "
-    "just realized they need help. so i built a feed that catches them the day they "
-    "post an it support role.",
-    "most it shops i know wait for the referral. built this to surface companies the "
-    "moment they post their first help desk hire.",
-    "the msps i talk to say the hire-vs-outsource moment is the whole game. so i "
-    "built a feed that flags companies right when they post an it role.",
-    "most msps i talk to say timing is everything. built this to catch companies the "
-    "week an it-support need shows up.",
-)
 
 
 # MSSP — managed security ------------------------------------------------------
@@ -90,16 +64,8 @@ MSSP_PRIORITY_FLAG = (
 )
 
 _MSSP_SINGULAR_WHAT = {
-    "breach_disclosed": (
-        "that just disclosed a breach",
-        "that just reported a breach",
-        "that just had a security incident",
-    ),
-    "job_security": (
-        "that just started hiring for security",
-        "that's staffing up on security",
-        "that just opened a security role",
-    ),
+    "breach_disclosed": "that just disclosed a breach",
+    "job_security": "that just started hiring for security",
 }
 
 
@@ -108,11 +74,7 @@ def _mssp_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what=(
-            "signaling they need security help right now",
-            "showing a security need right now",
-            "flagging a security gap right now",
-        ),
+        plural_what="signaling they need security help right now",
     )
 
 
@@ -124,30 +86,12 @@ def _mssp_what_category(leads: list[Lead]) -> str:
     return "security"
 
 
-MSSP_LEFT_FIELD: tuple[str, ...] = (
-    "most mssps i talk to say the best clients are the ones who just realized "
-    "security is on them now. built this to catch companies the week they start "
-    "staffing it.",
-    "every security shop i talk to says the same thing, the opening is the moment a "
-    "company decides it needs help. so i built a feed that catches them the day they "
-    "post a security role.",
-    "most mssps i know hear about a breach long after the fact. built this to surface "
-    "companies the moment they signal a security need.",
-    "the security providers i talk to say a fresh breach disclosure or a security req "
-    "is the opening. so i built a feed that flags exactly those.",
-    "most mssps i talk to say timing is everything in security. built this to catch "
-    "companies the week a security-need signal shows up.",
-)
 
 
 # Cloud — cloud / devops consultancy -------------------------------------------
 
 _CLOUD_SINGULAR_WHAT = {
-    "job_cloud_devops": (
-        "that just started building out cloud",
-        "that's staffing up on cloud",
-        "that just opened a cloud/devops role",
-    ),
+    "job_cloud_devops": "that just started building out cloud",
     "funding_form_d": ("that just raised", "that just closed a round", "that just landed funding"),
 }
 
@@ -157,11 +101,7 @@ def _cloud_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(
         gift, prospect,
         singular_what=singular,
-        plural_what=(
-            "scaling their cloud team right now",
-            "building out their cloud team right now",
-            "growing their cloud team right now",
-        ),
+        plural_what="scaling their cloud team right now",
     )
 
 
@@ -173,19 +113,6 @@ def _cloud_what_category(leads: list[Lead]) -> str:
     return "cloud"
 
 
-CLOUD_LEFT_FIELD: tuple[str, ...] = (
-    "most cloud shops i talk to say clients come by referral, till it slows. built "
-    "this to catch companies the week they start building out devops.",
-    "every cloud consultant i talk to says the same thing, the best clients are the "
-    "ones just starting to scale. so i built a feed that catches them the day they "
-    "post a devops role.",
-    "most devops shops i know wait for the referral. built this to surface companies "
-    "the moment they post their first cloud hire.",
-    "the cloud consultants i talk to say the build-vs-outsource moment is the whole "
-    "game. so i built a feed that flags companies right when they post devops roles.",
-    "most cloud shops i talk to say timing is everything. built this to catch "
-    "companies the week a cloud-need signal shows up.",
-)
 
 
 MSP_PACK = NichePack(
@@ -198,8 +125,6 @@ MSP_PACK = NichePack(
     subject=_msp_subject,
     framing=_msp_framing,
     cta=_cta,
-    left_field=MSP_LEFT_FIELD,
-    left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
     dm_audience="msps",
@@ -217,8 +142,6 @@ MSSP_PACK = NichePack(
     subject=_mssp_subject,
     framing=_mssp_framing,
     cta=_cta,
-    left_field=MSSP_LEFT_FIELD,
-    left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=MSSP_PRIORITY_FLAG,
     dm_audience="mssps",
@@ -236,8 +159,6 @@ CLOUD_PACK = NichePack(
     subject=_cloud_subject,
     framing=_cloud_framing,
     cta=_cta,
-    left_field=CLOUD_LEFT_FIELD,
-    left_field_labels=_LEFT_FIELD_LABELS,
     funding_phrase=None,
     priority_flag=None,
     dm_audience="cloud shops",

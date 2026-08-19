@@ -9,7 +9,6 @@ any part of a sent email.
 from __future__ import annotations
 
 import re
-import zlib
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -39,30 +38,41 @@ CFO_PRIORITY_FLAG = (
     "confirm it's still live before sending (no date in copy)"
 )
 
-# 5b — the left-field line. Rotation machinery is kept (a pack may supply
-# several), but the CFO pack ships ONE authored line, so every CFO email uses it.
+# 5b — the left-field line. ONE line, shared by every pack, with the audience as
+# its only variable.
 #
-# Three jobs in 24 words, which is why the wording is load-bearing:
+# It used to be per-pack, and the packs drifted: cfo opened "i'm an engineer"
+# while accounting and bookkeeping opened "most bookkeepers i talk to". The
+# engineer reveal is the strongest thing in the email — it is what stops a
+# machine-built gift from reading as spray-and-pray — so every buyer gets it.
+# Nothing about it is CFO-specific.
+#
+# Four jobs in 24 words, which is why the wording is load-bearing:
 #   "i'm an engineer"        — credibility, with no title and no invitation to
 #                              ask whether this is a side project.
 #   "built this one"         — "this one" implies others exist, so the reader
 #                              infers a builder without the copy claiming range.
-#   "for fractional cfos"    — the TOOL is purpose-built for their profession.
-#                              This is what stops the reveal of a system from
-#                              reading as spray-and-pray: a machine made it, but
-#                              it was made for people like them.
+#   "for {audience}"         — the TOOL is purpose-built for their profession.
+#                              A machine made it, but it was made for people
+#                              like them.
 #   "hearing the same thing  — their peers said it, so the pain is theirs, not
 #    over and over"            a guess.
 #   "and nothing replaced    — the emotional beat. Naming the pain without it
 #    them"                     states a fact; with it, it lands. Do not cut.
 #
-# House style: all lowercase, no em dashes — kept EXACTLY as authored.
-LEFT_FIELD: list[str] = [
-    # A
-    "i'm an engineer. built this one for fractional cfos after hearing the same "
-    "thing over and over, referrals dried up and nothing replaced them.",
-]
-LEFT_FIELD_LABELS: list[str] = ["A"]
+# The pain generalizes: every one of these buyers wins work by referral and
+# feels it when referrals slow. House style: all lowercase, no em dashes.
+LEFT_FIELD = (
+    "i'm an engineer. built this one for {audience} after hearing the same "
+    "thing over and over, referrals dried up and nothing replaced them."
+)
+
+
+def left_field_for(pack) -> str:
+    """The 5b line for a pack. `dm_audience` already names the buyer the way the
+    copy says it aloud ("fractional cfos", "bookkeepers"), so the packs need no
+    second field for it."""
+    return LEFT_FIELD.format(audience=pack.dm_audience)
 
 
 @dataclass
@@ -70,7 +80,6 @@ class EmailDraft:
     subject: str
     body: str
     flags: list[str] = field(default_factory=list)
-    left_field_variant: str = ""             # which 5b line (A-E) — logged for A/B
     # The trailing part of `body` that is IDENTICAL on every prospect in a run
     # (the left-field line + the CTA). Carried as an exact suffix so the review
     # gate can dim it instead of showing the same two paragraphs on every card,
@@ -85,10 +94,6 @@ class EmailDraft:
             return self.body[: -len(self.shared_tail)].rstrip("\n")
         return self.body
 
-
-def rotation_for(prospect: Prospect) -> int:
-    """Stable 0..(N-1) index for the left-field line (5b)."""
-    return zlib.crc32(prospect.firm_name.encode("utf-8")) % len(LEFT_FIELD)
 
 
 # Words that mark a name as a specific ORGANIZATION rather than a brand. A name
@@ -530,7 +535,6 @@ def build_email_1(
     prospect: Prospect,
     *,
     today: date,
-    rotation: int | None = None,
     pack=None,
     include_signoff: bool = True,
 ) -> EmailDraft:
@@ -553,12 +557,7 @@ def build_email_1(
         flags.extend(lf)
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
-    n_lines = len(pack.left_field)
-    idx = rotation if rotation is not None else (
-        zlib.crc32(prospect.firm_name.encode("utf-8")) % n_lines
-    )
-    left_field = pack.left_field[idx]
-    variant = pack.left_field_labels[idx]
+    left_field = left_field_for(pack)
     cta = pack.cta(gift, prospect)
     # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
     greeting = f"hey {(prospect.first_name or 'there').lower()},"
@@ -584,7 +583,7 @@ def build_email_1(
         flags.append(pack.priority_flag)
 
     return EmailDraft(subject=subject, body=body, flags=flags,
-                      left_field_variant=variant, shared_tail=shared_tail)
+                      shared_tail=shared_tail)
 
 
 def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
@@ -684,7 +683,7 @@ def build_followup_email(
     if include_signoff:
         parts.append("best,\nishaan")
     body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere
-    return EmailDraft(subject="", body=body, flags=flags, left_field_variant="")
+    return EmailDraft(subject="", body=body, flags=flags)
 
 
 def niche_claim_or_geo(prospect: Prospect) -> str:

@@ -1,7 +1,7 @@
 """M2 acceptance — the copy engine (spec Steps 4 & 5).
 
 Covers every row of the 4b (plural subject), 4c (singular subject), 5a
-(framing), and 5c (CTA) tables; the 5b left-field rotation; the 5e honesty
+(framing), and 5c (CTA) tables; the shared 5b left-field line; the 5e honesty
 rules (date recompute/suppress, no dollar amounts, domainless + odd-city
 flags); and a full Email #1 rendered for a niched and a generalist gift
 built by the real M1 engine.
@@ -15,11 +15,9 @@ from datetime import date
 
 from system_b.copy.email import (
     LEFT_FIELD,
-    LEFT_FIELD_LABELS,
     _cta,
     _framing,
     build_email_1,
-    rotation_for,
 )
 from system_b.copy.honesty import relative_date, strip_dollar_amounts
 from system_b.copy.lex import NICHE_DISPLAY, niche_display
@@ -130,58 +128,17 @@ def test_4c_singular_geo_follows_gift_not_best_lead():
     assert build_subject(g2, P(niched=False)) == "a company is hiring finance leadership"
 
 
-def test_4b_plural_what_rotates_per_prospect():
-    """The plural WHAT rotates per prospect too (not just singular), so plural-
-    skewing niches (e.g. msp) stop repeating one subject. 'Test Firm' -> canonical."""
-    from system_b.copy.subject import _PLURAL_WHAT
-    g = G(all_niche=False, geo="state", what="mixed")   # plural shape (G default)
-    approved = _PLURAL_WHAT["mixed"]
-    assert build_subject(g, P()).endswith(approved[0])  # canonical variant for the fixture
-    seen = set()
-    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
-        s = build_subject(g, P(firm_name=name, niched=False))
-        assert any(s.endswith(v) for v in approved)
-        seen.add(next(v for v in approved if s.endswith(v)))
-    assert len(seen) >= 2
 
 
-def test_4c_singular_what_rotates_per_prospect():
-    """The singular WHAT rotates deterministically per prospect (crc32 of firm),
-    so a domain isn't sending one identical subject repeatedly — but always emits
-    an approved, equivalent phrasing. 'Test Firm' stays on the canonical wording."""
-    from system_b.copy.subject import _SINGULAR_WHAT
-    g = G(all_niche=False, geo="state", shape="singular", best_level=2,
-          best_signal="job_fractional_cfo")
-    # pinned fixture -> canonical variant 0
-    assert build_subject(g, P()).endswith("is hiring a fractional cfo")
-    approved = _SINGULAR_WHAT["job_fractional_cfo"]
-    seen = set()
-    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
-        s = build_subject(g, P(firm_name=name))
-        assert s == build_subject(g, P(firm_name=name))     # deterministic
-        assert any(s.endswith(v) for v in approved)         # only approved wording
-        seen.add(next(v for v in approved if s.endswith(v)))
-    assert len(seen) >= 2, "rotation should vary the subject across prospects"
 
+def test_one_phrasing_per_subject_key():
+    """The WHAT tables used to hold equivalent phrasings rotated by a hash of the
+    firm name. That bought variety nobody could act on and made the copy harder
+    to reason about; the subject already varies through the WHO."""
+    from system_b.copy.subject import _PLURAL_WHAT, _SINGULAR_WHAT
 
-def test_build_who_what_rotates_tuple_but_not_string():
-    """The non-CFO packs' subject WHAT rotates when given a tuple of equivalent
-    phrasings (per-prospect), and is left verbatim when given a plain string."""
-    from system_b.copy.subject import build_who_what
-    g = G(all_niche=False, geo="state", shape="singular", best_level=2,
-          best_signal="job_finance_lead")
-    variants = ("is hiring finance help", "is building out its finance function",
-                "is bringing on finance help")
-    # plain string -> used verbatim (back-compat)
-    assert build_who_what(g, P(), singular_what="is hiring finance help",
-                          plural_what="x") == "a colorado company is hiring finance help"
-    # tuple -> rotates, always an approved phrasing, deterministic, and varies
-    seen = set()
-    for name in ["Acme LLC", "Beta Co", "Gamma Inc", "Delta Group", "Epsilon Partners"]:
-        s = build_who_what(g, P(firm_name=name), singular_what=variants, plural_what="x")
-        assert any(s.endswith(v) for v in variants)
-        seen.add(next(v for v in variants if s.endswith(v)))
-    assert len(seen) >= 2
+    for table in (_PLURAL_WHAT, _SINGULAR_WHAT):
+        assert all(isinstance(v, str) for v in table.values())
 
 
 def test_child_niche_keeps_its_word_in_subject():
@@ -295,32 +252,29 @@ def test_5c_cta_asks_for_the_call():
 # 5b — left-field rotation
 # --------------------------------------------------------------------------
 
-def test_5b_left_field_rotation():
-    # ONE authored line for the CFO pack. The rotation machinery stays (a pack
-    # may supply several); house style: all lowercase, no em dashes.
-    assert len(LEFT_FIELD) == len(set(LEFT_FIELD)) == 1
-    assert LEFT_FIELD_LABELS == ["A"]
-    assert LEFT_FIELD[0] == (
-        "i'm an engineer. built this one for fractional cfos after hearing the "
-        "same thing over and over, referrals dried up and nothing replaced them."
-    )
-    # the three jobs the line has to keep doing
-    assert "i'm an engineer" in LEFT_FIELD[0]          # credibility
-    assert "this one" in LEFT_FIELD[0]                  # implies others exist
-    assert "for fractional cfos" in LEFT_FIELD[0]       # purpose-built, not sprayed
-    assert "nothing replaced them" in LEFT_FIELD[0]     # the emotional beat
-    assert all(line == line.lower() for line in LEFT_FIELD)
-    assert not any("—" in line for line in LEFT_FIELD)
-    p = P(firm_name="Acme CFO")
-    # deterministic + in range
-    assert rotation_for(p) == rotation_for(P(firm_name="Acme CFO"))
-    assert 0 <= rotation_for(p) < len(LEFT_FIELD)
-    # explicit rotation selects the exact line AND logs its label (A-E) on the draft
-    for k in range(len(LEFT_FIELD)):
-        g = build_gift(P(), FakeScraper([mk("a", "funding_form_d", industry="healthcare", city="Denver", state="CO")]))
-        draft = build_email_1(g, P(), today=TODAY, rotation=k)
-        assert LEFT_FIELD[k] in draft.body
-        assert draft.left_field_variant == LEFT_FIELD_LABELS[k]
+def test_every_pack_shares_the_one_left_field_line():
+    """It used to be per-pack, and the packs drifted: cfo opened "i'm an
+    engineer" while accounting and bookkeeping opened "most bookkeepers i talk
+    to". The engineer reveal is what stops a machine-built gift from reading as
+    spray-and-pray, and nothing about it is CFO-specific, so every buyer gets
+    it. The audience word is the only thing that varies."""
+    from system_b.copy.email import left_field_for
+    from system_b.niches.base import pack_for
+
+    seen = {}
+    for key in ("cfo", "accounting", "bookkeeping", "msp", "mssp", "cloud"):
+        pack = pack_for(key)
+        line = left_field_for(pack)
+        assert line.startswith("i'm an engineer. built this one for ")
+        assert pack.dm_audience in line
+        assert "referrals dried up and nothing replaced them" in line
+        assert line == line.lower() and "—" not in line
+        seen[key] = line
+    # every pack differs ONLY by the audience word
+    assert len(set(seen.values())) == 6
+    for key, line in seen.items():
+        assert line.replace(pack_for(key).dm_audience, "X") == \
+            LEFT_FIELD.format(audience="X")
 
 
 def test_greeting_lowercased_but_company_names_kept_cased():
@@ -494,7 +448,7 @@ def test_full_email_niched_example_1():
         mk("h3", "job_finance_lead", industry="healthcare", city="Denver", state="CO", date="2026-07-03", company="Vitals Co", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, today=TODAY, rotation=0)
+    draft = build_email_1(g, p, today=TODAY)
 
     assert draft.subject == "healthcare companies in denver hiring finance leadership right now"
     assert draft.body.startswith("hey dana,\n\n")
@@ -522,7 +476,7 @@ def test_full_email_generalist_example_8():
         mk("m2", "job_finance_lead", city="Miami", state="FL", date="2026-07-05", company="Bay Foods", finance_grade="medium", evidence="Controller"),
     ]
     g = build_gift(p, FakeScraper(leads))
-    draft = build_email_1(g, p, today=TODAY, rotation=0)
+    draft = build_email_1(g, p, today=TODAY)
 
     assert draft.subject == "companies in miami hiring finance leadership right now"
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
