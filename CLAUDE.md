@@ -168,6 +168,38 @@ button at the bottom that rebuilds the exact output CSV (byte-identical to
 `run.py`'s) from whatever you edited. It is read-only + client-side + send-free —
 it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
 
+## The daily connection list (`connect_queue.py`)
+
+Each pack is generated and reviewed separately, so each writes its own review
+JSON — but the LinkedIn cap is ONE budget across every campaign, not one per
+pack. Working three files down separately spends it three different ways.
+
+```bash
+system_b/.venv/bin/python -m system_b.connect_queue \
+    cfo.review.json acct.review.json book.review.json --top 20
+```
+
+Merges every pack, sorts by the same `personalization.rank` the review gate and
+the exported CSV use, drops anyone with no LinkedIn URL (so a list of 20 is 20
+people you can act on), and writes `connect-queue.csv`. Read-only and send-free
+like the review gate — nothing here talks to LinkedIn, and nothing may.
+
+## The daily connection list (`connect_queue.py`)
+
+Each pack is generated and reviewed separately, so each writes its own review
+JSON — but the LinkedIn cap is ONE budget across every campaign, not one per
+pack. Working three files down separately spends it three different ways.
+
+```bash
+system_b/.venv/bin/python -m system_b.connect_queue \
+    cfo.review.json acct.review.json book.review.json --top 20
+```
+
+Merges every pack, sorts by the same `personalization.rank` the review gate and
+the exported CSV use, drops anyone with no LinkedIn URL (so a list of 20 is 20
+people you can act on), and writes `connect-queue.csv`. Read-only and send-free
+like the review gate — nothing here talks to LinkedIn, and nothing may.
+
 ## Layout (`system_b/`)
 
 - `run.py` — the whole pipeline CLI (CSV → CSV). One niche pack per run (`--pack`).
