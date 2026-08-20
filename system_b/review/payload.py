@@ -42,10 +42,8 @@ def _grounded(lead: Any) -> str:
     """The lead's own verbatim evidence line — what the templated copy is built
     from. Shown on the review card so the operator checks the source, not a
     paraphrase of it."""
-    return next(
-        (s.plain_words_description for s in lead.signals if s.plain_words_description),
-        "",
-    )
+    headline = lead.headline_signal
+    return (headline.plain_words_description if headline else "") or ""
 
 
 def _lead_entry(lead: Any) -> dict[str, Any]:

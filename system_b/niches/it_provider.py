@@ -90,9 +90,11 @@ def _mssp_what_category(leads: list[Lead]) -> str:
 
 # Cloud — cloud / devops consultancy -------------------------------------------
 
+# No funding row: the EDGAR sources were deleted, so a raise claim is unprovable
+# and no funding lead can reach a gift. It also outlived the rotation removal as
+# a 3-tuple, which `build_who_what` no longer unpacks.
 _CLOUD_SINGULAR_WHAT = {
     "job_cloud_devops": "that just started building out cloud",
-    "funding_form_d": ("that just raised", "that just closed a round", "that just landed funding"),
 }
 
 

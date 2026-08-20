@@ -214,29 +214,63 @@ _QUALIFIER_RES = tuple(
 )
 
 
-def _fractional_qualifier(row: dict[str, Any]) -> str | None:
-    """The part-time word to prefix onto the role, or None to leave it alone.
+# The two leadgen signal types that ASSERT a part-time engagement, mapped to what
+# the evidence still supports when that assertion cannot be backed. Both fall to
+# `job_finance_lead`: the posting is real and the seat is real, it is only the
+# "fractional" word we cannot stand behind.
+_FRACTIONAL_TYPES: dict[str, str] = {
+    "job_fractional_cfo": "job_finance_lead",
+    "job_fractional_controller": "job_finance_lead",
+}
 
-    leadgen tags a posting `job_fractional_cfo` when the qualifier appears in the
-    title OR the description, but the email prints the TITLE — so a posting whose
-    body says "this is a fractional role" renders as a plain "chief financial
-    officer" under a subject line promising a fractional one. That gap hit 17 of
-    23 emails in a real run.
 
-    Returns None when the title already says it (nothing to add) or when only a
-    lower-confidence word appears (we would rather say less than say it wrong)."""
+def _fractional_evidence(row: dict[str, Any]) -> tuple[str | None, bool]:
+    """`(qualifier_to_prefix, is_evidenced)` for a fractional-tagged posting.
+
+    leadgen tags a posting fractional when ANY of a wide word list — fractional,
+    interim, part-time, outsourced, virtual, contract, temp, consultant,
+    consulting, advisory — appears in the title OR anywhere in the description.
+    Most of that list shows up incidentally in ordinary job copy ("advisory
+    board", "consulting engagements", "contract negotiation"), so the TAG alone
+    cannot carry a claim. Measured on the live inventory: 31 of 171 cfo and 22 of
+    40 accounting fractional postings match only a weak word, including plain
+    "Chief Financial Officer" titles at a law firm and a medical center.
+
+    So the claim is re-derived here from the three words that are effectively
+    never incidental and read naturally as an adjective:
+
+      * `is_evidenced` — one of those three appears in the title or the body. The
+        subject may say "fractional" only when this is True; see
+        `adapt_leadgen_lead`, which downgrades the signal type when it is False.
+      * `qualifier` — the word to PREFIX onto the printed role, or None. None
+        when the title already says it (nothing to add) or when nothing does.
+
+    Both halves come from one pass because they answer the same question, and
+    they disagreed when they were two: the qualifier lookup used to run for
+    `job_fractional_cfo` only, so 9 of 40 accounting leads printed a plain
+    "controller" under a subject promising a fractional one.
+
+    Scoped to signals matching the row's OWN `signal_type` — the posting the
+    lead speaks for. A company can hold several postings, and reading a
+    fractional word off one of them to justify a claim about another is the same
+    mistake in a different direction."""
+    primary_type = row.get("signal_type")
+    if primary_type not in _FRACTIONAL_TYPES:
+        return None, False
+    qualifier: str | None = None
+    evidenced = False
     for sig in row.get("signals") or []:
-        if sig.get("type") != "job_fractional_cfo":
+        if sig.get("type") != primary_type:
             continue
         payload = sig.get("payload") or {}
         title = str(payload.get("title") or sig.get("evidence_text") or "")
         if any(rx.search(title) for _q, rx in _QUALIFIER_RES):
-            return None                      # already visible in the printed role
+            return None, True                # already visible in the printed role
         description = str(payload.get("description") or "")
-        for qualifier, rx in _QUALIFIER_RES:
+        for word, rx in _QUALIFIER_RES:
             if rx.search(description):
-                return qualifier
-    return None
+                return word, True
+    return qualifier, evidenced
 
 
 def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
@@ -245,7 +279,9 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
     Field mapping:
       company     <- row["name"]
       value_prop  <- row.get("insight")
-      signal_type <- row["signal_type"]            (leadgen raw type, kept verbatim)
+      signal_type <- row["signal_type"], EXCEPT a fractional tag we cannot
+                     evidence, which reads as `job_finance_lead`
+                     (see `_fractional_evidence`)
       domain / city / state / industry             passthrough
       niche       <- row.get("niche")              (may be None)
       freshness   <- fresh|stale from the PRIMARY signal's event_date vs today
@@ -262,9 +298,29 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
     primary = _primary_signal(row)
     freshness = _freshness(primary.get("event_date"), today)
 
+    # A fractional tag we cannot evidence is downgraded HERE, once, rather than
+    # special-cased at each place that reads the type. Doing it at the door means
+    # the subject WHAT, the pack's signal rank, the lead-first priority pick and
+    # the DM all agree without any of them knowing this rule exists — and a
+    # posting can never be ranked as explicit in-market intent on a word its own
+    # body used for something else.
+    qualifier, evidenced = _fractional_evidence(row)
+    signal_type = row["signal_type"]
+    downgrade = (
+        _FRACTIONAL_TYPES.get(signal_type) if not evidenced else None
+    )
+    if downgrade is not None:
+        log.debug("inventory: %s — %s not evidenced, reading it as %s",
+                  company, signal_type, downgrade)
+        signal_type = downgrade
+
     signals = [
         Signal(
-            type=s.get("type"),
+            # Re-typed in lockstep with `signal_type` above, so nothing reading a
+            # signal can revive a claim the lead itself has already dropped.
+            type=(_FRACTIONAL_TYPES.get(str(s.get("type")))
+                  if downgrade is not None and s.get("type") in _FRACTIONAL_TYPES
+                  else s.get("type")),
             date=s.get("event_date"),
             date_confidence="high",
             plain_words_description=s.get("evidence_text"),
@@ -286,8 +342,8 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         value_prop=row.get("insight"),
         headcount=row.get("headcount"),
         headcount_band=row.get("headcount_band"),
-        role_qualifier=_fractional_qualifier(row),
-        signal_type=row["signal_type"],
+        role_qualifier=qualifier,
+        signal_type=signal_type,
         freshness=freshness,
         signals=signals,
     )
@@ -321,20 +377,43 @@ def load_taxonomy() -> dict[str, list[str]]:
     return {}
 
 
+def lead_age_days(lead: Lead, today: date) -> int | None:
+    """Age of the posting this lead SPEAKS FOR, or None when it cannot be dated.
+
+    Read off `headline_signal`, not the newest date on the record: a company
+    with several postings would otherwise borrow a fresh posting's date to keep
+    an old headline alive, which is the same subject/body mismatch
+    `headline_signal` exists to close."""
+    headline = lead.headline_signal
+    raw = headline.date if headline is not None else None
+    if not raw:
+        raw = max((s.date for s in lead.signals if s.date), default=None)
+    if not raw:
+        return None
+    try:
+        return (today - date.fromisoformat(str(raw)[:10])).days
+    except ValueError:
+        return None
+
+
+def _max_age_for(lead: Lead) -> int:
+    """The age ceiling that applies to this lead. The fractional tier gets the
+    wider window (see `config.MAX_FRACTIONAL_LEAD_AGE_DAYS`)."""
+    if lead.signal_type in _FRACTIONAL_TYPES:
+        return config.MAX_FRACTIONAL_LEAD_AGE_DAYS
+    return config.MAX_JOB_LEAD_AGE_DAYS
+
+
 def _is_expired_job_lead(lead: Lead, today: date) -> bool:
     """True for a job-posting lead whose posting is old enough that "is looking
     for a {role}" can no longer be trusted. Non-job signals (a breach) describe
     an event that stays true, so the cap does not apply to them."""
     if not (lead.signal_type or "").startswith("job_"):
         return False
-    dates = [s.date for s in lead.signals if s.date]
-    if not dates:
+    age = lead_age_days(lead, today)
+    if age is None:
         return True          # undated job posting: cannot show it is still open
-    try:
-        newest = max(date.fromisoformat(str(d)[:10]) for d in dates)
-    except ValueError:
-        return True
-    return (today - newest).days > config.MAX_JOB_LEAD_AGE_DAYS
+    return age > _max_age_for(lead)
 
 
 # --- Unusable-lead gate ----------------------------------------------------

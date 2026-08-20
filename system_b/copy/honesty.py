@@ -56,10 +56,25 @@ def relative_date(iso: str, today: date) -> str:
 
 def date_suffix(lead: Lead, today: date) -> str:
     """The relative-date clause for a lead's line, or '' when it must be
-    suppressed (low-confidence source, or no usable date)."""
+    suppressed (low-confidence source, no usable date, or too old to date).
+
+    The age cut matters because the fractional tier now enters a gift up to
+    `MAX_FRACTIONAL_LEAD_AGE_DAYS` old. "is looking for a fractional cfo" is
+    still present-tense and very likely true at four weeks; "about 4 weeks ago"
+    additionally asserts freshness, and that is the half worth dropping. The
+    lead keeps its line, it just stops claiming to be news."""
+    from system_b import config
+
     if lead.effective_date_confidence != "high":
         return ""
-    return relative_date(lead.newest_date, today)
+    iso = (lead.headline_signal.date if lead.headline_signal else None) or lead.newest_date
+    try:
+        age = (today - date.fromisoformat(str(iso)[:10])).days
+    except (ValueError, TypeError):
+        return ""
+    if age > config.MAX_DATED_LEAD_AGE_DAYS:
+        return ""
+    return relative_date(str(iso), today)
 
 
 # House style: NO em dashes anywhere in sent copy. Beyond the templates (which

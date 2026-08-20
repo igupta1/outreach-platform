@@ -472,7 +472,7 @@ def test_adapt_rows_drops_unusable_and_keeps_the_rest():
 
 # --- ALL-CAPS company names stop shouting ----------------------------------
 
-from system_b.clients.inventory import _fix_shouting, _fractional_qualifier  # noqa: E402
+from system_b.clients.inventory import _fix_shouting, _fractional_evidence  # noqa: E402
 
 
 def test_shouting_names_are_calmed_down():
@@ -503,42 +503,62 @@ def test_names_that_chose_their_own_casing_are_untouched():
         assert _fix_shouting(name) == name, name
 
 
-# --- the fractional word the title hid --------------------------------------
+# --- the fractional claim: evidence, not the tag ----------------------------
+#
+# leadgen tags a posting fractional off a WIDE word list matched in the title OR
+# anywhere in the body. Outreach re-derives the claim from the three words that
+# are never incidental, and downgrades the signal type when it cannot back it.
 
-def _frac_row(title, description):
-    return {"signals": [{"type": "job_fractional_cfo", "evidence_text": title,
-                         "payload": {"title": title, "description": description}}]}
+
+def _frac_row(title, description, *, sig_type="job_fractional_cfo"):
+    return {
+        "name": "Acme Co", "signal_type": sig_type, "domain": "acme.com",
+        "signals": [{"type": sig_type, "evidence_text": title,
+                     "event_date": "2026-08-19",
+                     "payload": {"title": title, "description": description}}],
+    }
 
 
 def test_qualifier_is_recovered_from_the_posting_body():
     """leadgen tags a posting fractional off the title OR the body, but the email
     prints the title — so a body-only qualifier left the subject promising a
     fractional role the lead line never showed. 17 of 23 emails in a real run."""
-    assert _fractional_qualifier(
-        _frac_row("Chief Financial Officer", "this is a fractional role, 10 hrs/week")
-    ) == "fractional"
-    assert _fractional_qualifier(
-        _frac_row("Chief Financial Officer", "we need an interim CFO during the search")
-    ) == "interim"
-    assert _fractional_qualifier(
-        _frac_row("Chief Financial Officer", "a part-time engagement")
-    ) == "part-time"
+    for desc, want in (
+        ("this is a fractional role, 10 hrs/week", "fractional"),
+        ("we need an interim CFO during the search", "interim"),
+        ("a part-time engagement", "part-time"),
+    ):
+        qualifier, evidenced = _fractional_evidence(_frac_row("Chief Financial Officer", desc))
+        assert (qualifier, evidenced) == (want, True), desc
 
 
 def test_no_qualifier_when_the_title_already_says_it():
-    assert _fractional_qualifier(_frac_row("Fractional CFO", "fractional role")) is None
-    assert _fractional_qualifier(_frac_row("Interim Controller", "interim")) is None
+    for title in ("Fractional CFO", "Interim Controller"):
+        qualifier, evidenced = _fractional_evidence(_frac_row(title, "fractional role"))
+        assert qualifier is None and evidenced is True, title
+
+
+def test_the_controller_rung_is_read_too():
+    """`job_fractional_controller` is the accounting pack's lead-first signal. It
+    used to be skipped here, so 9 of 40 live leads printed a plain "controller"
+    under a subject promising a fractional one."""
+    qualifier, evidenced = _fractional_evidence(
+        _frac_row("Controller", "this is a fractional controller engagement",
+                  sig_type="job_fractional_controller")
+    )
+    assert (qualifier, evidenced) == ("fractional", True)
 
 
 def test_low_confidence_words_are_never_used():
     """leadgen also matches contract/consultant/advisory/temp/virtual, but those
-    appear incidentally in ordinary job copy. Saying less beats saying it wrong."""
+    appear incidentally in ordinary job copy. Saying less beats saying it wrong —
+    and here it means the fractional claim is not evidenced AT ALL."""
     for desc in (
         "strong contract negotiation and advisory board experience",
         "you will lead consulting engagements for our clients",
         "manage temp staffing and virtual meetings",
     ):
-        assert _fractional_qualifier(_frac_row("Chief Financial Officer", desc)) is None
+        assert _fractional_evidence(_frac_row("Chief Financial Officer", desc)) == (None, False), desc
 
 
 def test_qualifier_only_reads_the_fractional_signal():
@@ -546,4 +566,118 @@ def test_qualifier_only_reads_the_fractional_signal():
         {"type": "job_finance_lead", "evidence_text": "Controller",
          "payload": {"title": "Controller", "description": "fractional work available"}},
     ]}
-    assert _fractional_qualifier(row) is None
+    assert _fractional_evidence(row) == (None, False)
+
+
+# --- an unevidenced fractional tag is downgraded at the door ----------------
+
+
+def test_unevidenced_fractional_tag_reads_as_a_finance_lead():
+    """A plain "Chief Financial Officer" tagged fractional because its body says
+    "advisory" is not an in-market fractional search. Live inventory: 31 of 171
+    cfo and 22 of 40 accounting fractional postings match only a weak word.
+
+    Downgrading at adapt time is what keeps the subject WHAT, the pack's signal
+    rank, the lead-first priority pick and the DM agreeing without any of them
+    knowing this rule exists."""
+    lead = adapt_leadgen_lead(
+        _frac_row("Chief Financial Officer", "advisory board experience required"),
+        today=date(2026, 8, 20),
+    )
+    assert lead.signal_type == "job_finance_lead"
+    assert [s.type for s in lead.signals] == ["job_finance_lead"]
+    assert lead.role_qualifier is None
+
+
+def test_evidenced_fractional_tag_is_kept():
+    lead = adapt_leadgen_lead(
+        _frac_row("Fractional CFO", "10 hrs a week"), today=date(2026, 8, 20)
+    )
+    assert lead.signal_type == "job_fractional_cfo"
+    assert [s.type for s in lead.signals] == ["job_fractional_cfo"]
+
+
+def test_unevidenced_controller_tag_reads_as_a_finance_lead():
+    lead = adapt_leadgen_lead(
+        _frac_row("Assistant Controller", "contract negotiation experience",
+                  sig_type="job_fractional_controller"),
+        today=date(2026, 8, 20),
+    )
+    assert lead.signal_type == "job_finance_lead"
+
+
+def test_body_only_qualifier_keeps_the_type_and_prefixes_the_role():
+    """The evidenced-but-hidden case: type survives AND the word is put back on
+    the printed role, so subject and body finally say the same thing."""
+    from system_b.copy.email import job_role
+
+    lead = adapt_leadgen_lead(
+        _frac_row("Chief Financial Officer", "this is a fractional role"),
+        today=date(2026, 8, 20),
+    )
+    assert lead.signal_type == "job_fractional_cfo"
+    assert lead.role_qualifier == "fractional"
+    assert job_role(lead) == "a fractional cfo"
+
+
+# --- the fractional tier gets the wider window ------------------------------
+
+
+def _aged_row(days, sig_type="job_fractional_cfo", title="Fractional CFO"):
+    when = (date(2026, 8, 20) - timedelta(days=days)).isoformat()
+    return {
+        "name": "Aged Co", "signal_type": sig_type, "domain": "aged.com",
+        "signals": [{"type": sig_type, "evidence_text": title, "event_date": when,
+                     "payload": {"title": title, "description": ""}}],
+    }
+
+
+def test_fractional_leads_get_the_thirty_day_window():
+    """The only lever that actually grows the fractional pool. leadgen already
+    scrapes fractional on a 60-day cycle vs 30 for everything else — a part-time
+    CFO search is not backfilled in three weeks. Live gain: 47 -> 117 cfo leads."""
+    today = date(2026, 8, 20)
+    for sig_type in ("job_fractional_cfo", "job_fractional_controller"):
+        assert not inv._is_expired_job_lead(
+            adapt_leadgen_lead(_aged_row(27, sig_type), today=today), today), sig_type
+        assert inv._is_expired_job_lead(
+            adapt_leadgen_lead(_aged_row(34, sig_type), today=today), today), sig_type
+
+
+def test_every_other_job_lead_keeps_the_21_day_window():
+    today = date(2026, 8, 20)
+    lead = adapt_leadgen_lead(_aged_row(27, "job_finance_lead", "Controller"), today=today)
+    assert inv._is_expired_job_lead(lead, today)
+
+
+def test_a_widened_lead_stops_claiming_to_be_news():
+    """A 27-day posting still enters a gift, but its line carries no relative
+    date: "is looking for a fractional cfo" stays true, "about 4 weeks ago"
+    is the half not worth claiming."""
+    from system_b.copy.honesty import date_suffix
+
+    today = date(2026, 8, 20)
+    fresh = adapt_leadgen_lead(_aged_row(6), today=today)
+    old = adapt_leadgen_lead(_aged_row(27), today=today)
+    assert date_suffix(fresh, today) == "6 days ago"
+    assert date_suffix(old, today) == ""
+
+
+def test_age_is_read_off_the_headline_posting():
+    """A company with several postings must not borrow a fresh posting's date to
+    keep an old headline alive."""
+    today = date(2026, 8, 20)
+    row = {
+        "name": "Two Posts", "signal_type": "job_finance_lead", "domain": "x.com",
+        "signals": [
+            {"type": "job_finance_lead", "evidence_text": "Controller",
+             "event_date": (today - timedelta(days=40)).isoformat(),
+             "payload": {"title": "Controller"}},
+            {"type": "job_junior_finance", "evidence_text": "Bookkeeper",
+             "event_date": (today - timedelta(days=2)).isoformat(),
+             "payload": {"title": "Bookkeeper"}},
+        ],
+    }
+    lead = adapt_leadgen_lead(row, today=today)
+    assert inv.lead_age_days(lead, today) == 40
+    assert inv._is_expired_job_lead(lead, today)

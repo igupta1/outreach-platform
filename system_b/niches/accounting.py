@@ -27,14 +27,16 @@ from system_b.niches.base import NichePack
 # prospect) + an accounting-flavored WHAT. Singular WHAT keys off the best
 # lead's leadgen signal type; plural WHAT keys off the gift's what_category
 # (raised / hiring / mixed).
+# The funding rows are gone, not just de-tupled: the EDGAR sources that
+# evidenced a raise were deleted, so no funding lead can reach a gift and a
+# raise claim is unprovable (see CLAUDE.md). They also outlived the rotation
+# removal as 3-tuples, which `build_who_what` no longer unpacks — a funding lead
+# would have f-stringed a Python tuple repr straight into a subject line.
 _SINGULAR_WHAT = {
-    "funding_form_d": ("just raised", "just closed a round", "just landed funding"),
-    "funding_form_c": ("just raised", "just closed a round", "just landed funding"),
     "job_fractional_controller": "is hiring a fractional controller",
     "job_finance_lead": "is hiring a controller",
 }
 _PLURAL_WHAT = {
-    "raised": ("that just raised", "that just closed a round", "that just landed funding"),
     "hiring": "hiring finance help right now",
     "mixed": "that could use accounting help right now",
 }

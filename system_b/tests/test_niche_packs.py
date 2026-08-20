@@ -145,3 +145,27 @@ def test_cfo_gift_ranks_finance_lead_over_funding_within_level():
     assert g is not None
     assert g.best_lead.id == "hire"                          # job_finance_lead (1) > funding_form_d (2)
     assert g.leads[0].id == "hire"
+
+
+# --- no pack's WHAT table may hold a tuple ----------------------------------
+
+def test_no_pack_what_table_holds_a_tuple():
+    """`build_who_what` f-strings its WHAT straight into the subject. It used to
+    unpack a tuple of equivalent phrasings (`_what_variant`, removed with the
+    rotation), and three tables outlived that removal still holding 3-tuples — a
+    funding lead would have rendered a Python tuple repr into a live subject
+    line. Pin the shape so the next table added cannot reintroduce it."""
+    from system_b.niches import accounting, bookkeeping, it_provider
+
+    tables = {
+        "accounting singular": accounting._SINGULAR_WHAT,
+        "accounting plural": accounting._PLURAL_WHAT,
+        "bookkeeping singular": bookkeeping._SINGULAR_WHAT,
+        "bookkeeping plural": bookkeeping._PLURAL_WHAT,
+        "msp singular": it_provider._MSP_SINGULAR_WHAT,
+        "mssp singular": it_provider._MSSP_SINGULAR_WHAT,
+        "cloud singular": it_provider._CLOUD_SINGULAR_WHAT,
+    }
+    for name, table in tables.items():
+        for key, value in table.items():
+            assert isinstance(value, str), f"{name}[{key!r}] is {type(value).__name__}, not str"

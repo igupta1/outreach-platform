@@ -139,7 +139,13 @@ def _client_names_phrase(prospect: Prospect) -> str:
     return f"{best[0]} and {best[1]}"
 
 
-def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
+# The CFO pack's value-prop clause. Named because `_framing` and
+# `_revenue_framing` must say the same thing, and they drifted while it was a
+# literal repeated seven times.
+_CFO_NEED = "showing they need finance help"
+
+
+def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None, *, need: str) -> str:
     """The opener when the prospect stated a client-revenue range on their site.
 
     TWO sentences, deliberately. "saw you work with $2m-$10m companies, SO i
@@ -156,7 +162,13 @@ def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
 
     This is the biggest upgrade for GENERALIST prospects, whose opener is
     otherwise "saw you're based in atlanta" — an Apollo merge field that proves
-    nothing about whether we looked at them at all."""
+    nothing about whether we looked at them at all.
+
+    `need` is the pack's value-prop clause, threaded through so every pack gets
+    this lever in its own words. It used to be hardcoded to the CFO wording,
+    which is why only the CFO pack could reach this function at all — and why
+    the review gate's `_personalization` ranked bookkeeping and accounting cards
+    for a revenue opener their copy never actually wrote."""
     n = gift.gift_size
     rev = revenue_display(prospect.client_revenue)
     city = city_display(prospect.city)
@@ -165,15 +177,15 @@ def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None) -> str:
 
     if niche:
         read = f"saw you work with {rev} {niche_noun(niche)}."
-        pulled = f"pulled {n} more showing they need finance help:"
+        pulled = f"pulled {n} more {need}:"
     else:
         read = f"saw you work with {rev} companies."
         if gift.geo_level == "city" and city:
-            pulled = f"pulled {n} {companies} in {city} showing they need finance help:"
+            pulled = f"pulled {n} {companies} in {city} {need}:"
         elif gift.geo_level == "state" and (state or city):
-            pulled = f"pulled {n} {companies} in {state} showing they need finance help:"
+            pulled = f"pulled {n} {companies} in {state} {need}:"
         else:
-            pulled = f"pulled {n} {companies} showing they need finance help:"
+            pulled = f"pulled {n} {companies} {need}:"
     return f"{read} {pulled}"
 
 
@@ -187,7 +199,7 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     # skipped for a client-list opener, which already names two of their actual
     # clients and needs no further proof that we read the page.
     if prospect.client_revenue and prospect.niche_source != "client_list":
-        return _revenue_framing(gift, prospect, niche)
+        return _revenue_framing(gift, prospect, niche, need=_CFO_NEED)
     # Framing ALWAYS uses the clean mapped niche word (niche_claim -> niche_display),
     # NEVER the raw scraped phrase — the verbatim phrase is often a nav blob
     # ("WHO WE SERVE...", "designed for:") and can leak a dollar figure. The
@@ -208,17 +220,17 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
             if named:
                 return (
                     f"noticed you've worked with {niche_noun(niche)} like {named}, "
-                    f"so i pulled {n} more showing they need finance help:"
+                    f"so i pulled {n} more {_CFO_NEED}:"
                 )
             return (
                 f"noticed you've worked with {niche_noun(niche)}, so i "
-                f"pulled {n} more showing they need finance help:"
+                f"pulled {n} more {_CFO_NEED}:"
             )
         if prospect.niche_exclusivity == "one_of_several":
             # one of SEVERAL stated industries — name ONLY the one we're gifting.
             return (
                 f"noticed you work with {niche_noun(niche)}, so i pulled {n} more "
-                f"showing they need finance help:"
+                f"{_CFO_NEED}:"
             )
         # sole — a single stated focus; still soft language ("work with").
         return (
@@ -226,7 +238,7 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
             # noun two clauses apart. "more" says the same thing and carries the
             # claim that they already work with these — which is the point.
             f"saw on your site you work with {niche_noun(niche)}, so i pulled "
-            f"{n} more showing they need finance help:"
+            f"{n} more {_CFO_NEED}:"
         )
     # geo (all_niche FALSE): open with where they're based ONLY when the leads
     # are actually in their city or state. A geo-none gift's leads are
@@ -236,14 +248,14 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     if gift.geo_level == "city" and city:
         return (
             f"saw you're based in {city}, so i pulled {n} {companies} in {city} "
-            f"showing they need finance help:"
+            f"{_CFO_NEED}:"
         )
     if gift.geo_level == "state" and based:
         return (
             f"saw you're based in {based}, so i pulled {n} {state} {companies} "
-            f"showing they need finance help:"
+            f"{_CFO_NEED}:"
         )
-    return f"i pulled {n} {companies} showing they need finance help:"
+    return f"i pulled {n} {companies} {_CFO_NEED}:"
 
 
 def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
@@ -261,6 +273,13 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     city = city_display(prospect.city)
     state = state_display(prospect.state)
     companies = noun(n, "company", "companies")
+    # Revenue is the second personalization lever and it is not CFO-specific:
+    # 23% of prospects state a client-revenue range, and the prospects it helps
+    # most are the GENERALISTS in every pack, whose opener is otherwise an Apollo
+    # merge field. Same two gates as `_framing`: skipped for a client-list opener,
+    # which already names two real clients.
+    if prospect.client_revenue and prospect.niche_source != "client_list":
+        return _revenue_framing(gift, prospect, niche, need=need)
     if niche:
         if prospect.niche_source == "client_list":
             return (
@@ -428,7 +447,8 @@ def job_role(lead: Lead) -> str:
     says "hiring {role}". Deriving the DM's wording from the email's rendered
     sentence would mean string-surgery on copy, so the shared unit is the role
     itself."""
-    raw = next((s.plain_words_description for s in lead.signals if s.plain_words_description), "") or ""
+    headline = lead.headline_signal
+    raw = (headline.plain_words_description if headline else "") or ""
     role = _clean_role(raw).lower()
     role, _ = strip_dollar_amounts(role)          # a salary in the title never reaches copy
     role = role.strip()
@@ -476,10 +496,8 @@ def _grounded_line(lead: Lead) -> str:
     """Fallback for a signal type with no template of its own: the lead's own
     verbatim evidence, never a model's paraphrase. Reached only if a new signal
     type is added without a phrase — an honest degradation, not a normal path."""
-    return next(
-        (s.plain_words_description for s in lead.signals if s.plain_words_description),
-        "",
-    )
+    headline = lead.headline_signal
+    return (headline.plain_words_description if headline else "") or ""
 
 
 def _lead_line(

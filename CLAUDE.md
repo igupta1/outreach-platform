@@ -104,6 +104,14 @@ differs per pack is the LEADS and the need clause that describes them
 ("looking for bookkeeping help" / "building out their finance function" /
 "showing they need finance help") — not the voice.
 
+**The revenue lever belongs to every pack.** 23% of prospects state a client
+revenue range, and the prospects it helps most are the GENERALISTS, whose opener
+is otherwise an Apollo merge field. `_revenue_framing` takes the pack's own
+`need` clause and both `_framing` (cfo) and `framing_line` (everyone else) route
+through it. It was cfo-only once, which also made the review gate's
+`_personalization` rank bookkeeping and accounting cards for a lever their copy
+never pulled — and that ranking IS the CSV row order.
+
 **No rotation anywhere.** Subject WHATs and the left-field line used to hold
 several equivalent phrasings picked by a hash of the firm name. That bought
 variety nobody could act on and made the copy harder to reason about, so each
@@ -186,6 +194,18 @@ it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
 - A job lead older than `config.MAX_JOB_LEAD_AGE_DAYS` (21) never enters a
   gift: the copy says a company "is looking for" a role in the present tense,
   and a closed posting makes that false with no way for the recipient to tell.
+  The FRACTIONAL tier gets `MAX_FRACTIONAL_LEAD_AGE_DAYS` (30) instead, for the
+  same reason leadgen scrapes it on a 60-day cycle: that universe is small and a
+  part-time CFO search is not backfilled in three weeks. Past
+  `MAX_DATED_LEAD_AGE_DAYS` (21) the line carries NO relative date — the
+  present-tense claim survives, the freshness claim does not. That trade is what
+  makes the wider window honest rather than merely permissive, and it is the
+  ONLY lever that grows the fractional pool (47 -> 117 live cfo leads). Loosening
+  the evidence gate instead recovers nothing: every wide-list word and every
+  engagement phrase was measured against live inventory and every single match
+  was a duty or a benefit ("Forms 1099", "40 hours per Week (Full-Time)",
+  "oversee outsourced accounting providers", "This is not a purely advisory
+  position"). Do not re-loosen it on the theory that there is signal in there.
 
 ## Lead quality gates (two layers, both drop-and-swap)
 
@@ -222,6 +242,23 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   every run silently goes 100% generalist with no error and no flag — the
   2026-08-04 regression. A 0% niche rate means check `insight` in the blob
   FIRST. It feeds the gate only; it must never reach rendered copy.
+- **The fractional word is earned, not inherited.** leadgen tags a posting
+  `job_fractional_cfo` / `job_fractional_controller` off a WIDE list (fractional,
+  interim, part-time, outsourced, virtual, contract, temp, consultant,
+  consulting, advisory) matched in the title OR anywhere in the body. Most of
+  those appear incidentally in ordinary job copy, so the TAG cannot carry the
+  claim: measured on live inventory, 31 of 171 cfo and 22 of 40 accounting
+  fractional postings matched only a weak word, including plain "Chief Financial
+  Officer" titles at a law firm and a medical center. `inventory._fractional_evidence`
+  re-derives it from the three never-incidental words and
+  `adapt_leadgen_lead` DOWNGRADES an unevidenced tag to `job_finance_lead` —
+  once, at the door, so the subject WHAT, the pack's signal rank, the lead-first
+  priority pick and the DM all agree without any of them knowing the rule exists.
+  Do not restore the raw tag as the source of a "fractional" claim.
+- **The printed role comes from `Lead.headline_signal`, never `signals[0]`.** A
+  company with several postings carries several signals and `signal_type` names
+  the strongest, which is not always the first. Reading `signals[0]` made the
+  subject describe one posting and the body another (7 of 848 live cfo leads).
 - Framing uses the clean mapped niche word, never the raw scraped phrase.
 - Soft verb ("work with"), never "focus on".
 - No dollar amounts on raises; relative dates only for high-confidence signals;

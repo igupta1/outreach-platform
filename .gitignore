@@ -29,3 +29,10 @@ sequences*.json
 
 # prospect CSV exports (Apollo) — never commit
 system_b/*.csv
+# ...including the per-pack lists kept at the repo root. Named explicitly rather
+# than by a root *.csv glob so a future non-prospect CSV is not silently hidden.
+FractionalCFO.csv
+Accounting.csv
+Bookkeeping.csv
+# the merged daily LinkedIn list (connect_queue.py) — prospect data too
+connect-queue.csv

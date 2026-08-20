@@ -718,3 +718,88 @@ def test_nonprofit_framing_and_subject_read_as_speech():
     assert "nonprofits" in _framing(g, p)
     assert "nonprofit companies" not in _framing(g, p)
     assert build_subject(g, p) == "nonprofits hiring finance leadership right now"
+
+
+# --------------------------------------------------------------------------
+# the revenue lever belongs to EVERY pack, not just cfo
+# --------------------------------------------------------------------------
+
+def test_revenue_opener_fires_for_every_pack():
+    """`_revenue_framing` was reachable only from `_framing` (the cfo pack), so
+    bookkeeping / accounting / msp prospects who stated a revenue range still
+    opened on "saw you're based in denver" — an Apollo merge field. Worse, the
+    review gate's `_personalization` ranked those cards for a lever the copy
+    never pulled, and that ranking IS the CSV row order the operator works down
+    to the LinkedIn cap."""
+    from system_b.niches.base import pack_for
+
+    p = P(niched=False, city="Denver", state="CO")
+    p.client_revenue = (2_000_000.0, 10_000_000.0)
+    gift = G(all_niche=False, geo="city")
+
+    for key in ("cfo", "accounting", "bookkeeping", "msp", "mssp", "cloud"):
+        line = pack_for(key).framing(gift, p)
+        assert line.startswith("saw you work with $2m-$10m companies."), f"{key}: {line}"
+        assert "denver" in line, f"{key}: {line}"
+
+
+def test_revenue_opener_keeps_each_packs_own_words():
+    """The clause after the gift is the pack's, not a hardcoded cfo one."""
+    from system_b.niches.base import pack_for
+
+    p = P(niched=False, city="Denver", state="CO")
+    p.client_revenue = (1_000_000.0, None)
+    gift = G(all_niche=False, geo="city")
+
+    assert "bookkeeping help" in pack_for("bookkeeping").framing(gift, p)
+    assert "finance function" in pack_for("accounting").framing(gift, p)
+    assert "it help" in pack_for("msp").framing(gift, p)
+    assert "need finance help" in pack_for("cfo").framing(gift, p)
+
+
+def test_client_list_opener_still_skips_revenue_in_every_pack():
+    """A client-list opener already names two real clients; spending words on a
+    revenue range on top of that is the one case where the lever stays off."""
+    from system_b.niches.base import pack_for
+
+    p = P(niched=True, niche="healthcare", niche_source="client_list")
+    p.client_revenue = (2_000_000.0, 10_000_000.0)
+    gift = G(all_niche=True, geo="city")
+
+    for key in ("cfo", "accounting", "bookkeeping", "msp"):
+        line = pack_for(key).framing(gift, p)
+        assert "$2m" not in line, f"{key}: {line}"
+        assert line.startswith("noticed you've worked with"), f"{key}: {line}"
+
+
+def test_the_printed_role_comes_from_the_signal_the_subject_names():
+    """A company with several postings carries several signals, and leadgen sets
+    `signal_type` from the strongest — not necessarily `signals[0]`. Reading
+    signals[0] let the subject describe one posting while the body described
+    another: Jobtailor's subject said "is hiring a fractional cfo" over a line
+    reading "is looking for a vp of finance", a different full-time posting."""
+    from system_b.copy.email import job_phrase
+    from system_b.models import Lead, Signal
+
+    lead = Lead(
+        id="x", company="Jobtailor", domain="jobtailor.com",
+        signal_type="job_fractional_cfo",
+        signals=[
+            Signal(type="job_finance_lead", date="2026-08-01",
+                   plain_words_description="VP of Finance (San Francisco)"),
+            Signal(type="job_fractional_cfo", date="2026-08-18",
+                   plain_words_description="Interim Chief Financial Officer"),
+        ],
+    )
+    assert lead.headline_signal.type == "job_fractional_cfo"
+    assert job_phrase(lead) == "is looking for an interim cfo"
+
+
+def test_headline_signal_falls_back_when_no_type_matches():
+    from system_b.models import Lead, Signal
+
+    lead = Lead(
+        id="y", company="Odd Co", signal_type="job_security",
+        signals=[Signal(type="job_it_support", plain_words_description="Help Desk Tech")],
+    )
+    assert lead.headline_signal.plain_words_description == "Help Desk Tech"

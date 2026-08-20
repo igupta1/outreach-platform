@@ -63,6 +63,31 @@ class Lead(BaseModel):
         return max(dates) if dates else ""
 
     @property
+    def headline_signal(self) -> Signal | None:
+        """The signal this lead SPEAKS FOR — the one `signal_type` names.
+
+        Not `signals[0]`. A company that posted several roles carries several
+        signals, and leadgen sets the row's `signal_type` from the strongest
+        one, which is not necessarily the first in the list. Reading `signals[0]`
+        for the printed role therefore let the subject describe one posting while
+        the body described another: Jobtailor's subject said "is hiring a
+        fractional cfo" (from an interim-CFO posting) over a line reading "is
+        looking for a vp of finance" (a different, full-time posting on the same
+        company). 7 of 848 live cfo leads carry that mismatch.
+
+        Falls back to the first signal with a usable description, so a lead whose
+        types do not line up still prints something grounded."""
+        typed = [
+            s for s in self.signals
+            if s.type == self.signal_type and (s.plain_words_description or "").strip()
+        ]
+        if typed:
+            return typed[0]
+        return next(
+            (s for s in self.signals if (s.plain_words_description or "").strip()), None
+        )
+
+    @property
     def primary_source_url(self) -> str | None:
         """First signal's source link (SEC filing / job post / breach disclosure),
         used as the lead's headline evidence URL on the review page."""
