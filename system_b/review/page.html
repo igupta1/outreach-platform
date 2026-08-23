@@ -78,6 +78,25 @@
   .card.past-cap a.connect { background:#f1f1f4; color:var(--muted); font-weight:500; }
   .card.past-cap .n::after { content:' email only'; font-size:11px; color:var(--muted); }
   .warn { color:#b45309; font-weight:600; }
+  /* Pack divider. Sticks to the top while you scroll a pack's cards, so you
+     always know which campaign the card in front of you belongs to — the whole
+     risk of one page is pasting cfo copy into the bookkeeping campaign. */
+  .packbar { position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; gap:6px 12px;
+             align-items:baseline; margin:26px 0 4px; padding:10px 14px;
+             background:#111; color:#fff; border-radius:10px; }
+  .packbar .pk { font-weight:700; font-size:15px; letter-spacing:.02em; }
+  .packbar .pmeta { color:#a1a1aa; font-size:12.5px; }
+  .packbar .dl { margin-left:auto; font-size:12.5px; font-weight:600; padding:5px 12px;
+                 border-radius:99px; background:#fff; color:#111; border:0; cursor:pointer; }
+  .packbar .dl:hover { background:#e4e4e8; }
+  .packsec { margin:0 0 30px; }
+  /* The connect pick. Global across every pack — LinkedIn's cap is one budget,
+     so the top N is chosen across the whole day, not per campaign. */
+  a.connect.pick { background:#1d4ed8; color:#fff; }
+  a.connect.pick:hover { background:#1739a8; }
+  .chead .rk { font-size:11px; font-weight:700; color:#1d4ed8; background:#eef4ff;
+               border-radius:99px; padding:1px 8px; white-space:nowrap; }
+  .errs { max-width:960px; margin:8px auto 0; padding:0 20px; color:#b91c1c; font-size:13px; }
   a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration:underline; }
   .fields { display:grid; gap:10px; }
   .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
@@ -100,22 +119,23 @@
 <header>
   <h1 id="count">—</h1>
   <div class="sub" id="meta"></div>
-  <details class="skips" id="skips" hidden>
-    <summary></summary>
-    <table id="skips-body"></table>
-  </details>
 </header>
-<div class="shared"><details id="shared"><summary></summary></details></div>
+<div class="errs" id="errs" hidden></div>
 <main id="rows"></main>
 <footer>
-  <button id="download">Download email CSV</button>
-  <button id="download-li" class="secondary">Download LinkedIn CSV</button>
+  <span class="foot-note" id="foot-email"></span>
+  <button id="download-li">Download LinkedIn CSV (all packs)</button>
   <span id="removed" hidden></span>
   <span class="foot-note" id="foot"></span>
 </footer>
 
 <script>
-const REVIEW = __REVIEW_DATA__;
+const DOC = __REVIEW_DATA__;
+const PACKS = DOC.packs || [];
+// Flat view of every prospect across every pack, each tagged with the pack it
+// came from. The page groups BY pack (each goes to a different campaign) but
+// ranks connect picks ACROSS packs, so both views are needed.
+const ALL = [];
 // TWO exports, because they have different lifetimes. The email CSV goes into
 // the sequencer today and is never looked at again — the copy lives in the
 // campaign after that. The LinkedIn CSV goes into the history sheet and is read
@@ -339,8 +359,8 @@ function evidenceBlock(p) {
   return d;
 }
 
-function card(p, idx) {
-  const c = el("div", {class:"card", "data-idx":idx});
+function card(p, idx, pi) {
+  const c = el("div", {class:"card", "data-idx":idx, "data-pack":pi});
   const loc = [p.city, p.state].filter(Boolean).join(", ");
   // Drop this prospect from the run. Marked, not deleted: `buildCsv` skips a
   // removed card, so it leaves the CSV, and keeping the node is what makes
@@ -362,9 +382,14 @@ function card(p, idx) {
                title:"open LinkedIn to send the connection request"}, text("connect ↗"))
     : el("span", {class:"pill", title:"no LinkedIn URL in the Apollo export"},
          text("no linkedin"));
+  // Filled by refreshCounts(), which is the only thing that knows the GLOBAL
+  // ordering — a card cannot work out its own connect rank from inside its pack.
+  const rk = el("span", {class:"rk"});
+  rk.hidden = true;
   c.append(el("div", {class:"chead"},
     el("span", {class:"n"}, text("#" + (idx+1))),
     el("span", {class:"co"}, text(p.company || "(no name)")),
+    rk,
     tier,
     el("span", {class:"who"}, text([p.first_name, p.email, loc].filter(Boolean).join("  ·  "))),
     li,
@@ -395,12 +420,44 @@ const CONNECT_CAP = 20;
 
 function refreshCounts() {
   const live = [...document.querySelectorAll(".card:not(.removed)")];
-  live.forEach((c, i) => c.classList.toggle("past-cap", i >= CONNECT_CAP));
+
+  // The connect picks are chosen ACROSS every pack, because LinkedIn's daily
+  // cap is one budget for the whole day, not one per campaign. A bookkeeping
+  // prospect with named clients outranks a cfo prospect matched only on state,
+  // and grouping the page by pack must not hide that.
+  //
+  // Recomputed on every removal: × someone in the top 20 and the 21st is
+  // promoted immediately, which counting row numbers per section could never do.
+  const ranked = live
+    .map(c => ({c, r: rankOf(c), co: (prospectOf(c).company || "").toLowerCase()}))
+    .sort((a, b) => a.r - b.r || (a.co < b.co ? -1 : a.co > b.co ? 1 : 0));
+  ranked.forEach((row, i) => {
+    const pick = i < CONNECT_CAP;
+    row.c.classList.toggle("past-cap", !pick);
+    const a = row.c.querySelector("a.connect");
+    if (a) a.classList.toggle("pick", pick);
+    const rk = row.c.querySelector(".rk");
+    if (rk) {
+      rk.hidden = !pick;
+      rk.textContent = pick ? "connect #" + (i + 1) : "";
+    }
+  });
+
   const flagged = live.filter(c => c.querySelector(".flags")).length;
   const n = live.length;
+  const connectable = ranked.filter(r => r.c.querySelector("a.connect")).length;
   document.getElementById("count").textContent =
-    n + " prospect" + (n===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged
-    + " flagged  ·  connect with the top " + Math.min(n, CONNECT_CAP);
+    n + " prospect" + (n===1?"":"s") + " across " + PACKS.length + " pack"
+    + (PACKS.length===1?"":"s") + "  ·  " + (n - flagged) + " clean  ·  " + flagged
+    + " flagged  ·  connect with the top " + Math.min(connectable, CONNECT_CAP);
+
+  // Per-pack live counts on each divider, so a pack you have emptied is obvious.
+  PACKS.forEach((pk, pi) => {
+    const el2 = document.getElementById("pmeta-" + pi);
+    if (!el2) return;
+    const c = document.querySelectorAll('.card[data-pack="' + pi + '"]:not(.removed)').length;
+    el2.textContent = c + " prospect" + (c===1?"":"s") + "  ·  generated " + (pk.generated_at || "?");
+  });
 
   const removed = document.querySelectorAll(".card.removed").length;
   const box = document.getElementById("removed");
@@ -416,60 +473,105 @@ function refreshCounts() {
   }
 }
 
-// Most-personalized first. This is not just a reading order: `buildCsv` walks
-// the cards in DOM order, so sorting here sorts the exported CSV, and the
-// strongest emails are the ones that go into the campaign first.
+function prospectOf(cardEl) {
+  return PACKS[+cardEl.getAttribute("data-pack")].prospects[+cardEl.getAttribute("data-idx")];
+}
+
+function rankOf(cardEl) {
+  const p = prospectOf(cardEl);
+  return (p.personalization && p.personalization.rank) || 99;
+}
+
+// Most-personalized first, WITHIN each pack. This is not just a reading order:
+// `buildCsv` walks the cards in DOM order, so sorting here sorts the exported
+// CSV, and the strongest emails go into the campaign first.
 //
 // Sorted in place, before any card is built, so every index (`data-idx`, the
 // "#N" label, the CSV lookup) refers to the same prospect. A row from an older
 // run with no `personalization` sorts last rather than throwing.
-//
-// Worth knowing when you read the results: front-loading the best emails means
-// reply rate starts high and drifts down for reasons that have nothing to do
-// with fatigue or deliverability.
-function sortByPersonalization() {
+function sortByPersonalization(prospects) {
   const rank = (p) => (p.personalization && p.personalization.rank) || 99;
-  (REVIEW.prospects || []).sort((a, b) => rank(a) - rank(b));
+  prospects.sort((a, b) => rank(a) - rank(b));
 }
 
-function render() {
-  sortByPersonalization();
-  document.getElementById("meta").textContent =
-    "pack: " + (REVIEW.pack||"?") + "  ·  generated " + (REVIEW.generated_at||"?");
-  document.getElementById("foot").textContent =
-    "email CSV -> your sequencer  ·  LinkedIn CSV -> your history sheet";
-
-  if (REVIEW.skipped && REVIEW.skipped.length) {
-    const d = document.getElementById("skips");
-    d.hidden = false;
-    d.querySelector("summary").textContent = REVIEW.skipped.length + " prospect(s) skipped (no sequence) — show";
-    const body = document.getElementById("skips-body");
-    for (const s of REVIEW.skipped)
-      body.append(el("tr", {}, el("td",{},text(s.firm||"?")), el("td",{},text(s.reason||"?"))));
-  }
-
-  // Identical on every prospect, so it is shown ONCE. These are authored
-  // constants in the code, not per-run copy — read-only here because the place
-  // to change them is where the reasoning for each line is written down.
-  const first = (REVIEW.prospects||[])[0] || {};
+// Identical on every prospect IN THIS PACK, so it is shown once per pack. The
+// left-field line names the pack's audience ("built this one for bookkeepers"),
+// so it genuinely differs between packs and cannot be hoisted to the page.
+// These are authored constants in the code — read-only here because the place
+// to change them is where the reasoning for each line is written down.
+function sharedBlock(pk) {
+  const first = (pk.prospects || [])[0] || {};
   const shared = [
     ["email 1, closing", first.email_1_tail],
     ["email 3 (in full)", first.email_3],
   ].filter(([, v]) => v);
-  const sd = document.getElementById("shared");
-  if (shared.length) {
-    sd.querySelector("summary").textContent =
-      "identical on all " + (REVIEW.prospects||[]).length + " prospects — show";
-    for (const [label, body] of shared) {
-      sd.append(el("div", {class:"lbl"}, text(label)));
-      sd.append(el("pre", {}, text(body)));
-    }
-  } else {
-    sd.hidden = true;
+  if (!shared.length) return null;
+  const wrap = el("div", {class:"shared"});
+  const d = el("details");
+  // No count in the label: removing a card would leave it stale, and the point
+  // is that this copy is the same on every card, not how many there are.
+  d.append(el("summary", {}, text(
+    "identical on every " + pk.pack + " prospect — show")));
+  for (const [label, body] of shared) {
+    d.append(el("div", {class:"lbl"}, text(label)));
+    d.append(el("pre", {}, text(body)));
+  }
+  wrap.append(d);
+  return wrap;
+}
+
+function skipsBlock(pk) {
+  if (!pk.skipped || !pk.skipped.length) return null;
+  const d = el("details", {class:"skips"});
+  d.append(el("summary", {}, text(pk.skipped.length + " prospect(s) skipped (no sequence) — show")));
+  const t = el("table");
+  for (const sk of pk.skipped)
+    t.append(el("tr", {}, el("td",{},text(sk.firm||"?")), el("td",{},text(sk.reason||"?"))));
+  d.append(t);
+  return d;
+}
+
+// One divider per pack, carrying that pack's own email download. The email CSVs
+// stay SEPARATE because each goes to a different campaign; only the LinkedIn
+// export is combined, because it all lands in one history sheet.
+function packBar(pk, pi) {
+  const bar = el("div", {class:"packbar"});
+  const dl = el("button", {class:"dl", type:"button"},
+                text("Download " + pk.pack + " email CSV"));
+  dl.addEventListener("click", () => download(pk.pack + "-emails.csv", EMAIL_COLUMNS, pi));
+  bar.append(
+    el("span", {class:"pk"}, text(pk.pack)),
+    el("span", {class:"pmeta", id:"pmeta-" + pi}),
+    dl);
+  return bar;
+}
+
+function render() {
+  const errs = DOC.errors || [];
+  if (errs.length) {
+    const box = document.getElementById("errs");
+    box.hidden = false;
+    box.textContent = "could not read: " + errs.join("  ·  ");
   }
 
+  document.getElementById("meta").textContent =
+    PACKS.map(pk => pk.pack + " (" + (pk.prospects||[]).length + ")").join("  ·  ");
+  document.getElementById("foot-email").textContent =
+    "email CSV: one per pack, in its divider above";
+  document.getElementById("foot").textContent =
+    "LinkedIn CSV -> your history sheet (all packs, one paste)";
+
   const main = document.getElementById("rows");
-  (REVIEW.prospects||[]).forEach((p,i) => main.append(card(p,i)));
+  PACKS.forEach((pk, pi) => {
+    sortByPersonalization(pk.prospects || []);
+    const sec = el("div", {class:"packsec"});
+    sec.append(packBar(pk, pi));
+    const sk = skipsBlock(pk);   if (sk) sec.append(sk);
+    const sh = sharedBlock(pk);  if (sh) sec.append(sh);
+    (pk.prospects||[]).forEach((p, i) => sec.append(card(p, i, pi)));
+    main.append(sec);
+    ALL.push(...(pk.prospects||[]).map(p => ({p, pack: pk.pack})));
+  });
   refreshCounts();
   autosizeAll();
 }
@@ -485,13 +587,19 @@ function csvCell(v) {
   return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 }
 
-function buildCsv(columns) {
+// `packIndex === null` exports every pack (the combined LinkedIn CSV);
+// otherwise just that pack's cards (one campaign's email CSV).
+function buildCsv(columns, packIndex) {
   const lines = [columns.join(",")];
+  const sel = packIndex === null || packIndex === undefined
+    ? ".card:not(.removed)"
+    : '.card[data-pack="' + packIndex + '"]:not(.removed)';
   // `:not(.removed)` is what makes the X real: a removed prospect leaves the
   // downloaded CSV entirely, which is the only place removal has to hold.
-  document.querySelectorAll(".card:not(.removed)").forEach(cardEl => {
-    const idx = +cardEl.getAttribute("data-idx");
-    const p = REVIEW.prospects[idx];
+  document.querySelectorAll(sel).forEach(cardEl => {
+    const pi = +cardEl.getAttribute("data-pack");
+    const pk = PACKS[pi];
+    const p = pk.prospects[+cardEl.getAttribute("data-idx")];
     const edited = {};
     cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
     // Re-join the edited head with the dimmed closing, so the exported email is
@@ -500,7 +608,7 @@ function buildCsv(columns) {
     const head = (edited.email_1_head !== undefined ? edited.email_1_head : p.email_1_head) || "";
     const email1 = tail ? (head.replace(/\s+$/, "") + "\n\n" + tail) : head;
     const row = {
-      pack: REVIEW.pack, cohort_date: REVIEW.generated_at,
+      pack: pk.pack, cohort_date: pk.generated_at,
       email: p.email, first_name: p.first_name, last_name: p.last_name,
       company: p.company, linkedin_url: p.linkedin,
       subject: edited.subject, email_1: email1,
@@ -512,18 +620,20 @@ function buildCsv(columns) {
   return lines.join("\r\n") + "\r\n";
 }
 
-function download(name, columns) {
-  const blob = new Blob([buildCsv(columns)], {type:"text/csv;charset=utf-8"});
+function download(name, columns, packIndex) {
+  const blob = new Blob([buildCsv(columns, packIndex)], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;
   document.body.append(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
 }
-document.getElementById("download")
-  .addEventListener("click", () => download("sequences.csv", EMAIL_COLUMNS));
+
+// ONE LinkedIn export for every pack. It all gets pasted into a single history
+// sheet that is searched by name weeks later, when someone finally accepts a
+// connection request — three files would mean three places to look.
 document.getElementById("download-li")
-  .addEventListener("click", () => download("linkedin.csv", LINKEDIN_COLUMNS));
+  .addEventListener("click", () => download("linkedin.csv", LINKEDIN_COLUMNS, null));
 
 render();
 </script>

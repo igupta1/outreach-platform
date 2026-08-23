@@ -168,37 +168,34 @@ button at the bottom that rebuilds the exact output CSV (byte-identical to
 `run.py`'s) from whatever you edited. It is read-only + client-side + send-free —
 it never sends, stores CRM state, or talks to Airtable. `system_b/review/`.
 
-## The daily connection list (`connect_queue.py`)
+## One review gate for every pack
 
-Each pack is generated and reviewed separately, so each writes its own review
-JSON — but the LinkedIn cap is ONE budget across every campaign, not one per
-pack. Working three files down separately spends it three different ways.
-
-```bash
-system_b/.venv/bin/python -m system_b.connect_queue \
-    cfo.review.json acct.review.json book.review.json --top 20
-```
-
-Merges every pack, sorts by the same `personalization.rank` the review gate and
-the exported CSV use, drops anyone with no LinkedIn URL (so a list of 20 is 20
-people you can act on), and writes `connect-queue.csv`. Read-only and send-free
-like the review gate — nothing here talks to LinkedIn, and nothing may.
-
-## The daily connection list (`connect_queue.py`)
-
-Each pack is generated and reviewed separately, so each writes its own review
-JSON — but the LinkedIn cap is ONE budget across every campaign, not one per
-pack. Working three files down separately spends it three different ways.
+Each pack is generated separately (each needs its own `--pack` voice), but the
+operator's day is not divided that way. `serve.py` takes every pack's review
+JSON and renders ONE page:
 
 ```bash
-system_b/.venv/bin/python -m system_b.connect_queue \
-    cfo.review.json acct.review.json book.review.json --top 20
+system_b/.venv/bin/python -m system_b.review.serve \
+    --review cfo.review.json acct.review.json book.review.json
 ```
 
-Merges every pack, sorts by the same `personalization.rank` the review gate and
-the exported CSV use, drops anyone with no LinkedIn URL (so a list of 20 is 20
-people you can act on), and writes `connect-queue.csv`. Read-only and send-free
-like the review gate — nothing here talks to LinkedIn, and nothing may.
+Three rules make one page work, and each answers a question three pages
+answered badly:
+
+- **Grouped by pack, with a sticky divider.** Each pack's cards sit under a bar
+  naming it, because the whole risk of one page is pasting cfo copy into the
+  bookkeeping campaign.
+- **Email CSVs stay SEPARATE**, one button per pack in its own divider — each
+  goes to a different Smartlead campaign.
+- **The LinkedIn CSV is COMBINED**, one button for the whole page. It all gets
+  pasted into a single history sheet that is searched by name weeks later, when
+  someone finally accepts; three files would be three places to look.
+- **Connect picks are ranked GLOBALLY.** LinkedIn's daily cap is one budget
+  across everything running, not one per campaign, so the top `CONNECT_CAP`
+  is chosen across every pack at once and badged `connect #N` on the card. A
+  bookkeeping prospect with named clients outranks a cfo prospect matched only
+  on state, and grouping by pack must not hide that. Removing a card recomputes
+  the picks immediately, so the 21st is promoted the moment you × the 3rd.
 
 ## Layout (`system_b/`)
 

@@ -218,3 +218,36 @@ def test_step3_consumes_no_lead_from_the_inventory():
     assert len(extra) == 1                       # only Email #2 pulled one
     assert followup_leads[1] is None             # step 3 carries no lead
     assert followup_leads[0] is not None and followup_leads[0].id == extra[0]
+
+
+def test_followup_niche_qualifier_carries_its_noun():
+    """"found one more healthcare showing the same signal" was missing the noun,
+    and only on the NICHE path — which is the path rank 1-3 prospects take, so
+    the best emails in every run carried it. Goes through `niche_noun` now, like
+    every other niche mention in the copy."""
+    from system_b.copy.email import _followup_qualifier
+    from system_b.gift.models import Prospect
+    from system_b.models import Lead
+
+    def P(niche):
+        return Prospect(firm_name="F", city="Denver", state="CO",
+                        classification="niched", match_param=("industry", niche))
+
+    lead = Lead(id="1", company="X", city="Denver", state="CO",
+                signal_type="job_finance_lead", niche="healthcare", industry="healthcare")
+    assert _followup_qualifier(lead, P("healthcare")) == "healthcare company "
+
+    # labels that are not adjectives get their real noun, not "<label> company"
+    lead2 = Lead(id="2", company="Y", city="Denver", state="CO",
+                 signal_type="job_finance_lead", niche="nonprofit", industry="nonprofit")
+    assert _followup_qualifier(lead2, P("nonprofit")) == "nonprofit "
+
+
+def test_followup_geo_qualifier_is_unchanged():
+    from system_b.copy.email import _followup_qualifier
+    from system_b.gift.models import Prospect
+    from system_b.models import Lead
+
+    p = Prospect(firm_name="F", city="Denver", state="CO", classification="generalist")
+    lead = Lead(id="1", company="X", city="Denver", state="CO", signal_type="job_finance_lead")
+    assert _followup_qualifier(lead, p) == "in denver "

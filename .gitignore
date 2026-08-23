@@ -34,5 +34,7 @@ system_b/*.csv
 FractionalCFO.csv
 Accounting.csv
 Bookkeeping.csv
-# the merged daily LinkedIn list (connect_queue.py) — prospect data too
+# the review gate's downloads (prospect data) if saved next to the repo
 connect-queue.csv
+*-emails.csv
+linkedin.csv

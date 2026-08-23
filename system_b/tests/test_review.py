@@ -216,16 +216,58 @@ def test_page_marks_rows_past_the_daily_connection_cap():
     assert 'toggle("past-cap"' in page
 
 
+def _review_file(tmp_path, name, pack, prospects, skipped=()):
+    path = tmp_path / name
+    path.write_text(json.dumps({
+        "pack": pack, "generated_at": "2026-07-20", "valid_count": len(prospects),
+        "skipped": list(skipped), "prospects": prospects,
+    }), encoding="utf-8")
+    return path
+
+
 def test_serve_renders_and_injects(tmp_path):
     from system_b.review import serve
-    doc = {"pack": "cfo", "generated_at": "2026-07-20", "valid_count": 1, "skipped": [],
-           "prospects": [_built()]}
-    path = tmp_path / "r.json"
-    path.write_text(json.dumps(doc), encoding="utf-8")
-    html = serve.render(path).decode("utf-8")
+    path = _review_file(tmp_path, "r.json", "cfo", [_built()])
+    html = serve.render([path]).decode("utf-8")
     assert "__REVIEW_DATA__" not in html          # placeholder was replaced
     assert "Beacon" in html                        # prospect data is embedded
     assert "prospect" in html                      # page shell present
+
+
+def test_serve_merges_every_pack_in_order(tmp_path):
+    """One page for the whole day. Order is the order given, which is the order
+    the packs were run in -- and therefore the ledger precedence order."""
+    from system_b.review import serve
+    a = _review_file(tmp_path, "cfo.json", "cfo", [_built()])
+    b = _review_file(tmp_path, "book.json", "bookkeeping", [_built()])
+    data = serve.load_packs([a, b])
+    assert [p["pack"] for p in data["packs"]] == ["cfo", "bookkeeping"]
+    assert data["errors"] == []
+    assert all(len(p["prospects"]) == 1 for p in data["packs"])
+
+
+def test_one_unreadable_file_does_not_cost_the_review(tmp_path):
+    from system_b.review import serve
+    good = _review_file(tmp_path, "good.json", "cfo", [_built()])
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    data = serve.load_packs([good, bad])
+    assert [p["pack"] for p in data["packs"]] == ["cfo"]
+    assert len(data["errors"]) == 1 and "bad.json" in data["errors"][0]
+
+
+def test_page_ranks_connect_picks_across_packs_and_splits_the_downloads(tmp_path):
+    """The two rules that make one page work: email CSVs stay per-pack (each
+    goes to a different campaign), the LinkedIn CSV is combined (it all lands in
+    one history sheet), and the connect cap is chosen across every pack because
+    LinkedIn's cap is one budget for the day."""
+    page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
+    # per-pack email export, whole-page linkedin export
+    assert 'download(pk.pack + "-emails.csv", EMAIL_COLUMNS, pi)' in page
+    assert 'download("linkedin.csv", LINKEDIN_COLUMNS, null)' in page
+    # the cap is applied to a globally-sorted list, not per section
+    assert "const ranked = live" in page
+    assert "i < CONNECT_CAP" in page
 
 
 # --- personalization tiers: the review gate's sort, and the CSV's row order ---

@@ -605,14 +605,22 @@ def build_email_1(
 
 
 def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
-    """An HONEST qualifier for a follow-up lead ("dental ", "in denver ", ...),
-    used only when the lead genuinely matches that facet of the prospect. Empty
-    when nothing matches, so we never imply a relationship that isn't there."""
+    """An HONEST qualifier for a follow-up lead ("dental practice ", "in denver
+    ", ...), used only when the lead genuinely matches that facet of the
+    prospect. Empty when nothing matches, so we never imply a relationship that
+    isn't there.
+
+    The niche branch goes through `niche_noun` like every other niche mention in
+    the copy. Returning the bare LABEL rendered "found one more healthcare
+    showing the same signal" — a missing noun, and only on the niche path, which
+    is the path rank 1-3 prospects take. The best emails in every run carried
+    it. `niche_noun` also fixes the labels that are not adjectives at all:
+    "nonprofit" -> "nonprofit", "legal" -> "law firm"."""
     lvl = compute_match_level(lead, prospect)
     if prospect.classification == "niched" and lvl is not None and lvl <= 3:
         niche = niche_display(prospect.match_param)
         if niche:
-            return f"{niche} "
+            return f"{niche_noun(niche, 1)} "
     city = city_display(prospect.city)
     state = state_display(prospect.state)
     if city and lead.city and city_display(lead.city) == city:
