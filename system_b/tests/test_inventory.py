@@ -681,3 +681,41 @@ def test_age_is_read_off_the_headline_posting():
     lead = adapt_leadgen_lead(row, today=today)
     assert inv.lead_age_days(lead, today) == 40
     assert inv._is_expired_job_lead(lead, today)
+
+
+# --- a first-seen stamp must not be rendered as recency ---------------------
+
+
+def test_low_confidence_dates_are_carried_through_and_never_printed():
+    """The fractional board publishes no posting date, so leadgen stamps
+    first-seen and marks it low. Hardcoding "high" here is what let a Webflow
+    site-build timestamp reach a sent email as "about 2 weeks ago"."""
+    from system_b.copy.honesty import date_suffix
+
+    today = date(2026, 8, 20)
+    row = {
+        "name": "Board Co", "signal_type": "job_fractional_cfo", "domain": "board.com",
+        "signals": [{"type": "job_fractional_cfo", "evidence_text": "Fractional CFO",
+                     "event_date": (today - timedelta(days=9)).isoformat(),
+                     "date_confidence": "low",
+                     "payload": {"title": "Fractional CFO"}}],
+    }
+    lead = adapt_leadgen_lead(row, today=today)
+    assert lead.signals[0].date_confidence == "low"
+    assert date_suffix(lead, today) == ""          # no recency claim
+    assert not inv._is_expired_job_lead(lead, today)  # still a usable gift lead
+
+
+def test_a_real_posting_date_still_prints():
+    from system_b.copy.honesty import date_suffix
+
+    today = date(2026, 8, 20)
+    row = {
+        "name": "Indeed Co", "signal_type": "job_finance_lead", "domain": "ic.com",
+        "signals": [{"type": "job_finance_lead", "evidence_text": "Controller",
+                     "event_date": (today - timedelta(days=3)).isoformat(),
+                     "payload": {"title": "Controller"}}],
+    }
+    lead = adapt_leadgen_lead(row, today=today)
+    assert lead.signals[0].date_confidence == "high"   # absent field -> high
+    assert date_suffix(lead, today) == "3 days ago"

@@ -322,7 +322,15 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
                   if downgrade is not None and s.get("type") in _FRACTIONAL_TYPES
                   else s.get("type")),
             date=s.get("event_date"),
-            date_confidence="high",
+            # Read it, never assume it. Hardcoding "high" meant a first-seen
+            # stamp was rendered as a recency claim: the fractional board
+            # publishes no posting date, so its leads printed "about 2 weeks
+            # ago" off a Webflow site-build timestamp. `copy.honesty.date_suffix`
+            # already suppresses a date on anything not "high" -- it just never
+            # got the chance. Older inventory carries no field, and defaulting
+            # those to "high" is right: every other source publishes a real
+            # posting, filing or disclosure date.
+            date_confidence=s.get("date_confidence") or "high",
             plain_words_description=s.get("evidence_text"),
             source_url=s.get("source_url"),
         )
