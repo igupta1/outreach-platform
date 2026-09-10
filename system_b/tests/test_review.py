@@ -34,6 +34,17 @@ def _lead(id, company, *, niche=None, city=None, state=None, domain="x.com",
 # source_url survives the inventory adapter (was dropped before this feature)
 # --------------------------------------------------------------------------
 
+class _Research:
+    """Stub for the site crawl. Carries a `rung` because a prospect whose site
+    never says which of bookkeeping / accounting / CFO work they sell is now
+    HELD rather than given a guessed voice."""
+    rung = "cfo"
+    rung_evidence = ("fractional cfo",)
+    candidate_phrases = ()
+    evidence = ()
+    flags = ()
+
+
 def test_adapter_carries_source_url():
     from system_b.clients.inventory import adapt_leadgen_lead
     row = {
@@ -169,7 +180,7 @@ def test_generate_sequence_includes_review(monkeypatch):
                         what_category="hiring", best_lead_level=None)
         return None
 
-    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: None)
+    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: _Research())
     monkeypatch.setattr(gen, "resolve_gift", lambda research, row, sc, pack=None: (prospect, gift))
     monkeypatch.setattr(gen, "build_gift", fake_build_gift)
 

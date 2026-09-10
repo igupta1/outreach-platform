@@ -14,6 +14,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from system_b.research.classifier import THIN_MIN_CHARS
+
 # Subpages worth reading, matched against href path + anchor text (Step 2).
 _PAGE_KEYWORDS = (
     "about", "industr", "who-we-serve", "whoweserve", "who_we_serve",
@@ -63,10 +65,39 @@ def discover_links(source: str, base_url: str) -> list[str]:
     return out
 
 
+def _render_fallback(url: str) -> dict[str, str]:
+    """Render homepage + discovered subpages when the regex path came back
+    thin. Discovery runs on the RENDERED dom, same as the corpus crawler --
+    a nav built by JavaScript is invisible to the regex path, which is part of
+    why it finds so little. Never raises; an empty dict means "no better than
+    the regex path", not an error."""
+    from system_b.research.render import render_sync
+
+    home = render_sync([url], concurrency=1)
+    home_html = home.get(url, {}).get("html", "")
+    if not home_html:
+        return {}
+    pages = {url.rstrip("/"): home_html}
+    subs = discover_links(home_html, url)
+    if subs:
+        rendered = render_sync(subs, concurrency=3)
+        for u, r in rendered.items():
+            if r.get("html"):
+                pages[u] = r["html"]
+    return {u: html_to_text(h) for u, h in pages.items()}
+
+
 def fetch_site(url: str) -> dict[str, str]:
     """Best-effort {url: text} for the homepage + discovered subpages. Any
     failure (bad URL, network error, unreachable site) yields {} or a partial
-    map, which the classifier treats as a thin site -> generalist. Never raises."""
+    map, which the classifier treats as a thin site -> generalist. Never raises.
+
+    Regex first, always -- it's ~200ms/page and correct for server-rendered
+    sites. Only when that comes back under THIN_MIN_CHARS (the classifier's own
+    generalist floor) do we pay for a headless render, and only keep it if it
+    actually reads more than the regex path did. Gate A's verbatim rule is
+    unchanged either way -- rendering just means more pages are readable for it
+    to check a claim against."""
     site: dict[str, str] = {}
     if not url or not url.lower().startswith(("http://", "https://")):
         return site  # e.g. an email address in the Website column
@@ -87,4 +118,12 @@ def fetch_site(url: str) -> dict[str, str]:
                     continue
     except Exception:
         return site
+
+    if sum(len(v) for v in site.values()) < THIN_MIN_CHARS:
+        try:
+            rendered = _render_fallback(url)
+        except Exception:
+            rendered = {}
+        if sum(len(v) for v in rendered.values()) > sum(len(v) for v in site.values()):
+            return rendered
     return site

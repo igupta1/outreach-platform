@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from system_b.clients.inventory import MAGNET_INDUSTRY
 from system_b.copy.email import build_email_1, build_followup_email
 from system_b.copy.linkedin import build_dm_1, build_dm_1_evergreen, build_dm_2
 from system_b.gift.engine import build_gift
@@ -21,7 +22,6 @@ from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
 from system_b.research.service import research_prospect
 from system_b.review.payload import build_review
-
 
 
 def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
@@ -60,26 +60,99 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     return drafts, extra_ids, [lead, None]
 
 
+# --- Backlog ---------------------------------------------------------------
+
+
+def _backlog_row(row: dict[str, Any], research: Any, prospect: Any,
+                 reason: str | None = None) -> dict[str, Any]:
+    """One held prospect, with the reason separated into three cases that mean
+    very different things:
+
+      no_magnet     They state a vertical, we mapped it, and we have no leads
+                    for it. THE valuable list — it is the demand side telling
+                    you which magnet to build next, firm by firm.
+      no_vertical   Their site states no industry we could map. Nothing to
+                    match on, so no gift is possible from any magnet. These get
+                    the founder ask instead, never a gift.
+      inventory_dry We DO have that magnet, but no unused lead survived the
+                    match. Not a research problem — refresh or widen the
+                    inventory and they qualify.
+    """
+    mp = getattr(prospect, "match_param", None)
+    if reason is not None:
+        pass                                   # caller already decided
+    elif mp is None:
+        reason = "no_vertical"
+    elif mp[1] in MAGNET_INDUSTRY.values() or mp[0] == "niche":
+        reason = "inventory_dry"
+    else:
+        reason = "no_magnet"
+    phrases = [p for p in (getattr(research, "candidate_phrases", None) or []) if p]
+    return {
+        "firm_name": row.get("firm_name", ""),
+        "first_name": row.get("first_name", ""),
+        "email": (row.get("email") or "").strip(),
+        "website": row.get("website", ""),
+        "linkedin": row.get("linkedin", ""),
+        "city": row.get("city", ""),
+        "state": row.get("state", ""),
+        "reason": reason,
+        # What they say they serve, in their own words and in ours. The verbatim
+        # phrase is what makes this list actionable: it is the evidence for
+        # "build a construction magnet next", not an inference from a label.
+        "stated_vertical": mp[1] if mp else "",
+        "stated_phrase": (getattr(prospect, "niche_phrase", None)
+                          or (phrases[0] if phrases else "")),
+        "all_stated_phrases": " | ".join(dict.fromkeys(phrases))[:500],
+    }
+
+
 def generate_sequence(
     row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
-    *, pack_key: str = "cfo", naturalness: Any | None = None,
+    *, pack_key: str = "cfo", force_pack: bool = False,
+    naturalness: Any | None = None,
 ) -> dict[str, Any]:
     """Research + gift + the full 3-email sequence for ONE prospect.
 
     Pure of any store: research the site, classify the served vertical, build a
     vertical-matched gift (or a generalist geo gift fallback), then write all
-    three emails. `sc` is the niche inventory scraper; `pack_key` selects voice +
+    three emails. `sc` is the niche inventory scraper; `pack_key` is the FALLBACK voice, used only when
+    the site says nothing that separates the rungs;
     lead preference. Returns a row dict ready for the CSV, or a `no_gift`/`error`
     marker (status != "ok") when the inventory had no matching leads.
 
     Signoffs are omitted (`include_signoff=False`): you add your signature + the
     CAN-SPAM footer ONCE in the Smartlead sequence editor after importing the CSV.
     """
-    pack = pack_for(pack_key)
+    # Research FIRST, then pick the voice. The rung a firm sells is read off
+    # their own site (research/rung.py), so a mixed export no longer tells a
+    # bookkeeper the tool was "built for fractional cfos". `pack_key` becomes
+    # the FALLBACK for a site that says nothing separating the rungs, and
+    # `--force-pack` overrides detection entirely.
     research = research_prospect(row["website"], taxonomy)
+    detected = getattr(research, "rung", None)
+    if detected is None and not force_pack:
+        # Their site never says whether they sell bookkeeping, accounting or
+        # fractional-CFO work. Held rather than guessed -- see research/rung.py.
+        return {
+            "firm": row.get("firm_name"),
+            "status": "no_rung",
+            "backlog": _backlog_row(row, research, prospect=None, reason="no_rung"),
+        }
+    pack = pack_for(detected if not force_pack else pack_key)
     prospect, gift = resolve_gift(research, row, sc, pack=pack)
     if gift is None:
-        return {"firm": row.get("firm_name"), "status": "no_gift"}
+        # A prospect with no gift is NOT discarded. Most of them are firms
+        # serving a vertical we simply have no lead magnet for yet — the
+        # single most useful list we produce for deciding what to build next,
+        # and the one thing the old "skipped" line threw away. Everything
+        # needed to reach them later, plus WHY they were held, is returned so
+        # `run.py` can write a backlog.
+        return {
+            "firm": row.get("firm_name"),
+            "status": "no_gift",
+            "backlog": _backlog_row(row, research, prospect),
+        }
     email1 = build_email_1(
         gift, prospect, today=today, pack=pack, include_signoff=False
     )
@@ -104,11 +177,15 @@ def generate_sequence(
     return {
         "firm": row.get("firm_name", ""),
         "status": "ok",
+        # Which voice was used and why, so the review card can show it and the
+        # operator can disagree with the evidence in front of them.
+        "rung_detected": getattr(research, "rung", None),
+        "rung_evidence": list(getattr(research, "rung_evidence", None) or []),
         "gift_size": gift.gift_size,
         # Which campaign this row belongs to, and the day email 1 goes out. Every
         # LinkedIn step is an offset from that date, so carrying it means the
         # schedule is arithmetic rather than something to remember.
-        "pack": pack_key,
+        "pack": pack.key,
         "cohort_date": today.isoformat(),
         "email": (row.get("email") or "").strip(),
         "first_name": row.get("first_name") or "",

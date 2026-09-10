@@ -18,7 +18,9 @@ candidate passes Gate B we drop to the generalist gift.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+import logging
+from collections.abc import Callable
+from typing import Any
 
 from system_b.copy.lex import niche_display
 from system_b.gift.engine import build_gift
@@ -71,6 +73,14 @@ def _candidate_pairs(research: ResearchResult) -> list[tuple[tuple[str, str], st
     return out
 
 
+# How many stated verticals to test against live leads before giving up. The
+# average firm states three; six would be a firm listing everything it has ever
+# touched, and the fourth candidate has never been the one that lands.
+log = logging.getLogger("system_b.gift")
+
+MAX_FIT_CANDIDATES = 3
+
+
 def _fitting_niche_gift(
     trial: Prospect, scraper: _Scraper, pack: NichePack,
     label: str, fit: FitFn, *, max_swaps: int = 3,
@@ -117,18 +127,43 @@ def resolve_gift(
     pack = pack or default_pack()
     rank = dict(pack.signal_rank)
 
+    # Gate B's fit check is the only per-prospect LLM cost in the system, and
+    # it multiplies: one call per swap attempt (up to `max_swaps` + 1) for EVERY
+    # candidate vertical a firm states. A firm naming six industries could
+    # therefore cost 24 calls before a single email is written. Capped and
+    # counted so the spend is bounded and visible rather than discovered on a
+    # bill. The cap is on CANDIDATES, not swaps: the swap loop is what makes a
+    # claim honest, while the fifth candidate vertical is a firm listing
+    # everything it has ever touched.
+    fit_calls = 0
+
+    def counting_fit(label: str, leads: list[Lead]) -> list[bool]:
+        nonlocal fit_calls
+        fit_calls += 1
+        return fit(label, leads)
+
     best: tuple[Gift, tuple[str, str], str] | None = None
+    candidates_tried = 0
     for mp, phrase in _candidate_pairs(research):
+        if candidates_tried >= MAX_FIT_CANDIDATES:
+            log.info("gift: stopping at %d candidate vertical(s) for this prospect",
+                     MAX_FIT_CANDIDATES)
+            break
+        candidates_tried += 1
         label = niche_display(mp)
         if not label:
             continue                                             # no clean word -> can't claim honestly
         trial = _base_prospect(row, research, classification="niched", match_param=mp)
         # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):
-        g = _fitting_niche_gift(trial, scraper, pack, label, fit)
+        g = _fitting_niche_gift(trial, scraper, pack, label, counting_fit)
         if g is None:
             continue                                             # no all-fitting niche gift -> drop
         if best is None or _supply_key(g, rank) > _supply_key(best[0], rank):
             best = (g, mp, phrase)
+
+    if fit_calls:
+        log.info("gift: %d fit check(s) across %d candidate vertical(s)",
+                 fit_calls, candidates_tried)
 
     if best is not None:
         gift, mp, phrase = best

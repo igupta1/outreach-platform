@@ -30,6 +30,16 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
     "software": ("software_saas", None),
     "crypto": ("fintech", "crypto_web3"),
     "web3": ("fintech", "crypto_web3"),
+    # Fund managers. Without these a firm whose site says "we serve private
+    # equity funds" classifies as generalist and never sees the Funds magnet,
+    # because no single token in the phrase is a taxonomy child.
+    "pe": ("investment_management", "private_funds"),
+    "vc": ("investment_management", "private_funds"),
+    "fund": ("investment_management", "private_funds"),
+    "funds": ("investment_management", "private_funds"),
+    "gp": ("investment_management", "private_funds"),
+    "lp": ("investment_management", "private_funds"),
+    "ria": ("investment_management", "wealth_advisory"),
     "msp": ("professional_services", "it_msp"),
     "legal": ("professional_services", "law_firm"),
     "accounting": ("professional_services", "accounting_bookkeeping"),

@@ -47,7 +47,7 @@ DM_2 = (
     "no worries if leads aren't what you're short on. i build systems for "
     "whatever's draining your week, so if it's something else i'd be curious "
     "what it is.\n\n"
-    "worth 15 min?"
+    "worth a look?"
 )
 
 
@@ -93,15 +93,41 @@ def _vertical(gift: Gift, prospect: Prospect) -> str:
     return ""
 
 
+def _flags_what(gift: Gift, pack: NichePack) -> str:
+    """How the DM describes what the system finds: `posting finance roles` for
+    job leads, or the magnet's own words.
+
+    A magnet lead posted NOTHING — that is the entire signal — so the job-post
+    phrasing was a false claim about every company in the gift. Each magnet
+    names only what its own filter verified: the Funds filter checks for an
+    outside administrator and says nothing about who works there, so it must
+    not borrow the "nobody in finance" phrasing the other two earn."""
+    from system_b.gift.engine import MAGNET_SIGNALS
+
+    kinds = {lead.signal_type for lead in gift.leads}
+    if kinds and kinds <= MAGNET_SIGNALS:
+        if len(kinds) == 1:
+            return {
+                "nonprofit_grant_no_finance_officer":
+                    "with no finance officer on their 990",
+                "adv_no_fund_administrator":
+                    "running funds with no outside administrator",
+                "ecommerce_sku_load_no_finance_staff":
+                    "with nobody in finance",
+            }[next(iter(kinds))]
+        return "that look like they need finance help"
+    return f"posting {pack.dm_role_plural}"
+
+
 def _sign_off(pack: NichePack) -> str:
     """The second paragraph, identical in both DM #1 versions: who it was built
     for, that it is unfinished (which turns a sales ask into a research ask),
-    the 15-minute ask, and the gift offered unconditionally. Compressed from
+    the BINARY ask (not a calendar one — see copy.email._CTA_LINE), and the
+    gift offered unconditionally. Compressed from
     Email #1's left-field + CTA — a DM that runs four paragraphs is not read."""
     return (
-        f"built this one for {pack.dm_audience}. still tuning it, would 15 min "
-        "work to hear what would make it useful for you? happy to run it for "
-        "you either way :)"
+        f"built this one for {pack.dm_audience}. still tuning it, worth a look? "
+        "happy to run it for you either way :)"
     )
 
 
@@ -153,7 +179,7 @@ def build_dm_1_evergreen(
     opener = _opener(gift, prospect)
     what = niche_noun(vertical) if vertical else "companies"
     built = (
-        f"i built something that flags {what} posting {pack.dm_role_plural}, so "
+        f"i built something that flags {what} {_flags_what(gift, pack)}, so "
         "i can send you a few whenever."
     )
     lead_in = f"{opener}. {built}" if opener else built

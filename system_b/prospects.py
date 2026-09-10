@@ -52,8 +52,14 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     return {
         "firm_name": company,
         "website": website,
-        "city": _clean(record.get("City")) or None,
-        "state": _clean(record.get("State")) or None,
+        # Apollo ships BOTH a person-level City/State and a company-level
+        # "Company City"/"Company State", and which one is populated depends on
+        # the export. The company's location is the one copy claims ("companies
+        # in denver"), so it wins; the person's is the fallback.
+        "city": (_clean(record.get("Company City"))
+                 or _clean(record.get("City")) or None),
+        "state": (_clean(record.get("Company State"))
+                  or _clean(record.get("State")) or None),
         "first_name": _clean(record.get("First Name")) or None,
         # Carried for ONE reason: a LinkedIn reply weeks later shows a full
         # name, and "Paul" + a company column is a bad key to search a

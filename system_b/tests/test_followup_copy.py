@@ -158,20 +158,23 @@ def test_followups_prefer_same_niche_lead():
 def test_followups_ask_for_the_same_thing_email_1_does():
     """A sequence whose steps chase different outcomes converts on the easiest
     one. The old tails recruited a subscriber ('want me to keep sending these?');
-    every step now points at the 15 minutes."""
+    every step now makes the same BINARY ask email 1 makes. It is binary rather
+    than a calendar ask for the reason in copy.email._CTA_LINE: "15 min" wants a
+    slot committed before the reader knows whether the thing is any good."""
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
     d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY)
     d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "15 min" in d2.body and "15 min" in d3.body
+    assert "worth a look?" in d2.body and "worth a look?" in d3.body
+    assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
     # step 3 still gives an easy out
     assert "no worries" in d3.body
 
 
-def test_fallback_followup_still_asks_for_the_call():
+def test_fallback_followup_still_makes_the_ask():
     d = build_followup_email(None, _prospect(), step=2, today=TODAY)
-    assert "15 min" in d.body
+    assert "worth a look?" in d.body
     assert "want me to send them your way" not in d.body
 
 

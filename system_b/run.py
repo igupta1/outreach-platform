@@ -46,8 +46,13 @@ from datetime import date
 from pathlib import Path
 
 from system_b import config
+from system_b.clients.inventory import (
+    VALID_NICHES,
+    load_taxonomy,
+    snapshot_all_magnets,
+    snapshot_for_niche,
+)
 from system_b.copy.naturalness import check_naturalness
-from system_b.clients.inventory import VALID_NICHES, load_taxonomy, snapshot_for_niche
 from system_b.prospects import read_apollo_csv
 from system_b.sequence import generate_sequence
 
@@ -159,6 +164,39 @@ def _append_ledger(path: Path, emails: list[str], today: date) -> None:
             w.writerow([email, today.isoformat()])
 
 
+# Share of prospects with no readable rung above which the problem is almost
+# certainly the prospect list rather than their websites.
+NO_RUNG_ALARM = 0.20
+
+BACKLOG_COLUMNS = [
+    "reason", "firm_name", "first_name", "email", "website", "linkedin",
+    "city", "state", "stated_vertical", "stated_phrase", "all_stated_phrases",
+]
+
+
+def write_backlog(rows: list[dict], out_path: Path) -> Path | None:
+    """Prospects held because no gift could be built, written beside the CSV.
+
+    These are not failures and must not be thrown away. A firm that serves
+    construction is a perfectly good prospect; there is simply no construction
+    magnet yet. Grouped by `reason`, this file is the demand side telling you
+    which magnet to build next — and when one is built, the list of who to send
+    it to is already sitting here.
+    """
+    if not rows:
+        return None
+    path = out_path.with_name(f"{out_path.stem}.backlog.csv")
+    order = {"no_magnet": 0, "inventory_dry": 1, "no_vertical": 2}
+    rows = sorted(rows, key=lambda r: (order.get(r["reason"], 9),
+                                       r.get("stated_vertical", ""),
+                                       r.get("firm_name", "")))
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=BACKLOG_COLUMNS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(rows)
+    return path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate an outreach sequence per prospect from an Apollo CSV.")
     # Not `required`: --init-history is a standalone setup command with no input
@@ -166,6 +204,12 @@ def main() -> None:
     # a normal run.
     ap.add_argument("--in", dest="in_path", help="Apollo contacts export CSV")
     ap.add_argument("--out", dest="out_path", default="sequences.csv", help="output CSV")
+    ap.add_argument("--force-pack", action="store_true",
+                    help="use --pack for EVERY prospect instead of detecting the "
+                         "rung they sell from their own website")
+    ap.add_argument("--legacy-niche", action="store_true",
+                    help="load the old per-niche job-post inventory instead of "
+                         "the vertical magnets (mssp/msp/cloud still use it)")
     ap.add_argument("--pack", default="cfo", choices=sorted(VALID_NICHES),
                     help="niche pack for the whole run (voice + which gifts fit)")
     ap.add_argument("--review-out", dest="review_out", default=None,
@@ -231,7 +275,16 @@ def main() -> None:
         prospects = kept
 
     taxonomy = load_taxonomy()
-    scraper = snapshot_for_niche(args.pack, today=today)
+    # The lead inventory is the three VERTICAL magnets (nonprofit / funds /
+    # ecommerce), not one per-niche job-post file. `--pack` still selects the
+    # copy VOICE (which rung of finance service the prospect sells); the
+    # vertical selects which leads they can be shown at all. `--legacy-niche`
+    # restores the old per-niche load for the IT packs, which still run off the
+    # breach + IT job inventory.
+    if args.legacy_niche:
+        scraper = snapshot_for_niche(args.pack, today=today)
+    else:
+        scraper = snapshot_all_magnets(today=today)
 
     target = args.target if args.target > 0 else None
     if target:
@@ -243,23 +296,33 @@ def main() -> None:
 
     results: list[dict] = []
     skipped: list[tuple[str, str]] = []
+    backlog: list[dict] = []
     for p in prospects:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
+                                    force_pack=args.force_pack,
                                     naturalness=naturalness)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))
             continue
         if res.get("status") != "ok":
-            print(f"  · {firm:32} {res.get('status')}")
+            row_backlog = res.get("backlog")
+            if row_backlog:
+                backlog.append(row_backlog)
+                print(f"  · {firm:32} held: {row_backlog['reason']}"
+                      + (f" ({row_backlog['stated_vertical']})"
+                         if row_backlog.get("stated_vertical") else ""))
+            else:
+                print(f"  · {firm:32} {res.get('status')}")
             skipped.append((firm, res.get("status", "?")))
             continue
         results.append(res)
-        print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift)")
+        rung = res.get("pack", "?")
+        print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, voice: {rung})")
 
     if target is not None and len(results) < target:
         print(f"[run] input exhausted at {len(results)} of {target} — "
@@ -305,6 +368,43 @@ def main() -> None:
     print(f"\n[done] wrote {len(results)} sequence(s) to {args.out_path}")
     print(f"[review] wrote {review_path}  ·  review with: "
           f"system_b/.venv/bin/python -m system_b.review.serve --review {review_path}")
+    backlog_path = write_backlog(backlog, Path(args.out_path))
+    if backlog_path:
+        from collections import Counter as _Counter
+        by_reason = _Counter(r["reason"] for r in backlog)
+        print(f"\n[backlog] {len(backlog)} prospect(s) held -> {backlog_path}")
+        for reason, n in by_reason.most_common():
+            note = {
+                "no_magnet": "serve a vertical we have no leads for — "
+                             "this is the list that says what to build next",
+                "no_vertical": "state no industry we could map — founder ask, not a gift",
+                "inventory_dry": "right vertical, but no unused lead was left",
+                "no_rung": "their site never says whether they sell bookkeeping, "
+                           "accounting or CFO work",
+            }.get(reason, "")
+            print(f"    {n:>4}  {reason:<14} {note}")
+        # A HEALTH SIGNAL, not a per-prospect fact. Every firm in this campaign
+        # is supposed to sell one of the three finance services; a handful of
+        # unreadable sites is normal, but a large share means the PROSPECT LIST
+        # is wrong — an Apollo pull that swept in consultancies and IT shops
+        # rather than finance practices. Cheaper to catch here than after a
+        # send.
+        no_rung = by_reason.get("no_rung", 0)
+        attempted = len(results) + len(backlog)
+        if attempted and no_rung / attempted > NO_RUNG_ALARM:
+            print(f"\n[!] {no_rung} of {attempted} prospects "
+                  f"({100*no_rung/attempted:.0f}%) sell none of bookkeeping, "
+                  "accounting or CFO work by their own website.")
+            print("    Above ~20% that is usually the LIST, not the sites — "
+                  "check the Apollo filters brought back finance firms.")
+
+        verticals = _Counter(r["stated_vertical"] for r in backlog
+                             if r["reason"] == "no_magnet" and r["stated_vertical"])
+        if verticals:
+            print("    verticals worth a magnet, by demand:")
+            for v, n in verticals.most_common(8):
+                print(f"       {n:>4}  {v}")
+
     if skipped:
         print(f"[skipped] {len(skipped)} prospect(s) got no sequence:")
         for firm, why in skipped:

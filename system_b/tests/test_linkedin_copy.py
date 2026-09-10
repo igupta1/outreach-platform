@@ -56,7 +56,7 @@ def test_dm_1_opens_like_email_1_and_names_one_company():
     assert "Twin Oaks Real Estate in benicia" in dm     # company keeps its casing
     assert "hiring a founding head of finance & strategy" in dm
     assert "built this one for fractional cfos" in dm
-    assert "would 15 min work" in dm                     # every touch asks for the call
+    assert "worth a look?" in dm                     # every touch asks for the call
     assert "Elm Grove" not in dm                         # ONE company, not the gift
 
 
@@ -114,7 +114,7 @@ def test_evergreen_names_nothing_that_can_go_stale():
     assert "Twin Oaks" not in dm and "benicia" not in dm
     assert "just posted" not in dm and "hiring" not in dm
     # the ask survives — the whole point of the touch is still the call
-    assert "would 15 min work" in dm
+    assert "worth a look?" in dm
 
 
 def test_evergreen_uses_geography_when_there_is_no_vertical():
@@ -130,7 +130,7 @@ def test_dm_2_is_constant_and_lead_free():
     assert build_dm_2() == build_dm_2()
     body = build_dm_2()
     assert "no worries if leads aren't what you're short on" in body
-    assert "worth 15 min?" in body
+    assert "worth a look?" in body
 
 
 def test_no_dm_contains_an_em_dash_or_shouts():

@@ -21,6 +21,24 @@ from system_b.gift.models import Gift, Prospect
 _PLURAL_WHAT = {
     "raised": "that just raised",
     "hiring": "hiring finance leadership right now",
+    # The magnets. These companies announced nothing — the signal is an
+    # ABSENCE read off a filing — so the subject must not imply an event.
+    #
+    # Each names the DOCUMENT it came from, and that is the positioning, not
+    # decoration. Everyone else selling leads to a finance firm scraped a job
+    # board; "from their 990s" says in three words that this came out of a
+    # filing the recipient can open, which is the only thing that separates
+    # this from a list they could build themselves in an afternoon.
+    #
+    # One category per magnet, because the three do NOT verify the same thing
+    # and a shared phrase made one of them false. The Nonprofit and Ecommerce
+    # filters both confirm no finance staff; the FUNDS filter does not — it
+    # checks unadministered funds, investor counts and headcount, and a
+    # 15-person adviser may well employ a controller.
+    "unstaffed_nonprofit": "with no finance officer, from their 990s",
+    "unstaffed_funds": "running funds with no administrator, from their adv",
+    "unstaffed_ecommerce": "with nobody in finance",
+    "unstaffed": "with nobody running finance",
     "mixed": "that need finance help right now",
 }
 
@@ -35,6 +53,11 @@ _SINGULAR_WHAT = {
     "funding_form_d": "just raised",
     "funding_form_c": "just raised",
     "job_finance_lead": "is hiring finance leadership",
+    # Magnet singulars. Each states the absence the filing shows, in the
+    # plainest words, with no figure the recipient cannot check in one click.
+    "nonprofit_grant_no_finance_officer": "has no finance officer on their 990",
+    "adv_no_fund_administrator": "runs funds with no administrator",
+    "ecommerce_sku_load_no_finance_staff": "has nobody in finance",
 }
 
 

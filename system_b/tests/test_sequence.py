@@ -10,6 +10,17 @@ from system_b.tests.test_gift import FakeScraper, mk
 TODAY = date(2026, 7, 8)
 
 
+class _Research:
+    """Stub for the site crawl. Carries a `rung` because a prospect whose site
+    never says which of bookkeeping / accounting / CFO work they sell is now
+    HELD rather than given a guessed voice."""
+    rung = "cfo"
+    rung_evidence = ("fractional cfo",)
+    candidate_phrases = ()
+    evidence = ()
+    flags = ()
+
+
 def test_generate_sequence_builds_full_sequence(monkeypatch):
     import system_b.sequence.generate as gen
     from system_b.gift.models import Gift, Prospect
@@ -36,7 +47,7 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
         return None
 
 
-    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: None)
+    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: _Research())
     monkeypatch.setattr(gen, "resolve_gift", lambda research, row, sc, pack=None: (prospect, gift))
     monkeypatch.setattr(gen, "build_gift", fake_build_gift)
 
@@ -55,7 +66,7 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
 
 def test_generate_sequence_no_gift(monkeypatch):
     import system_b.sequence.generate as gen
-    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: None)
+    monkeypatch.setattr(gen, "research_prospect", lambda *a, **k: _Research())
     monkeypatch.setattr(gen, "resolve_gift", lambda research, row, sc, pack=None: (None, None))
     row = {"firm_name": "Acme", "website": "http://a.com", "email": "d@a.com"}
     res = gen.generate_sequence(row, FakeScraper([]), {}, TODAY, pack_key="cfo")

@@ -19,6 +19,7 @@ from typing import Any, Callable
 
 from system_b.gift.taxonomy import map_industry_candidates, map_prospect
 from system_b.research.models import Evidence, ResearchResult
+from system_b.research.rung import detect_rung
 from system_b.research.revenue import parse_revenue_range
 
 # Below this much total visible text, the site is "thin" -> generalist
@@ -162,7 +163,26 @@ def classify(
     llm: LlmFn,
 ) -> ResearchResult:
     """Classify a fetched site. `site` is {url: visible_text}; `llm` proposes,
-    code verifies. Deterministic given the same `site` and `llm` output."""
+    code verifies. Deterministic given the same `site` and `llm` output.
+
+    Two independent answers come out of one crawl:
+      * the VERTICAL they serve (below, via the model + verbatim verification)
+      * the RUNG they sell (`research.rung`, pure keyword matching)
+    The rung is stamped here rather than inside `_classify` so it lands on
+    EVERY return path — thin site, no taxonomy match, generalist and niched
+    alike. A rung that only arrived on the happy path would silently default
+    a whole class of prospects to the wrong voice."""
+    result = _classify(site, taxonomy, llm=llm)
+    result.rung, result.rung_evidence = detect_rung(site)
+    return result
+
+
+def _classify(
+    site: dict[str, str],
+    taxonomy: dict[str, list[str]],
+    *,
+    llm: LlmFn,
+) -> ResearchResult:
     total = sum(len(t) for t in site.values())
     if total < THIN_MIN_CHARS:
         return _generalist(["thin website — generalist fallback"])

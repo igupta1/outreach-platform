@@ -55,16 +55,21 @@ CFO_PRIORITY_FLAG = (
 #   "for {audience}"         — the TOOL is purpose-built for their profession.
 #                              A machine made it, but it was made for people
 #                              like them.
-#   "hearing the same thing  — their peers said it, so the pain is theirs, not
-#    over and over"            a guess.
-#   "and nothing replaced    — the emotional beat. Naming the pain without it
-#    them"                     states a fact; with it, it lands. Do not cut.
 #
-# The pain generalizes: every one of these buyers wins work by referral and
-# feels it when referrals slow. House style: all lowercase, no em dashes.
+# What is NOT here any more: "after hearing the same thing over and over,
+# referrals dried up and nothing replaced them." It was the strongest-reading
+# clause in the email and it was not true. It asserts that many people in the
+# reader's profession told me this; the real total is 30 emails sent once, two
+# replies and one call. Borrowed social proof is exactly the kind of claim this
+# system refuses everywhere else — every lead line is a checkable fact off a
+# filing — and it cannot hold copy to a standard the pitch itself breaks.
+#
+# The replacement keeps the three jobs that were honest (credibility, "this
+# one" implying others, purpose-built for their profession) and drops the one
+# that was invented. House style: all lowercase, no em dashes.
 LEFT_FIELD = (
-    "i'm an engineer. built this one for {audience} after hearing the same "
-    "thing over and over, referrals dried up and nothing replaced them."
+    "i'm an engineer. i build these lead systems, and this one is for "
+    "{audience}."
 )
 
 
@@ -319,9 +324,14 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
 #
 # Niche/geo-agnostic on purpose: the opener and the leads already carried the
 # personalization, and repeating it here made the close about the feed again.
+# A BINARY ask, not a calendar ask. "would 15 min work" asks the reader to
+# check a calendar and commit a slot before they know whether the thing is any
+# good; "worth a look?" asks for a yes or a no, which is a decision they can
+# make from the email they are already reading. The offer to run it either way
+# stays, because it is the part that costs them nothing.
 _CTA_LINE = (
-    "still tuning it. would 15 min work to hear what would make it useful for "
-    "you? happy to set it up to run for you either way :)"
+    "still tuning it. worth a look? happy to set it up to run for you either "
+    "way :)"
 )
 
 
@@ -492,6 +502,143 @@ def breach_phrase(lead: Lead) -> str:
     return "disclosed a security incident"
 
 
+# --- Vertical magnet phrases ------------------------------------------------
+#
+# One templated line per lead magnet, for the same reason hiring, funding and
+# breach are templated: the underlying record is a public filing, and code must
+# not embellish it.
+#
+# These exist because the fallback below (`_grounded_line`) is the wrong shape
+# for a magnet lead. It returns the lead's full `evidence_text`, which for a
+# nonprofit runs ~60 words and is then LOWERCASED and stripped of every dollar
+# figure by the safety net downstream -- leaving a long sentence with its
+# substance removed, and raising a review flag on every single lead. The full
+# evidence is exactly right for the review gate, where the operator checks the
+# claim; it is the wrong thing to paste into an email that must total under 80
+# words.
+#
+# So each phrase below states the ONE fact that makes the company a buyer, in
+# the plainest words available, with no figure the recipient cannot verify in
+# one click via the lead's source_url.
+
+NONPROFIT_SIGNAL = "nonprofit_grant_no_finance_officer"
+FUNDS_SIGNAL = "adv_no_fund_administrator"
+ECOMMERCE_SIGNAL = "ecommerce_sku_load_no_finance_staff"
+
+MAGNET_SIGNALS = frozenset({NONPROFIT_SIGNAL, FUNDS_SIGNAL, ECOMMERCE_SIGNAL})
+
+
+def is_magnet_lead(lead: Lead) -> bool:
+    return (lead.signal_type or "") in MAGNET_SIGNALS
+
+
+def _payload(lead: Lead) -> dict:
+    """The primary signal's payload, or {}. Kept defensive: a magnet may ship a
+    lead without one, and a missing figure must degrade the sentence rather
+    than raise mid-run."""
+    for sig in lead.signals:
+        data = getattr(sig, "payload", None)
+        if isinstance(data, dict) and data:
+            return data
+    return {}
+
+
+# Every lead line is capped at roughly EIGHT WORDS.
+#
+# Three leads sit in an email that should total under 80 words, so a 12-word
+# line spends half the budget on the middle of the message and pushes the ask
+# past where anyone is still reading. The long, fully-qualified version of each
+# claim already exists and is exactly right for the review card, where the
+# operator is checking rather than skimming.
+#
+# The short form keeps the NOUN that makes it checkable ("auditors", "990",
+# "administrator") and drops the qualifiers around it. "had a material weakness
+# in financial controls flagged in two straight federal audits" becomes
+# "auditors flagged their controls, two years running" -- same fact, same
+# source, half the words, and it sounds like a person rather than a filing.
+
+
+def nonprofit_phrase(lead: Lead) -> str:
+    """`auditors flagged their controls, two years running`.
+
+    Strongest true reason first. A material weakness is an independent CPA's
+    written conclusion filed federally -- the closest thing in any magnet to
+    the buyer's own problem stated by someone else -- so it is what the line
+    says whenever it is there. No dollar amounts: the figure is one click away
+    on the linked filing, and a number that has since moved is worse than
+    none."""
+    p = _payload(lead)
+    if p.get("fac_repeat_material_weakness"):
+        return "auditors flagged their controls, two years running"
+    if p.get("fac_material_weakness"):
+        return "auditors flagged their financial controls"
+    if p.get("fac_audit_year") or p.get("federal_audit_required"):
+        return "files a federal audit, no finance officer"
+    if p.get("audit_flag") == "near_threshold":
+        return "nearing a federal audit, no finance officer"
+    if p.get("financial_statements_audited") is False:
+        return "no audit, no finance officer on their 990"
+    share = p.get("government_grant_share")
+    if isinstance(share, (int, float)) and share >= 0.5:
+        return "mostly grant funded, no finance officer"
+    return "grant funded, no finance officer on their 990"
+
+
+def funds_phrase(lead: Lead) -> str:
+    """`runs several funds with no outside administrator`.
+
+    The count is the whole signal, so it is stated -- but as a count of FUNDS,
+    never a dollar figure. `unadmin_funds` is deliberately a floor: it counts
+    the funds whose Schedule D says no administrator, so it can only ever be
+    too low, never wrong."""
+    p = _payload(lead)
+    n = p.get("unadmin_funds")
+    # Custody is the only DATED obligation this magnet has: an adviser holding
+    # client assets owes a surprise annual exam by an independent accountant.
+    # It leads the line when present, because it is the stronger fact.
+    if p.get("has_custody"):
+        if isinstance(n, int) and n > 1:
+            return f"{n} funds, no administrator, holds client assets"
+        return "holds client assets, no fund administrator"
+    if isinstance(n, int) and n > 1:
+        return f"{n} funds, no outside administrator"
+    if n == 1:
+        return "one fund, no outside administrator"
+    return "private funds, no outside administrator"
+
+
+def ecommerce_phrase(lead: Lead) -> str:
+    """`sells across shopify and amazon with nobody in finance`.
+
+    SKU counts are stated as a rounded scale rather than an exact number: the
+    catalog is crawled live, so the exact figure moves between the crawl and
+    the send, and a number that no longer matches when the recipient checks is
+    worse than no number."""
+    p = _payload(lead)
+    channels = [c.strip().lower() for c in
+                str(p.get("marketplaces") or "").split(",") if c.strip()]
+    skus = p.get("skus")
+    if isinstance(skus, int) and skus >= 1000:
+        scale = "thousands of skus"
+    elif isinstance(skus, int) and skus >= 250:
+        scale = "hundreds of skus"
+    else:
+        scale = "a big catalog"
+    # Name ONE marketplace rather than listing every channel: "shopify and
+    # amazon and etsy and faire" spends four words on one idea.
+    where = f"shopify + {sorted(channels)[0]}" if channels else "shopify"
+    return f"{scale}, {where}, nobody in finance"
+
+
+def magnet_phrase(lead: Lead) -> str:
+    """The templated line for a magnet lead."""
+    return {
+        NONPROFIT_SIGNAL: nonprofit_phrase,
+        FUNDS_SIGNAL: funds_phrase,
+        ECOMMERCE_SIGNAL: ecommerce_phrase,
+    }[lead.signal_type](lead)
+
+
 def _grounded_line(lead: Lead) -> str:
     """Fallback for a signal type with no template of its own: the lead's own
     verbatim evidence, never a model's paraphrase. Reached only if a new signal
@@ -515,6 +662,10 @@ def _lead_line(
             # Templated hiring line — never the raw "title | location | salary"
             # evidence (goofy in copy).
             text = job_phrase(lead)
+        elif is_magnet_lead(lead):
+            # Templated vertical line — never the raw filing evidence, which is
+            # ~60 words and would arrive lowercased with its figures stripped.
+            text = magnet_phrase(lead)
         else:
             text = _grounded_line(lead).strip().lower()
             text, stripped = strip_dollar_amounts(text)  # safety net on any $ figure
@@ -529,6 +680,11 @@ def _lead_line(
             raise_txt = pack.funding_phrase(lead)
             text = f"{text} and {raise_txt}" if text else raise_txt
 
+    # A magnet lead's date is when a DOCUMENT was filed, not when the situation
+    # arose. "runs 3 funds with no outside administrator, about a week ago"
+    # attaches the date to the wrong noun and implies the arrangement is new.
+    if with_date and is_magnet_lead(lead):
+        with_date = False
     if with_date:                              # follow-ups pass False (Option A):
         suffix = date_suffix(lead, today)      # they send days later, so a baked-in
         if suffix:                             # relative date would drift by send time.
@@ -538,8 +694,8 @@ def _lead_line(
     said = spoken_name(lead.company)          # "Antilles Power Depot, Inc." -> no "Inc."
     line = f"{said}, {loc}: {text}" if loc else f"{said}: {text}"
 
-    if lead.domain is None:
-        flags.append(f"domainless lead ({lead.company}) — google the name to confirm it's real")
+    if not lead.is_findable:
+        flags.append(f"unfindable lead ({lead.company}) — google the name to confirm it's real")
     if is_raise(lead, pack.raise_signals) and geo_level == "city":
         flags.append(
             f"funding lead ({lead.company}) drives a city claim — its city may be "
@@ -648,7 +804,7 @@ _FINAL_PIVOT = (
     "last one from me.\n\n"
     "no worries if leads aren't what you're short on. i build custom tools, so "
     "if something else is draining your week i'd be curious what it is. "
-    "worth 15 min?"
+    "worth a look?"
 )
 
 
@@ -666,7 +822,7 @@ def build_followup_email(
 
     Email #2 has two shapes:
       * value    — a genuinely NEW lead surfaced (`lead` given): one honest lead
-                   line + the same 15-minute ask Email #1 makes.
+                   line + the same binary ask Email #1 makes.
       * fallback — no new lead (`lead is None`): a light bump, no fabricated lead.
 
     Email #3 (step 3) is ALWAYS `_FINAL_PIVOT`: no lead, no gift, one question
@@ -693,7 +849,7 @@ def build_followup_email(
         # to keep sending these?") recruited a subscriber, which is the wrong
         # yes: a sequence whose steps chase different outcomes converts on the
         # easiest one, and that was never the call.
-        tail = "offer still stands on setting it up for you, 15 min whenever works."
+        tail = "offer still stands on setting it up for you. worth a look?"
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
@@ -702,7 +858,7 @@ def build_followup_email(
         sig = pack.followup_signal
         core = (
             f"circling back, still keeping an eye out for {niche_noun(niche)} "
-            f"showing {sig}. 15 min whenever works if you want it set up."
+            f"showing {sig}. worth a look?"
         )
 
     parts = [core]

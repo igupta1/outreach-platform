@@ -298,6 +298,69 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   email either. Do not remove that scrub.
 - Nothing is ever sent — the tool only writes a CSV for you to review.
 
+## Lead inventory: three VERTICAL magnets (2026-09-08)
+
+The inventory is no longer one file per NICHE from the job-post pipeline. It is
+one file per VERTICAL, from three independent magnets, each computed from a
+mandatory public filing:
+
+| magnet | source | id | taxonomy tag |
+|---|---|---|---|
+| Nonprofit | IRS Form 990 + Federal Audit Clearinghouse | EIN | `nonprofit` |
+| Funds | SEC Form ADV Schedule D | CRD | `fintech` / `wealth_investing` |
+| Ecommerce | Shopify catalog crawl + Apollo | domain | `ecommerce_retail` |
+
+Job-post leads were retired as gift content: a company posting an in-house
+bookkeeper has decided AGAINST outsourcing, and "Fractional CFO wanted" is on
+every job board, so handing one over proves no access the recipient lacks.
+Measured at retirement: 543 finance leads (293 of them in-house posts) against
+29,697 from the magnets. The IT niches (mssp/msp/cloud) still read the old
+inventory — `--legacy-niche`.
+
+**NICHE and VERTICAL are orthogonal.** `--pack` selects the copy VOICE (which
+rung of finance service the prospect sells). The vertical selects which leads
+they can be shown at all. A prospect is both.
+
+`snapshot_all_magnets()` loads all three into one addressable snapshot; the
+gift engine needed no change because it already filters by `industry` at query
+time. A magnet missing from the blob falls back to `LEADGEN_INVENTORY_DIR`,
+then is skipped — one absent magnet must not end a run.
+
+The taxonomy is vendored at `system_b/data/taxonomy.json`. It is a CONTRACT,
+not data: the magnets emit into this vocabulary and the classifier maps
+prospects into it, so retiring the leadgen pipeline cannot take it away.
+
+## Magnet leads differ from job leads in four ways
+
+Each was a silent failure before it was fixed. All are tested in
+`tests/test_magnets.py`.
+
+- **Identity is `entity_id`, not domain.** An EIN or CRD with a public filing
+  behind it beats a domain: most nonprofits and funds have no useful website
+  (some carry a LinkedIn URL in the domain field), so domain-only matching
+  deduped nothing across two of three magnets and ranked every one of their
+  leads last as "unfindable". `Lead.identity` falls back to domain.
+- **They do not expire like job posts.** `_STRUCTURAL_MAX_AGE_DAYS` gives each
+  family its own rule: Form ADV 550 days (annual filing, so 18 months means a
+  missed cycle), nonprofit and ecommerce none. An undated structural lead is
+  KEPT; an undated job post is dropped.
+- **They are NOT "hiring".** `_cfo_what_category` used to be a two-way split —
+  raised, or by elimination hiring — which made the subject line claim a named
+  organization was "hiring finance leadership right now" when the entire signal
+  is that it posted nothing. New category: `unstaffed`.
+- **They carry no relative date in copy.** The date is when a DOCUMENT was
+  filed, not when the situation arose.
+
+**Copy is templated per magnet** (`nonprofit_phrase` / `funds_phrase` /
+`ecommerce_phrase`), never the raw `evidence_text`. The full evidence is ~60
+words and would arrive lowercased with every dollar figure stripped by the
+safety net — the long form belongs in the review gate, not an email.
+
+**`Lead.score` is now read from the inventory row.** The live job-post API
+never served one, so the field sat permanently None and `sort_key` had nothing
+to order by inside a signal type — which buried the 160 nonprofits carrying a
+repeat material-weakness finding under 29,000 ordered by fiscal-year end.
+
 ## Forbidden without explicit instruction
 
 - Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).

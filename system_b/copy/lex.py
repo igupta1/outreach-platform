@@ -22,6 +22,16 @@ NICHE_DISPLAY: dict[str, str] = {
     # --- parents (coarse industry) ---
     "software_saas": "software",
     "fintech": "fintech",
+    # Private-fund managers are NOT fintech companies, and calling a PE or VC
+    # firm one in a subject line is the kind of error the recipient spots
+    # instantly. The Funds magnet used to be tagged `fintech` purely because it
+    # was the only parent carrying a `wealth_investing` child; that expedient
+    # leaked straight into copy ("fintech companies with nobody running
+    # finance"), so the taxonomy gained a parent of its own instead.
+    "investment_management": "private fund",
+    "private_funds": "private fund",
+    "wealth_advisory": "wealth management",
+    "family_office": "family office",
     "ecommerce_retail": "ecommerce",
     "healthcare": "healthcare",
     "professional_services": "professional services",
@@ -103,6 +113,11 @@ NICHE_NOUNS: dict[str, tuple[str, str]] = {
     "behavioral health": ("behavioral health practice", "behavioral health practices"),
     "restaurant": ("restaurant", "restaurants"),
     "k-12 education": ("school", "schools"),
+    # A fund manager is not a "private fund company" — the default
+    # "{label} company" rule produces a phrase nobody in that world says.
+    "private fund": ("private fund manager", "private fund managers"),
+    "wealth management": ("wealth management firm", "wealth management firms"),
+    "family office": ("family office", "family offices"),
 }
 
 

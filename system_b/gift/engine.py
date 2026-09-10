@@ -91,18 +91,27 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, int, 
     `signal_rank`), then a resolvable company, then freshest, then
     high-confidence date before low.
 
-    The domain never appears in a sent email, so this is not about the link
-    — it is about FINDABILITY. The enrichment lookup fails to resolve a domain
-    for the same reason a recipient's google fails: the name does not identify
-    a company ("New Listings", "Good Trouble"). The gift gives them a name and
-    a city and nothing else, so a domainless lead is the one most likely to
-    read as invented. Ranked below, never dropped — the lead is still real, and
-    the inventory is not always deep enough to be choosy."""
+    The identifier never appears in a sent email, so this is not about the
+    link — it is about FINDABILITY. A lead the recipient cannot look up is the
+    one most likely to read as invented, so it ranks below every lead they can.
+
+    `is_findable`, not `domain`. A domain is one way to be findable; a
+    government identifier with a public filing behind it is a stronger one —
+    anyone can register a domain, but only a real filing entity has an EIN with
+    a 990 behind it or a CRD with a Form ADV. Ranking on domain alone pushed
+    every nonprofit and fund lead to the bottom as "unfindable" when each
+    carries a verifiable federal record. Ranked below, never dropped."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
-        0 if lead.domain else 1,
-        # <-- score slots here: -(lead.score or 0), once System A serves it
+        0 if lead.is_findable else 1,
+        # The magnet's own score, where it serves one. Every lead from a single
+        # magnet shares one signal_type, so without this the first tiebreak
+        # that does any work is RECENCY — which ordered 29,000 nonprofits by
+        # fiscal-year end and buried the 160 whose auditor filed a repeat
+        # material-weakness finding, the strongest evidence in the inventory.
+        # Job-post leads carry no score and are unaffected.
+        -(lead.score or 0.0),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )
@@ -204,18 +213,42 @@ def _find_priority_lead(
     return None
 
 
+def _name_key(name: str | None) -> str:
+    """A company name reduced for comparison: lowercase, punctuation dropped,
+    legal suffixes removed. "Habitat For Humanity International, Inc." and
+    "HABITAT FOR HUMANITY INTERNATIONAL INC" are the same words on the page."""
+    text = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower())
+    text = re.sub(r"\b(inc|incorporated|llc|l l c|ltd|corp|corporation|co|"
+                  r"company|the|of|and)\b", " ", text)
+    return " ".join(text.split())
+
+
 def _same_company(lead: Lead, gift: list[Lead]) -> bool:
     """True when this lead is a company already in the gift.
 
-    Matched on DOMAIN, not name: the same company reaches the store under
+    Matched on IDENTITY, not name: the same company reaches the store under
     several names (a slug-derived one, a legal one, a hashed one) and dedup
     upstream keys on the name, so name comparison misses exactly the duplicates
-    that survive. One domain is one company. Listing it twice makes a gift of
-    three read as a gift of two and reads as careless."""
-    domain = (lead.domain or "").strip().lower()
-    if not domain:
-        return False
-    return any((other.domain or "").strip().lower() == domain for other in gift)
+    that survive. Listing one company twice makes a gift of three read as a
+    gift of two and reads as careless.
+
+    Identity is `entity_id` — an EIN, a CRD, or a domain — rather than the
+    domain alone. Most nonprofit and fund leads have no useful website (and a
+    few carry a LinkedIn URL in the domain field), so domain-only matching
+    silently deduped nothing across two of the three magnets.
+
+    The NAME is then checked as well, and that is not redundant. 116 separate
+    charities are called "Habitat For Humanity International Inc" — different
+    cities, different EINs, genuinely different organizations. Identity-only
+    matching lets two of them into one gift, where the reader sees the same
+    name twice and concludes the list is broken. They are right to: a gift of
+    three that names two things identically reads as two, however defensible
+    the underlying data is."""
+    ident = lead.identity
+    if ident and any(other.identity == ident for other in gift):
+        return True
+    name = _name_key(lead.company)
+    return bool(name) and any(_name_key(o.company) == name for o in gift)
 
 
 def _pick_leads(
@@ -342,19 +375,54 @@ def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
     return all_niche, geo
 
 
+# The vertical magnets. A lead from one of these is NOT hiring and did NOT
+# raise — the whole point is that it emitted no announcement at all. Named here
+# rather than imported from copy.email to keep the engine free of a copy
+# dependency; `test_magnets` pins the two lists together.
+MAGNET_SIGNALS: frozenset[str] = frozenset({
+    "nonprofit_grant_no_finance_officer",
+    "adv_no_fund_administrator",
+    "ecommerce_sku_load_no_finance_staff",
+})
+
+# signal type -> subject WHAT category. Each names only what its own filter
+# actually verified.
+_MAGNET_WHAT: dict[str, str] = {
+    "nonprofit_grant_no_finance_officer": "unstaffed_nonprofit",
+    "adv_no_fund_administrator": "unstaffed_funds",
+    "ecommerce_sku_load_no_finance_staff": "unstaffed_ecommerce",
+}
+
+
 def _cfo_what_category(gift: list[Lead]) -> str:
-    """CFO subject WHAT category. Lives here (not the pack module) because it's
-    pure signal logic; the CFO pack references it by name. In leadgen's vocab a
-    lead's primary signal is either a funding filing (a raise) or a job post (a
-    hire)."""
+    """CFO subject WHAT category: raised | hiring | unstaffed | mixed.
+
+    `unstaffed` exists because the previous logic was a two-way split — a lead
+    either raised or, by elimination, was "hiring". That inverted the truth for
+    a magnet lead: a nonprofit whose 990 lists no finance officer is precisely
+    a company that has NOT posted a role, and a subject line saying it is
+    "hiring finance leadership right now" is a false claim about a named
+    organization in the first line the recipient reads."""
     def raised(lead: Lead) -> bool:
         return lead.signal_type in FUNDING_SIGNALS
 
+    def unstaffed(lead: Lead) -> bool:
+        return lead.signal_type in MAGNET_SIGNALS
+
     def hiring(lead: Lead) -> bool:
-        return lead.signal_type not in FUNDING_SIGNALS
+        return lead.signal_type not in FUNDING_SIGNALS and not unstaffed(lead)
 
     if all(raised(lead) for lead in gift):
         return "raised"
+    if all(unstaffed(lead) for lead in gift):
+        # Per MAGNET, not one shared word: the three do not verify the same
+        # thing. Nonprofit and Ecommerce both confirm no finance staff; Funds
+        # confirms no outside ADMINISTRATOR and says nothing about who works
+        # there, so it must not borrow their phrasing.
+        kinds = {lead.signal_type for lead in gift}
+        if len(kinds) == 1:
+            return _MAGNET_WHAT[next(iter(kinds))]
+        return "unstaffed"
     if all(hiring(lead) for lead in gift):
         return "hiring"
     return "mixed"

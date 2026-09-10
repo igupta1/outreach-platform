@@ -13,6 +13,8 @@ automatically (they're already declared) — no code change needed.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,6 +25,12 @@ class Signal(BaseModel):
     date_confidence: str | None = None       # "high" | "low"
     plain_words_description: str | None = None
     source_url: str | None = None            # leadgen link to the filing/posting/disclosure (for review evidence)
+    # Source-specific figures behind the evidence line: a nonprofit's EIN and
+    # audit findings, a fund's unadministered-fund count, a brand's SKU count.
+    # Carried so the templated copy line can state the ONE fact that makes the
+    # company a buyer without re-parsing prose out of `plain_words_description`,
+    # and so `entity_id` can be read off a government identifier.
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class Lead(BaseModel):
@@ -55,6 +63,39 @@ class Lead(BaseModel):
     score: float | None = None                # not in live API -> None
     date_confidence: str | None = None        # spec lead-level; live is per-signal
     signals: list[Signal] = Field(default_factory=list)
+    # A stable PUBLIC identifier for this company, when its source has one:
+    # "ein:27-1693939" for a nonprofit, "crd:313945" for a fund adviser,
+    # "domain:acme.com" otherwise.
+    #
+    # Domain used to do this job alone, and it does not generalise. A nonprofit
+    # is identified by its EIN and a fund adviser by its CRD; most of them have
+    # no useful website, and some have a LinkedIn or Facebook URL sitting in
+    # the domain field. Keying identity on domain therefore made every lead
+    # from those two magnets look both un-dedupable and unfindable.
+    entity_id: str | None = None
+
+    @property
+    def identity(self) -> str | None:
+        """The key two records of the SAME company share.
+
+        `entity_id` when the magnet supplied one, else the domain. The fallback
+        matters: a Lead built directly (a test, a hand-made row, a future
+        source that predates `entity_id`) still dedupes on whatever it has,
+        rather than silently deduping on nothing."""
+        if self.entity_id:
+            return self.entity_id.strip().lower()
+        domain = (self.domain or "").strip().lower()
+        return f"domain:{domain}" if domain else None
+
+    @property
+    def is_findable(self) -> bool:
+        """Whether a recipient can look this company up and confirm it exists.
+
+        A domain is one way. A government identifier plus a public filing page
+        is a STRONGER way — anyone can register a domain, but only a real
+        filing entity has an EIN with a return behind it. So a lead carrying an
+        EIN or CRD is findable whether or not it has a website."""
+        return self.identity is not None
 
     @property
     def newest_date(self) -> str:

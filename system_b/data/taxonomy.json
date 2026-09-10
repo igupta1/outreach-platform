@@ -1,0 +1,136 @@
+{
+  "taxonomy": {
+    "software_saas": [
+      "b2b_saas",
+      "consumer_app",
+      "ai_ml",
+      "devtools_infra",
+      "vertical_saas",
+      "hardware_iot"
+    ],
+    "fintech": [
+      "payments",
+      "lending",
+      "wealth_investing",
+      "insurtech",
+      "crypto_web3",
+      "banking_infra"
+    ],
+    "ecommerce_retail": [
+      "dtc_brand",
+      "cpg_food_beverage",
+      "apparel_fashion",
+      "beauty_personal_care",
+      "brick_mortar_retail",
+      "marketplace"
+    ],
+    "healthcare": [
+      "medical_practice",
+      "dental",
+      "veterinary",
+      "behavioral_mental_health",
+      "biotech_pharma",
+      "medical_devices",
+      "digital_health",
+      "senior_care"
+    ],
+    "professional_services": [
+      "law_firm",
+      "accounting_bookkeeping",
+      "marketing_creative_agency",
+      "consulting",
+      "staffing_hr",
+      "it_msp",
+      "architecture_engineering"
+    ],
+    "manufacturing": [
+      "industrial_mfg",
+      "consumer_goods_mfg",
+      "food_manufacturing",
+      "aerospace_defense",
+      "electronics_mfg",
+      "chemicals_materials"
+    ],
+    "construction": [
+      "general_contractor",
+      "specialty_trades",
+      "homebuilder_developer",
+      "civil_infrastructure"
+    ],
+    "home_services": [
+      "hvac_plumbing_electrical",
+      "cleaning_janitorial",
+      "landscaping",
+      "pest_control",
+      "security_services"
+    ],
+    "real_estate": [
+      "property_management",
+      "real_estate_investment",
+      "brokerage",
+      "proptech"
+    ],
+    "logistics_transport": [
+      "trucking_freight",
+      "last_mile_delivery",
+      "supply_chain_3pl",
+      "fleet_services"
+    ],
+    "hospitality_food": [
+      "restaurant",
+      "hotel_lodging",
+      "catering_events",
+      "bar_brewery",
+      "food_service"
+    ],
+    "fitness_wellness": [
+      "gym_studio",
+      "spa_wellness",
+      "health_coaching"
+    ],
+    "media_entertainment": [
+      "content_creator",
+      "production_studio",
+      "gaming",
+      "publishing",
+      "music_events"
+    ],
+    "education": [
+      "k12_school",
+      "higher_ed",
+      "edtech",
+      "training_bootcamp"
+    ],
+    "energy": [
+      "oil_gas",
+      "renewables_solar",
+      "utilities",
+      "cleantech"
+    ],
+    "agriculture": [
+      "farming",
+      "agtech",
+      "food_production"
+    ],
+    "investment_management": [
+      "private_funds",
+      "wealth_advisory",
+      "family_office"
+    ],
+    "nonprofit": [
+      "charity_foundation",
+      "religious",
+      "membership_association",
+      "social_services"
+    ],
+    "cannabis": [
+      "cannabis"
+    ],
+    "other": [
+      "other"
+    ],
+    "unknown": [
+      "unknown"
+    ]
+  }
+}

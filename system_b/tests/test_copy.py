@@ -232,14 +232,17 @@ def test_5a_framing_table():
 # 5c — CTA table (4 rows)
 # --------------------------------------------------------------------------
 
-def test_5c_cta_asks_for_the_call():
-    """One ask, one goal: book 15 minutes. The old CTA branched on niche/geo and
-    recruited subscribers to a free lead feed — the wrong yes. This one is
-    deliberately niche/geo-agnostic: the opener and the leads already carried the
-    personalization, and repeating it here made the close about the feed."""
+def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
+    """One ask. The old CTA branched on niche/geo and recruited subscribers to a
+    free lead feed — the wrong yes — and was then replaced by "would 15 min
+    work", which is a CALENDAR ask: it wants the reader to open a calendar and
+    commit a slot before they know whether the thing is any good. "worth a
+    look?" is answerable from the email they are already reading. Still
+    niche/geo-agnostic: the opener and the leads carried the personalization,
+    and repeating it here made the close about the feed."""
     expected = (
-        "still tuning it. would 15 min work to hear what would make it useful "
-        "for you? happy to set it up to run for you either way :)"
+        "still tuning it. worth a look? happy to set it up to run for you "
+        "either way :)"
     )
     p = P()
     for all_niche, geo in ((True, "city"), (False, "city"), (False, "state"), (False, "none")):
@@ -265,9 +268,15 @@ def test_every_pack_shares_the_one_left_field_line():
     for key in ("cfo", "accounting", "bookkeeping", "msp", "mssp", "cloud"):
         pack = pack_for(key)
         line = left_field_for(pack)
-        assert line.startswith("i'm an engineer. built this one for ")
+        assert line.startswith("i'm an engineer. i build these lead systems, and this one is for ")
         assert pack.dm_audience in line
-        assert "referrals dried up and nothing replaced them" in line
+        # The old line claimed I had heard this pain "over and over" from
+        # their peers. The real total is 30 emails sent once, two replies and
+        # one call — borrowed social proof, in a system whose every other claim
+        # is a checkable fact off a public filing. It is gone and must not
+        # come back.
+        assert "referrals dried up" not in line
+        assert "hearing the same thing" not in line
         assert line == line.lower() and "—" not in line
         seen[key] = line
     # every pack differs ONLY by the audience word
@@ -417,12 +426,16 @@ def test_fix_articles_in_lead_lines():
     assert "is looking for an assistant controller" in draft.body
 
 
-def test_5e_domainless_flag():
+def test_5e_unfindable_flag():
     lead = mk("dl", "job_finance_lead", city="Denver", state="CO", domain=None, finance_grade="medium")
     p = P(niched=False)
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, today=TODAY)
-    assert any("domainless" in f for f in draft.flags)
+    # "unfindable", not "domainless": the flag now fires when a recipient has
+    # no way to look the company up at all. A domain is one way; an EIN or CRD
+    # with a public filing behind it is another and a stronger one, so a
+    # nonprofit or fund lead with no website is NOT flagged.
+    assert any("unfindable" in f for f in draft.flags)
 
 
 def test_registered_address_flag_is_dead_with_funding_gone():
@@ -459,7 +472,7 @@ def test_full_email_niched_example_1():
     assert "2. Acme Bio, denver: is looking for a bookkeeper, 3 days ago" in draft.body
     assert "3. Nimbus Rx, denver: is looking for a staff accountant, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
-    assert "would 15 min work to hear what would make it useful for you?" in draft.body
+    assert "worth a look?" in draft.body
     assert draft.body.endswith("best,\nishaan")
     # no funding claim means no registered-address caveat
     assert not any("registered address" in f for f in draft.flags)
@@ -482,7 +495,7 @@ def test_full_email_generalist_example_8():
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
     assert "1. Palm Freight, miami: is looking for a vp of finance, 2 days ago" in draft.body
     assert "2. Bay Foods, miami: is looking for a controller, 3 days ago" in draft.body
-    assert "would 15 min work to hear what would make it useful for you?" in draft.body
+    assert "worth a look?" in draft.body
     # ZERO niche words anywhere — subject AND body — for a generalist
     assert_no_niche_claim(draft.subject + "\n" + draft.body)
 
@@ -529,7 +542,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     # ...but the copy is generalist, because the token has no label.
     assert draft.subject == "companies in denver that need finance help right now"
     assert "saw you're based in denver, so i pulled 2 companies in denver" in draft.body
-    assert "would 15 min work to hear what would make it useful for you?" in draft.body
+    assert "worth a look?" in draft.body
     for banned in ("pet_grooming", "pet grooming", "pet grooming shops"):
         assert banned not in (draft.subject + "\n" + draft.body)
     assert_no_niche_claim(draft.subject + "\n" + draft.body)
@@ -549,7 +562,11 @@ def test_cfo_gift_no_longer_flags_every_card():
     # 23 real prospects and buried the flags that needed a decision. The
     # MAX_JOB_LEAD_AGE_DAYS cap enforces posting freshness in code instead.
     assert not any("confirm it's still live" in f for f in draft.flags)
-    assert any("domainless" in f for f in draft.flags)
+    # "unfindable", not "domainless": the flag now fires when a recipient has
+    # no way to look the company up at all. A domain is one way; an EIN or CRD
+    # with a public filing behind it is another and a stronger one, so a
+    # nonprofit or fund lead with no website is NOT flagged.
+    assert any("unfindable" in f for f in draft.flags)
 
 
 # --- job title: board metadata never reaches copy ---------------------------

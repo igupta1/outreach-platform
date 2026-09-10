@@ -51,7 +51,21 @@ VALID_NICHES: frozenset[str] = frozenset(
     {"bookkeeping", "accounting", "cfo", "mssp", "msp", "cloud"}
 )
 
+# The three FINANCE niches no longer have a job-post inventory: leadgen stopped
+# emitting them on 2026-09-08 (see leadgen/niches/__init__.py) because job
+# posts are the wrong gift — a company advertising an in-house bookkeeper has
+# decided AGAINST outsourcing, and "Fractional CFO wanted" is on every board.
+#
+# The old JSON is still sitting on the blob and will never be refreshed again,
+# so `--legacy-niche --pack cfo` would silently build a gift from months-old
+# job posts. That is the one way to accidentally send the retired system's
+# output, so it is refused rather than left as a footgun. The IT packs still
+# use this path and are unaffected.
+RETIRED_JOB_NICHES: frozenset[str] = frozenset({"bookkeeping", "accounting", "cfo"})
+
 _NONWORD_RE = re.compile(r"[^a-z0-9]+")
+
+LOCAL_TAXONOMY = Path(__file__).resolve().parent.parent / "data" / "taxonomy.json"
 
 
 # --- Inventory source config (read at call time so tests can monkeypatch) ---
@@ -66,11 +80,36 @@ def _blob_base() -> str:
     return os.environ.get("LEADGEN_BLOB_BASE_URL", "").rstrip("/")
 
 
-def _max_inventory_age_days() -> int:
-    try:
-        return int(os.environ.get("LEADGEN_MAX_INVENTORY_AGE_DAYS", "3"))
-    except ValueError:
-        return 3
+# How long each magnet may go without a refresh before the run complains.
+#
+# The old rule was a single 3-day limit for every source, which was correct
+# when one nightly cron rebuilt everything. The vertical magnets refresh on
+# their OWN cadences and none of them is daily: the IRS publishes 990 data
+# annually, the SEC publishes Form ADV monthly, and the e-commerce seed only
+# changes when a new Apollo export is bought. Under a shared 3-day rule every
+# run failed after three days and the only escape was LEADGEN_ALLOW_STALE,
+# which switches the guard off for ALL sources — including the one that really
+# has gone stale. A limit nobody can satisfy is a limit everybody disables.
+#
+# Each is roughly two refresh cycles, so a single missed cycle warns and a
+# genuinely abandoned magnet still gets caught.
+MAGNET_MAX_AGE_DAYS: dict[str, int] = {
+    "nonprofit": 400,     # IRS publishes annually
+    "funds": 75,          # SEC publishes monthly
+    "ecommerce": 180,     # refreshed when a new Apollo export is bought
+}
+
+DEFAULT_MAX_AGE_DAYS = 3          # the old job-post inventory: a nightly cron
+
+
+def _max_inventory_age_days(key: str | None = None) -> int:
+    override = os.environ.get("LEADGEN_MAX_INVENTORY_AGE_DAYS")
+    if override:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    return MAGNET_MAX_AGE_DAYS.get(key or "", DEFAULT_MAX_AGE_DAYS)
 
 
 def _allow_stale() -> bool:
@@ -108,7 +147,7 @@ def _check_freshness(data: dict[str, Any], niche_key: str, today: date) -> None:
         log.warning("inventory(%s): no generated_at — cannot verify freshness", niche_key)
         return
     age = (today - gen_date).days
-    if age <= _max_inventory_age_days():
+    if age <= _max_inventory_age_days(niche_key):
         return
     msg = (
         f"{niche_key} inventory is {age} days old (generated {gen_date}); the daily "
@@ -273,6 +312,26 @@ def _fractional_evidence(row: dict[str, Any]) -> tuple[str | None, bool]:
     return qualifier, evidenced
 
 
+# Public identifiers a magnet may carry, strongest first. An EIN or a CRD is a
+# government-issued key with a public filing behind it; a domain is whatever
+# the company registered. Order matters: a nonprofit with both should dedupe on
+# its EIN, because two records for one charity can easily disagree about the
+# website while never disagreeing about the EIN.
+_ID_FIELDS: tuple[tuple[str, str], ...] = (("ein", "ein"), ("crd", "crd"))
+
+
+def _entity_id(row: dict[str, Any]) -> str | None:
+    """`"ein:27-1693939"` / `"crd:313945"` / `"domain:acme.com"` / None."""
+    for signal in (row.get("signals") or []):
+        payload = signal.get("payload") or {}
+        for key, prefix in _ID_FIELDS:
+            raw = payload.get(key)
+            if raw is not None and str(raw).strip():
+                return f"{prefix}:{str(raw).strip()}"
+    domain = (row.get("domain") or "").strip().lower()
+    return f"domain:{domain}" if domain else None
+
+
 def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
     """Map one leadgen inventory row onto the outreach `Lead` shape.
 
@@ -333,6 +392,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
             date_confidence=s.get("date_confidence") or "high",
             plain_words_description=s.get("evidence_text"),
             source_url=s.get("source_url"),
+            payload=s.get("payload") or {},
         )
         for s in (row.get("signals") or [])
     ]
@@ -341,6 +401,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
 
     return Lead(
         id=str(lead_id),
+        entity_id=_entity_id(row),
         company=company,
         domain=row.get("domain"),
         city=row.get("city"),
@@ -350,6 +411,12 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         value_prop=row.get("insight"),
         headcount=row.get("headcount"),
         headcount_band=row.get("headcount_band"),
+        # The magnet's own ranking of how strong this lead is. The live job-post
+        # API never served one, so the field sat permanently None and
+        # `sort_key` had nothing to order by within a signal type. The vertical
+        # magnets DO score — it is how a repeat material-weakness finding
+        # outranks an ordinary grant-funded nonprofit — so it is read here.
+        score=row.get("score"),
         role_qualifier=qualifier,
         signal_type=signal_type,
         freshness=freshness,
@@ -382,6 +449,13 @@ def load_taxonomy() -> dict[str, list[str]]:
         path = Path(inventory_dir) / "taxonomy.json"
         if path.exists():
             return dict((json.loads(path.read_text()) or {}).get("taxonomy") or {})
+    # Canonical copy, vendored here. The taxonomy used to ship from the leadgen
+    # blob, but it is a CONTRACT rather than data: the lead magnets emit into
+    # this vocabulary and the research classifier maps prospects into it, so it
+    # belongs with the consumer that defines it. Vendoring it also means
+    # retiring the leadgen job-post pipeline cannot take the taxonomy with it.
+    if LOCAL_TAXONOMY.exists():
+        return dict((json.loads(LOCAL_TAXONOMY.read_text()) or {}).get("taxonomy") or {})
     return {}
 
 
@@ -412,11 +486,60 @@ def _max_age_for(lead: Lead) -> int:
     return config.MAX_JOB_LEAD_AGE_DAYS
 
 
+# Age ceilings by SIGNAL FAMILY. A job post decays fast because "is looking for
+# a bookkeeper" stops being true the moment the role is filled. A structural
+# signal does not decay the same way — an unadministered fund or a disclosed
+# material weakness describes how the business is ARRANGED, not something it is
+# doing this month — but it can still go stale as a fact about a filing, so
+# each family declares its own rule instead of inheriting the job-post one.
+#
+#   None  = no ceiling. The claim is about a document that stays true, and the
+#           magnet already re-tests currency at its own source (the nonprofit
+#           magnet, for instance, refuses to headline an audit finding more
+#           than two years behind the return it quotes).
+_STRUCTURAL_MAX_AGE_DAYS: dict[str, int | None] = {
+    # Form ADV is filed annually, so a filing older than about 18 months means
+    # the adviser has missed a cycle and the fund counts cannot be trusted.
+    "adv_": 550,
+    # The 990 lag is structural (charities file late, the IRS posts later) and
+    # is stated inside the evidence line itself, so a date cap here would only
+    # delete honest leads.
+    "nonprofit_": None,
+    # A storefront crawl is a live observation with no event date at all.
+    "ecommerce_": None,
+}
+
+
+def _structural_max_age(signal_type: str) -> tuple[bool, int | None]:
+    """(is_structural, max_age_days). max_age None means no ceiling."""
+    for prefix, cap in _STRUCTURAL_MAX_AGE_DAYS.items():
+        if (signal_type or "").startswith(prefix):
+            return True, cap
+    return False, None
+
+
 def _is_expired_job_lead(lead: Lead, today: date) -> bool:
-    """True for a job-posting lead whose posting is old enough that "is looking
-    for a {role}" can no longer be trusted. Non-job signals (a breach) describe
-    an event that stays true, so the cap does not apply to them."""
-    if not (lead.signal_type or "").startswith("job_"):
+    """True when a lead is too old to be shown.
+
+    Job postings decay fast: "is looking for a {role}" stops being true once
+    the role is filled, and an undated one cannot be shown to be open at all.
+
+    Structural signals are governed by `_STRUCTURAL_MAX_AGE_DAYS` instead. They
+    are NOT simply exempt — that was true only by accident, because their
+    signal types happen not to start with "job_", and a future magnet whose
+    filings genuinely go stale would have inherited no rule at all.
+    """
+    signal_type = lead.signal_type or ""
+    structural, cap = _structural_max_age(signal_type)
+    if structural:
+        if cap is None:
+            return False
+        age = lead_age_days(lead, today)
+        # An undated structural lead is KEPT — unlike a job post, absence of a
+        # date is normal here (a crawl has none) and says nothing about whether
+        # the arrangement still holds.
+        return age is not None and age > cap
+    if not signal_type.startswith("job_"):
         return False
     age = lead_age_days(lead, today)
     if age is None:
@@ -541,6 +664,102 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
     return kept
 
 
+# --- Lead magnets -----------------------------------------------------------
+#
+# The inventory used to be one file per NICHE — which rung of service a firm
+# sells (bookkeeping / accounting / cfo). Those files came from the job-post
+# pipeline, and job posts were retired as gift content: a company advertising
+# for a bookkeeper has decided to hire in-house, and a "Fractional CFO wanted"
+# post is on every job board, so handing one to a prospect proves nothing.
+#
+# What replaced them is one file per VERTICAL — which industry a firm serves.
+# The two are orthogonal: a prospect is a rung AND a vertical ("a fractional
+# CFO who serves nonprofits"). The rung still selects the copy voice (--pack);
+# the vertical selects which leads they can be shown at all.
+#
+# Each magnet is self-contained, refreshes on its own cadence, and tags its
+# leads with the shared taxonomy so `SnapshotScraper.leads(industry=...)` can
+# address them.
+MAGNETS: dict[str, str] = {
+    "nonprofit": "nonprofit-leads.json",   # IRS Form 990 + Federal Audit Clearinghouse
+    "funds": "fund-leads.json",            # SEC Form ADV Schedule D
+    "ecommerce": "ecommerce-leads.json",   # Shopify catalog crawl + Apollo staffing
+}
+
+# magnet key -> the taxonomy PARENT its leads carry. Kept here as the one place
+# that has to agree with each magnet's own `vertical.py`, so a rename shows up
+# as a mismatch in one file rather than as leads that silently never match.
+MAGNET_INDUSTRY: dict[str, str] = {
+    "nonprofit": "nonprofit",
+    "funds": "fintech",
+    "ecommerce": "ecommerce_retail",
+}
+
+
+def _load_one(name: str, key: str, today: date) -> list[dict[str, Any]]:
+    """Raw rows for one magnet, blob first then local dir. A magnet that is not
+    published yet is skipped with a warning rather than failing the run — the
+    three refresh independently, so a missing one is normal, not broken."""
+    inventory_dir = os.environ.get("LEADGEN_INVENTORY_DIR")
+    data: dict[str, Any] | None = None
+
+    if _blob_base():
+        try:
+            data = _fetch_blob_json(name)
+        except Exception:  # noqa: BLE001 — a missing magnet must not end the run
+            # Not fatal, and not the end of the search. The three magnets
+            # publish on their own cadence, so one of them being absent from
+            # the blob is ordinary — and a local copy is the better answer than
+            # skipping when the operator has one. Blob stays FIRST so a normal
+            # run reads what is actually published.
+            log.warning("inventory: %s not on the blob — trying local", name)
+
+    if data is None:
+        if not inventory_dir:
+            if _blob_base():
+                log.warning("inventory: %s unavailable and no local dir set — skipping", name)
+                return []
+            raise RuntimeError(
+                "no inventory source: set LEADGEN_BLOB_BASE_URL or LEADGEN_INVENTORY_DIR"
+            )
+        path = Path(inventory_dir) / name
+        if not path.exists():
+            log.warning("inventory: %s not found in %s — skipping", name, inventory_dir)
+            return []
+        data = json.loads(path.read_text())
+
+    _check_freshness(data, key, today)
+    return list(data.get("leads") or [])
+
+
+def snapshot_all_magnets(today: date | None = None) -> SnapshotScraper:
+    """Every vertical magnet in ONE addressable snapshot.
+
+    The leads stay logically separate — each carries its own `industry`, and
+    the gift ladder only ever queries one vertical at a time — but they live in
+    one scraper because that is the interface `build_gift` already speaks. No
+    change to the gift engine is needed.
+
+    A magnet that fails to load is skipped, not fatal: the three refresh
+    independently and a run with two of them is still a useful run.
+    """
+    today = today or date.today()
+    rows: list[dict[str, Any]] = []
+    per_magnet: dict[str, int] = {}
+    for key, name in MAGNETS.items():
+        loaded = _load_one(name, key, today)
+        per_magnet[key] = len(loaded)
+        rows.extend(loaded)
+    if not rows:
+        raise RuntimeError(
+            f"no lead magnet produced any rows (looked for {list(MAGNETS.values())}). "
+            "Run each magnet's emit step, or point LEADGEN_INVENTORY_DIR at their output."
+        )
+    leads = _adapt_rows(rows, today=today)
+    log.info("inventory(magnets): %d lead(s) — %s", len(leads), per_magnet)
+    return SnapshotScraper(leads, taxonomy=load_taxonomy())
+
+
 def snapshot_for_niche(
     niche_key: str, *, today: date | None = None
 ) -> SnapshotScraper:
@@ -557,6 +776,13 @@ def snapshot_for_niche(
     RuntimeError if no source is configured.
     """
     _validate_niche(niche_key)
+    if niche_key in RETIRED_JOB_NICHES and not os.environ.get("LEADGEN_ALLOW_RETIRED"):
+        raise RuntimeError(
+            f"the {niche_key!r} job-post inventory was retired on 2026-09-08 and is "
+            "no longer refreshed — anything still on the blob is stale. Use the "
+            "vertical magnets (drop --legacy-niche), or set LEADGEN_ALLOW_RETIRED=1 "
+            "to read the old file deliberately."
+        )
     today = today or date.today()
 
     if _blob_base():

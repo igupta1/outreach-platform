@@ -43,3 +43,11 @@ class ResearchResult:
     # Describes THEM, never the gift — see research/revenue.py.
     client_revenue: tuple[float | None, float | None] | None = None
     revenue_phrase: str | None = None
+    # Which RUNG of finance service this firm sells — bookkeeping | accounting |
+    # cfo — read off their own service vocabulary (see research/rung.py). This
+    # is a different question from the vertical: the vertical decides which
+    # leads they may be shown, the rung decides one line of copy. It used to be
+    # a single --pack flag for a whole batch, which told a bookkeeper the tool
+    # was "built for fractional cfos".
+    rung: str | None = None
+    rung_evidence: list[str] = field(default_factory=list)

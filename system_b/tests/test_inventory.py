@@ -8,6 +8,9 @@ Run:  system_b/.venv/bin/python -m pytest system_b/tests/test_inventory.py -q
 
 from __future__ import annotations
 
+# NOTE: these use `mssp`, a still-live job-post niche. `cfo` was retired on
+# 2026-09-08 and `snapshot_for_niche` now refuses it, so using it here would
+# test the guard rather than the loader.
 import json
 from datetime import date, timedelta
 
@@ -32,7 +35,7 @@ def _row(**kw):
         "name": "Acme Corp",
         "insight": "growing fast, could use finance help",
         "signal_type": "job_finance_lead",
-        "niche": "cfo",
+        "niche": "mssp",
         "industry": "healthcare",
         "city": "Denver",
         "state": "CO",
@@ -155,9 +158,9 @@ def test_id_uses_row_id_when_present():
 
 def test_id_synthesized_when_absent():
     lead = adapt_leadgen_lead(
-        _row(id=None, name="Acme Corp", niche="cfo", state="CA"), today=TODAY
+        _row(id=None, name="Acme Corp", niche="mssp", state="CA"), today=TODAY
     )
-    assert lead.id == "leadgen:cfo-acme-corp-ca"             # niche+company+state slug
+    assert lead.id == "leadgen:mssp-acme-corp-ca"             # niche+company+state slug
 
 
 # --------------------------------------------------------------------------
@@ -171,16 +174,16 @@ def _write_inventory(tmp_path, niche, rows, taxonomy):
 
 def test_snapshot_for_niche_stub_serves_adapted_leads_and_taxonomy(tmp_path, monkeypatch):
     rows = [
-        _row(id="l1", name="Acme", niche="cfo",
+        _row(id="l1", name="Acme", niche="mssp",
              signals=[{"type": "job_finance_lead", "event_date": "2026-07-01", "evidence_text": "a"}]),
-        _row(id="l2", name="Beta", niche="cfo", signal_type="funding_form_d",
+        _row(id="l2", name="Beta", niche="mssp", signal_type="funding_form_d",
              signals=[{"type": "funding_form_d", "event_date": "2026-07-05", "evidence_text": "b"}]),
     ]
     taxonomy = {"healthcare": ["dental"], "fintech": []}
-    _write_inventory(tmp_path, "cfo", rows, taxonomy)
+    _write_inventory(tmp_path, "mssp", rows, taxonomy)
     monkeypatch.setenv("LEADGEN_INVENTORY_DIR", str(tmp_path))
 
-    snap = snapshot_for_niche("cfo", today=TODAY)
+    snap = snapshot_for_niche("mssp", today=TODAY)
 
     leads = snap.leads()                                     # adapted Lead objects
     assert all(isinstance(lead, Lead) for lead in leads)
@@ -204,6 +207,10 @@ def test_snapshot_for_niche_rejects_unknown_niche(tmp_path, monkeypatch):
 
 
 def test_valid_niches_are_the_six():
+    """All six still PARSE as niche keys. Three of them (the finance ladder) no
+    longer have a refreshed job-post inventory — see
+    `test_the_retired_job_inventory_cannot_be_loaded_by_accident` — but the key
+    stays valid so `--pack cfo` still selects the CFO copy voice."""
     assert VALID_NICHES == frozenset(
         {"bookkeeping", "accounting", "cfo", "mssp", "msp", "cloud"}
     )
@@ -239,7 +246,7 @@ class _FakeResp:
 
 def _blob_doc(*, generated_at="2026-07-20", rows=None):
     rows = rows if rows is not None else [_row(id="b1", name="Blobco")]
-    return {"generated_at": generated_at, "niche": "cfo", "count": len(rows), "leads": rows}
+    return {"generated_at": generated_at, "niche": "mssp", "count": len(rows), "leads": rows}
 
 
 def _fake_httpx(monkeypatch, *, leads_doc, taxonomy=None, record=None):
@@ -264,12 +271,12 @@ def test_blob_mode_reads_adapts_and_carries_source_url(monkeypatch):
     monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
     _fake_httpx(monkeypatch, leads_doc=doc, taxonomy={"healthcare": ["dental"]}, record=urls)
 
-    snap = snapshot_for_niche("cfo", today=TODAY)
+    snap = snapshot_for_niche("mssp", today=TODAY)
     leads = snap.leads()
     assert [lead.company for lead in leads] == ["Blobco"]
     assert leads[0].primary_source_url == "https://jobs/blobco"     # source_url survives
     assert snap.niches() == {"healthcare": ["dental"]}              # taxonomy from blob
-    assert any(u.endswith("cfo-leads.json") for u in urls)          # correct pathname fetched
+    assert any(u.endswith("mssp-leads.json") for u in urls)          # correct pathname fetched
 
 
 def test_freshness_refuses_stale_inventory(monkeypatch):
@@ -278,7 +285,7 @@ def test_freshness_refuses_stale_inventory(monkeypatch):
     monkeypatch.delenv("LEADGEN_ALLOW_STALE", raising=False)
     _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))  # 19 days old
     with pytest.raises(inv.StaleInventoryError):
-        snapshot_for_niche("cfo", today=TODAY)
+        snapshot_for_niche("mssp", today=TODAY)
 
 
 def test_freshness_allow_stale_bypasses(monkeypatch):
@@ -286,7 +293,7 @@ def test_freshness_allow_stale_bypasses(monkeypatch):
     monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
     monkeypatch.setenv("LEADGEN_ALLOW_STALE", "1")
     _fake_httpx(monkeypatch, leads_doc=_blob_doc(generated_at="2026-07-01"))
-    snap = snapshot_for_niche("cfo", today=TODAY)                   # no raise
+    snap = snapshot_for_niche("mssp", today=TODAY)                   # no raise
     assert snap.leads()
 
 
@@ -295,16 +302,16 @@ def test_freshness_missing_generated_at_is_allowed(monkeypatch):
     monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
     doc = {"leads": [_row(id="b1", name="Blobco")]}                 # no generated_at
     _fake_httpx(monkeypatch, leads_doc=doc)
-    assert snapshot_for_niche("cfo", today=TODAY).leads()           # warns, does not refuse
+    assert snapshot_for_niche("mssp", today=TODAY).leads()           # warns, does not refuse
 
 
 def test_blob_takes_precedence_over_local_dir(monkeypatch, tmp_path):
     # A leftover local dir must NOT win once the blob URL is set.
-    _write_inventory(tmp_path, "cfo", [_row(id="local1", name="LocalCo")], {})
+    _write_inventory(tmp_path, "mssp", [_row(id="local1", name="LocalCo")], {})
     monkeypatch.setenv("LEADGEN_INVENTORY_DIR", str(tmp_path))
     monkeypatch.setenv("LEADGEN_BLOB_BASE_URL", _BLOB_BASE)
     _fake_httpx(monkeypatch, leads_doc=_blob_doc(rows=[_row(id="blob1", name="BlobCo")]))
-    ids = {lead.id for lead in snapshot_for_niche("cfo", today=TODAY).leads()}
+    ids = {lead.id for lead in snapshot_for_niche("mssp", today=TODAY).leads()}
     assert ids == {"blob1"}                                         # blob, not local1
 
 
@@ -312,7 +319,7 @@ def test_no_source_configured_raises(monkeypatch):
     monkeypatch.delenv("LEADGEN_BLOB_BASE_URL", raising=False)
     monkeypatch.delenv("LEADGEN_INVENTORY_DIR", raising=False)
     with pytest.raises(RuntimeError):
-        snapshot_for_niche("cfo", today=TODAY)
+        snapshot_for_niche("mssp", today=TODAY)
 
 
 # --- Job-posting age cap ---------------------------------------------------

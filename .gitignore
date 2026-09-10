@@ -35,6 +35,18 @@ FractionalCFO.csv
 Accounting.csv
 Bookkeeping.csv
 # the review gate's downloads (prospect data) if saved next to the repo
+# prospect lists sorted by served vertical (system_b.verticals) -- derived from
+# the Apollo exports above, same prospect data, never commit
+verticals/
+system_b/data/corpus/
 connect-queue.csv
 *-emails.csv
 linkedin.csv
+
+# Merged prospect list: real names and work emails, derived from PAID Apollo
+# exports. Never committed.
+system_b/data/prospects.csv
+
+# Lead inventory pulled from the magnet repos' GitHub artifacts. Large,
+# regenerated on every run, and not this repo's data to hold.
+system_b/data/inventory/
