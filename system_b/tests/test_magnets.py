@@ -638,3 +638,81 @@ def test_magnet_industry_matches_the_real_inventory():
         import pytest
 
         pytest.skip("no magnet inventory on disk")
+
+
+# --- the framing line must not claim a magnet lead announced anything --------
+
+
+def _magnet_gift(signal_type: str):
+    from system_b.gift.models import Gift
+    one = lead_with(signal_type, {})
+    return Gift(leads=[one], best_lead=one, gift_size=1, all_niche=True,
+                geo_level="city", subject_shape="singular",
+                what_category="unstaffed", best_lead_level=1)
+
+
+def test_the_framing_line_does_not_say_a_magnet_lead_posted_a_role():
+    """The accounting and bookkeeping packs were written for job posts, and
+    their opener still said so: "3 more BUILDING OUT THEIR FINANCE FUNCTION
+    RIGHT NOW" / "LOOKING FOR BOOKKEEPING HELP RIGHT NOW".
+
+    Both describe a company that advertised a role. A magnet lead advertised
+    nothing -- that is the whole signal, and the reason a filing had to be read
+    to find it. Measured on a real batch: an ADV gift opened with the accounting
+    wording about firms whose only disclosed fact is that their funds have no
+    third-party administrator.
+
+    The subject line was fixed per magnet (`_MAGNET_WHAT`) and the body was not,
+    so the two halves of the same email disagreed.
+    """
+    from system_b.copy.email import need_for
+    from system_b.niches.accounting import _JOB_NEED as ACCT_NEED
+    from system_b.niches.bookkeeping import _JOB_NEED as BOOK_NEED
+
+    for signal_type in ("nonprofit_grant_no_finance_officer",
+                        "adv_no_fund_administrator",
+                        "ecommerce_sku_load_no_finance_staff"):
+        gift = _magnet_gift(signal_type)
+        for default in (ACCT_NEED, BOOK_NEED):
+            said = need_for(gift, default=default)
+            assert said != default, f"{signal_type} kept the job-post wording"
+            assert "right now" not in said, (signal_type, said)
+            assert "building out" not in said, (signal_type, said)
+            assert "looking for" not in said, (signal_type, said)
+
+
+def test_the_funds_framing_does_not_borrow_the_no_finance_staff_claim():
+    """Funds verifies that a firm's funds have no third-party administrator. It
+    says nothing about who works there, so it must not reach for the wording
+    the other two magnets earned."""
+    from system_b.copy.email import need_for
+    said = need_for(_magnet_gift("adv_no_fund_administrator"), default="x")
+    assert "nobody" not in said and "no finance" not in said, said
+    assert "administrator" in said, said
+
+
+def test_a_job_post_gift_keeps_its_own_wording():
+    """The swap is for magnet gifts only. A company that really did post a
+    finance role IS building one out, and that opener is the honest one."""
+    from system_b.copy.email import need_for
+    from system_b.gift.models import Gift
+    lead = lead_with("job_fractional_cfo", {})
+    gift = Gift(leads=[lead], best_lead=lead, gift_size=1, all_niche=True,
+                geo_level="city", subject_shape="singular",
+                what_category="hiring", best_lead_level=1)
+    assert need_for(gift, default="building out their finance function right now") \
+        == "building out their finance function right now"
+
+
+def test_a_mixed_magnet_gift_falls_back_rather_than_picking_one():
+    """No single clause is true of both an unstaffed nonprofit and a fund with
+    no administrator, so a mixed gift keeps the pack's neutral wording instead
+    of borrowing whichever magnet happened to sort first."""
+    from system_b.copy.email import need_for
+    from system_b.gift.models import Gift
+    a = lead_with("nonprofit_grant_no_finance_officer", {})
+    b = lead_with("adv_no_fund_administrator", {})
+    gift = Gift(leads=[a, b], best_lead=a, gift_size=2, all_niche=True,
+                geo_level="city", subject_shape="plural",
+                what_category="unstaffed", best_lead_level=1)
+    assert need_for(gift, default="NEUTRAL") == "NEUTRAL"

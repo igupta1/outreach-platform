@@ -16,7 +16,7 @@ Vertical-aware with a geo fallback, like every other pack.
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, framing_line
+from system_b.copy.email import _cta, framing_line, need_for
 from system_b.copy.subject import build_who_what
 from system_b.gift.engine import _cfo_what_category
 from system_b.gift.models import Gift, Prospect
@@ -59,10 +59,16 @@ def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(gift, prospect, singular_what=singular, plural_what=plural)
 
 
+# The job-post wording. Kept as the DEFAULT, not the only option: it is true
+# of a company that advertised a finance role and false of every magnet lead,
+# which published nothing at all. `need_for` swaps it per magnet.
+_JOB_NEED = "building out their finance function right now"
+
+
 def _accounting_framing(gift: Gift, prospect: Prospect) -> str:
     # One opener for the whole batch — the per-lead lines carry the specifics
     # (a fresh finance hire or a raise), so the framing need stays neutral.
-    return framing_line(gift, prospect, need="building out their finance function right now")
+    return framing_line(gift, prospect, need=need_for(gift, default=_JOB_NEED))
 
 
 

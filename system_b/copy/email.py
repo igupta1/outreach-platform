@@ -150,6 +150,41 @@ def _client_names_phrase(prospect: Prospect) -> str:
 _CFO_NEED = "showing they need finance help"
 
 
+# Each magnet's value-prop clause, in the words its own filter can support.
+#
+# The magnets verify an ABSENCE, and the job-post packs' wording claims the
+# opposite. "building out their finance function right now" (accounting) and
+# "looking for bookkeeping help right now" (bookkeeping) describe a company
+# that ADVERTISED a role -- which is precisely what a magnet lead did not do;
+# it published nothing, which is why we had to read a filing to find it. Sent
+# as-is, an ADV gift opened "3 more building out their finance function right
+# now" about firms whose only disclosed fact is that their funds have no
+# third-party administrator.
+#
+# Same rule as `_MAGNET_WHAT` in gift.engine: one clause per magnet, never one
+# shared word, because the three do not verify the same thing. Funds says
+# nothing about who works there.
+_MAGNET_NEED: dict[str, str] = {
+    "nonprofit_grant_no_finance_officer": "showing they need finance help",
+    "adv_no_fund_administrator": "running funds with no administrator",
+    "ecommerce_sku_load_no_finance_staff": "with nobody in finance",
+}
+
+
+def need_for(gift: Gift, *, default: str) -> str:
+    """The value-prop clause to use for this gift.
+
+    A gift built entirely from ONE magnet speaks that magnet's language; any
+    other gift keeps the pack's own wording. Mixed-magnet gifts fall back too:
+    there is no honest single clause covering both an unstaffed nonprofit and a
+    fund with no administrator.
+    """
+    kinds = {lead.signal_type for lead in gift.leads}
+    if len(kinds) == 1:
+        return _MAGNET_NEED.get(next(iter(kinds)), default)
+    return default
+
+
 def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None, *, need: str) -> str:
     """The opener when the prospect stated a client-revenue range on their site.
 

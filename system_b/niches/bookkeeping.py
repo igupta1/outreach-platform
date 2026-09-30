@@ -24,7 +24,7 @@ vertical only when `niche_claim` allows it, otherwise it opens on geography.
 
 from __future__ import annotations
 
-from system_b.copy.email import _cta, framing_line
+from system_b.copy.email import _cta, framing_line, need_for
 from system_b.copy.subject import build_who_what
 from system_b.gift.engine import _cfo_what_category
 from system_b.gift.models import Gift, Prospect
@@ -59,8 +59,13 @@ def _bookkeeping_subject(gift: Gift, prospect: Prospect) -> str:
     return build_who_what(gift, prospect, singular_what=singular, plural_what=plural)
 
 
+# See accounting.py: true of a company that posted a bookkeeping role, false
+# of a magnet lead, so it is the default rather than the only wording.
+_JOB_NEED = "looking for bookkeeping help right now"
+
+
 def _bookkeeping_framing(gift: Gift, prospect: Prospect) -> str:
-    return framing_line(gift, prospect, need="looking for bookkeeping help right now")
+    return framing_line(gift, prospect, need=need_for(gift, default=_JOB_NEED))
 
 
 
