@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import tempfile
 import subprocess
 import sys
 import webbrowser
@@ -64,6 +65,15 @@ def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 # --- 1. pull ---------------------------------------------------------------
 
 
+def _lead_count(path: Path) -> int:
+    """Leads in an inventory file; 0 for missing, empty or unreadable."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return 0
+    return data.get("count") or len(data.get("leads") or [])
+
+
 def pull(only: str | None = None) -> dict[str, str]:
     """Download the newest inventory artifact per magnet. Returns {key: status}.
 
@@ -79,13 +89,35 @@ def pull(only: str | None = None) -> dict[str, str]:
     for key, (repo, artifact) in SOURCES.items():
         if only and key != only:
             continue
-        proc = _run(["gh", "run", "download", "--repo", repo,
-                     "--name", artifact, "--dir", str(INVENTORY_DIR)])
-        if proc.returncode == 0:
-            out[key] = "downloaded"
-        else:
-            first = (proc.stderr or "").strip().splitlines()
-            out[key] = f"kept local copy ({first[0][:60] if first else 'no artifact yet'})"
+        # Into a TEMP dir, then move into place. `gh run download` refuses to
+        # overwrite a file that already exists -- "error extracting zip
+        # archive: ... file exists" -- so downloading straight into
+        # INVENTORY_DIR worked exactly ONCE and failed silently every run
+        # after, reporting "kept local copy" as if the artifact were simply
+        # missing. Nothing downstream would have caught it: nonprofit's
+        # freshness limit is 400 days.
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = _run(["gh", "run", "download", "--repo", repo,
+                         "--name", artifact, "--dir", tmp])
+            got = list(Path(tmp).glob("*.json"))
+            if proc.returncode == 0 and got:
+                dest = INVENTORY_DIR / got[0].name
+                fresh, have = _lead_count(got[0]), _lead_count(dest)
+                # NEVER trade a populated inventory for an empty one. The very
+                # first funds run published 231 bytes of zero leads before the
+                # workflow had a health check, and pulling it overwrote a good
+                # 359-lead file -- a download that destroys working data is
+                # worse than no download. The magnet's own health check is the
+                # real defence; this is the second one, on this side.
+                if have and not fresh:
+                    out[key] = f"kept local copy ({have:,} leads; artifact was empty)"
+                    continue
+                shutil.move(str(got[0]), dest)
+                out[key] = f"downloaded ({fresh:,} leads)"
+            else:
+                first = (proc.stderr or "").strip().splitlines()
+                out[key] = ("kept local copy "
+                            f"({first[0][:60] if first else 'no artifact yet'})")
     return out
 
 
