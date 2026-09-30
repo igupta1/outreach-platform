@@ -7,6 +7,7 @@ loudly."""
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import ClassVar
 
 from system_b.clients.inventory import _entity_id, _is_expired_job_lead, adapt_leadgen_lead
@@ -596,3 +597,44 @@ def test_there_is_an_alarm_when_too_many_prospects_have_no_rung():
     practices."""
     from system_b.run import NO_RUNG_ALARM
     assert 0 < NO_RUNG_ALARM < 0.5
+
+
+# --- MAGNET_INDUSTRY must agree with what the magnets actually emit ---------
+
+
+def test_magnet_industry_matches_the_real_inventory():
+    """The one map that has to track three other repos' `vertical.py`.
+
+    It drifted once: the funds magnet was retagged `investment_management` and
+    this map kept saying `fintech`, so a funds prospect with an empty gift was
+    filed as `no_magnet` ("build this magnet next") when the magnet existed and
+    the inventory was simply dry. Nothing raised — the value is only read for a
+    backlog label, which is exactly why a rename can sit here unnoticed.
+
+    Whenever an inventory file is on disk it is the ground truth, so assert
+    against it. Skipped, not failed, when a magnet has not been pulled: the
+    three refresh on their own cadence and CI has none of them.
+    """
+    import json
+
+    from system_b.clients.inventory import MAGNET_INDUSTRY, MAGNETS
+
+    inventory = Path(__file__).resolve().parent.parent / "data" / "inventory"
+    checked = 0
+    for key, filename in MAGNETS.items():
+        path = inventory / filename
+        if not path.exists():
+            continue
+        rows = json.loads(path.read_text()).get("leads") or []
+        found = {r.get("industry") for r in rows if r.get("industry")}
+        if not found:
+            continue
+        checked += 1
+        assert found == {MAGNET_INDUSTRY[key]}, (
+            f"{key}: inventory carries industry={found}, but MAGNET_INDUSTRY "
+            f"says {MAGNET_INDUSTRY[key]!r}. Update the map to match the magnet."
+        )
+    if not checked:
+        import pytest
+
+        pytest.skip("no magnet inventory on disk")

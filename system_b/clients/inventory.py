@@ -691,7 +691,11 @@ MAGNETS: dict[str, str] = {
 # as a mismatch in one file rather than as leads that silently never match.
 MAGNET_INDUSTRY: dict[str, str] = {
     "nonprofit": "nonprofit",
-    "funds": "fintech",
+    # NOT "fintech": the funds magnet was retagged `investment_management`
+    # because "fintech" rendered copy about "fintech companies" to PE/VC firms.
+    # Left stale here it read a funds prospect's empty gift as `no_magnet`
+    # ("build this next") when the truth was `inventory_dry`.
+    "funds": "investment_management",
     "ecommerce": "ecommerce_retail",
 }
 
