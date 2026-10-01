@@ -37,7 +37,7 @@ import tempfile
 import subprocess
 import sys
 import webbrowser
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from system_b.clients.inventory import MAGNET_MAX_AGE_DAYS, MAGNETS
@@ -126,7 +126,11 @@ def pull(only: str | None = None) -> dict[str, str]:
 
 def check(today: date | None = None) -> tuple[list[str], list[str]]:
     """(blocking problems, warnings). Blocking means do not generate."""
-    today = today or date.today()
+    # UTC, because `generated_at` is UTC. On the local date a magnet that
+    # published at 01:30 UTC read as "-1d old" from Pacific time -- harmless to
+    # the comparison, but a negative age in the one report that exists to tell
+    # you whether the data is stale reads as a broken check.
+    today = today or datetime.now(timezone.utc).date()
     problems: list[str] = []
     warnings: list[str] = []
 
