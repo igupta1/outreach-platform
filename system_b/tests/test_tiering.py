@@ -293,3 +293,58 @@ def test_raw_phrase_blob_never_leaks_into_copy():
     for leak in ("who we serve", "designed for", "nonprofit"):
         assert leak not in blob
     assert "work with real estate companies" in draft.body
+
+
+# --- fund managers vs the companies funds invest in -------------------------
+
+
+def _tax():
+    import json
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "data" / "taxonomy.json"
+    return json.loads(p.read_text())["taxonomy"]
+
+
+def test_a_pe_backed_company_is_not_a_fund_manager():
+    """The Funds magnet's leads are the firms that RUN private funds. "PE-backed
+    SaaS companies" and "venture-backed portfolio companies" are the opposite
+    customer: operating businesses that RECEIVED fund money.
+
+    Both funds matches in the only batch ever generated were this mistake.
+    Accurix Consulting states "PE-Backed SaaS Companies", Altureon states
+    "venture-backed and PE portfolio companies", and both were sent "noticed you
+    work with private fund managers" over a list of fund managers. Neither
+    serves one, and the recipient knows it from the first line -- exactly the
+    kind of claim the evidence rules exist to prevent.
+    """
+    from system_b.gift.taxonomy import map_industry_candidates
+    tax = _tax()
+    for phrase in ("PE-Backed SaaS Companies",
+                   "venture-backed and PE portfolio companies",
+                   "VC-backed startups",
+                   "PE portfolio companies",
+                   "institutionally-backed businesses",
+                   "portcos"):
+        got = map_industry_candidates(phrase, None, tax)
+        assert not any(mp[1] == "private_funds" for mp in got), (phrase, got)
+
+
+def test_the_rest_of_the_phrase_still_maps():
+    """Suppressing the fund alias must not discard what the firm DOES serve.
+    "PE-backed SaaS companies" is a SaaS practice."""
+    from system_b.gift.taxonomy import map_industry_candidates
+    got = map_industry_candidates("PE-Backed SaaS Companies", None, _tax())
+    assert ("industry", "software_saas") in got, got
+
+
+def test_real_fund_managers_still_match():
+    """The aliases exist because "we serve private equity funds" has no single
+    taxonomy token in it. That has to keep working, or the Funds magnet has no
+    buyers at all."""
+    from system_b.gift.taxonomy import map_industry_candidates
+    tax = _tax()
+    for phrase in ("private equity funds", "fund managers and GPs",
+                   "we serve private fund managers", "PE firms",
+                   "venture capital funds", "emerging fund managers"):
+        got = map_industry_candidates(phrase, None, tax)
+        assert any(mp[1] == "private_funds" for mp in got), (phrase, got)

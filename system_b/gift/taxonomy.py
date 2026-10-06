@@ -63,6 +63,37 @@ def _token_words(value: str) -> set[str]:
     return {_stem(w) for w in value.split("_") if w}
 
 
+# "pe", "vc", "fund" and friends map to private_funds — the firms that RUN the
+# funds, which is what the Funds magnet's leads are. The same tokens appear in
+# phrases naming the exact opposite customer: a company that RECEIVED fund
+# money. "PE-backed SaaS companies", "venture-backed startups", "VC portfolio
+# companies" are operating businesses, not fund managers.
+#
+# Both real funds matches in the only batch ever generated were this mistake.
+# Accurix Consulting states "PE-Backed SaaS Companies" and Altureon states
+# "venture-backed and PE portfolio companies"; both were sent "noticed you work
+# with private fund managers" over a list of fund managers. Neither serves one.
+# A recipient knows that from the first line, and it is the precise claim the
+# evidence rules exist to prevent.
+#
+# So these kill the fund aliases specifically. They do not touch the rest of
+# the mapping: "PE-backed SaaS" still maps to software_saas, which is what that
+# firm actually serves.
+_PORTFOLIO_CO_RE = re.compile(
+    r"\b(?:"
+    r"(?:pe|vc|venture|equity|sponsor|investor|institutionally)[\s-]*backed"
+    r"|backed\s+(?:by|companies)"
+    r"|portfolio\s+(?:co|cos|company|companies)"
+    r"|portco"
+    r")\b",
+    re.I,
+)
+
+# Only these aliases are suppressed by the phrases above. "ria" and
+# "wealth_advisory" are unaffected: a firm serving RIAs serves the adviser.
+_FUND_SIDE_ALIASES = frozenset({"pe", "vc", "fund", "gp", "lp"})
+
+
 def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str | None]:
     """{parent_industry: most_specific_child_or_None} for EVERY industry the
     phrase touches (via the parent word or any of its children)."""
@@ -92,7 +123,10 @@ def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str 
     # is the prospect's own service, not a second served vertical ("managed
     # accounting for dental practices" -> dental, never accounting).
     if not found:
+        portfolio_co = bool(_PORTFOLIO_CO_RE.search(phrase or ""))
         for word in pw:
+            if portfolio_co and word in _FUND_SIDE_ALIASES:
+                continue
             alias = _ALIASES.get(word)
             if alias is None:
                 continue
