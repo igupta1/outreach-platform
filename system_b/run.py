@@ -131,12 +131,48 @@ def _review_path(out_path: str) -> Path:
     return p.with_name(f"{stem}.review.json")
 
 
+def _check_ledger_header(path: Path) -> None:
+    """Refuse a ledger whose columns are not this file's columns.
+
+    Checked at LOAD, before any work, because the damage is done by then: the
+    wrong file yields the wrong dedup set and the batch is built against it.
+    `morning.py` had `--ledger` pointed at outreach-history.csv -- which starts
+    `pack,cohort_date,email,...` -- so `_append_ledger` wrote its two columns
+    positionally, every address landed under `pack`, and `_load_ledger` (which
+    reads `email`) saw none of them. Dedup was off for 20 prospects, and the
+    run reported "skipping 30" against a file holding 50 rows.
+
+    Loud, not lenient. Every other failure here costs a wasted run; this one
+    emails a real person twice.
+    """
+    if not path.exists():
+        return
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as fh:
+            header = next(csv.reader(fh), [])
+    except OSError:
+        # Unreadable is the existing degrade-to-empty case and stays that way:
+        # dedup is an optimization and losing it must not stop a run. Only a
+        # READABLE file with the wrong columns is the dangerous case, because
+        # that one silently produces a wrong dedup set rather than none.
+        return
+    if header and [h.strip().lower() for h in header] != LEDGER_COLUMNS:
+        raise SystemExit(
+            f"[ledger] {path} has columns {header}, expected {LEDGER_COLUMNS}.\n"
+            "         That looks like the history sheet, not the dedup ledger. "
+            "Using it would\n"
+            "         silently disable dedup and re-email people. Point "
+            "--ledger at\n         data/seen-prospects.csv."
+        )
+
+
 def _load_ledger(path: Path) -> set[str]:
     """The lowercased emails already sequenced by any previous run. Missing or
     unreadable ledger -> empty set: dedup is an optimization, and losing it must
     never stop a run from producing its CSV."""
     if not path.exists():
         return set()
+    _check_ledger_header(path)
     try:
         with open(path, newline="", encoding="utf-8") as fh:
             return {
@@ -149,17 +185,30 @@ def _load_ledger(path: Path) -> set[str]:
         return set()
 
 
+LEDGER_COLUMNS = ["email", "first_seen"]
+
+
 def _append_ledger(path: Path, emails: list[str], today: date) -> None:
     """Append today's genuinely-new emails, with the date first seen. Append-only
-    and header-on-create, so nothing this tool writes can clobber earlier rows."""
+    and header-on-create, so nothing this tool writes can clobber earlier rows.
+
+    Refuses a file whose header is not this file's header. `morning.py` had
+    `--ledger` pointed at outreach-history.csv, which starts `pack,cohort_date,
+    email,...`; these two columns were appended positionally, so every address
+    landed under `pack`, `email` stayed blank, and `_load_ledger` -- which reads
+    `email` -- saw none of them. Dedup was off for 20 prospects and nothing
+    raised. Writing the wrong file is the one failure here that emails a real
+    person twice, so it is worth being loud about.
+    """
     if not emails:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    _check_ledger_header(path)
     is_new_file = not path.exists()
     with open(path, "a", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         if is_new_file:
-            w.writerow(["email", "first_seen"])
+            w.writerow(LEDGER_COLUMNS)
         for email in emails:
             w.writerow([email, today.isoformat()])
 

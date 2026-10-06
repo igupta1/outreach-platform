@@ -143,3 +143,68 @@ def test_page_email_export_is_run_columns_minus_the_linkedin_ones():
     page_cols = _page_columns("EMAIL_COLUMNS")
     assert page_cols == [c for c in COLUMNS
                          if not c.startswith("li_") and c != "linkedin_url"]
+
+
+# --- the ledger must be the ledger ------------------------------------------
+
+
+def test_the_history_sheet_is_refused_as_a_ledger(tmp_path):
+    """The two files have different jobs and different shapes. `morning.py` had
+    --ledger pointed at outreach-history.csv, whose header starts `pack,
+    cohort_date,email,...`; `_append_ledger` wrote its two columns positionally,
+    so every address landed under `pack` and `email` stayed blank. `_load_ledger`
+    reads `email`, so it saw none of them: dedup was off for 20 prospects while
+    the run cheerfully printed "skipping 30" against a 50-row file.
+
+    Loud rather than lenient, and at LOAD rather than append: by append time the
+    batch has already been built against the wrong dedup set. Every other
+    failure in this module costs a wasted run; this one emails a real person
+    twice.
+    """
+    import csv
+
+    import pytest
+
+    from system_b.run import _load_ledger
+
+    history = tmp_path / "outreach-history.csv"
+    with history.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["pack", "cohort_date", "email", "first_name", "status"])
+        w.writerow(["cfo", "2026-09-30", "a@b.com", "A", ""])
+    with pytest.raises(SystemExit) as exc:
+        _load_ledger(history)
+    assert "seen-prospects" in str(exc.value)
+
+
+def test_the_real_ledger_loads(tmp_path):
+    import csv
+
+    from system_b.run import LEDGER_COLUMNS, _load_ledger
+
+    led = tmp_path / "seen-prospects.csv"
+    with led.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(LEDGER_COLUMNS)
+        w.writerow(["A@B.com", "2026-09-30"])
+    assert _load_ledger(led) == {"a@b.com"}
+
+
+def test_an_absent_ledger_is_not_an_error(tmp_path):
+    """Dedup is an optimization; a first run has no ledger and must still work."""
+    from system_b.run import _load_ledger
+    assert _load_ledger(tmp_path / "nope.csv") == set()
+
+
+def test_morning_points_at_the_dedup_ledger_not_the_history_sheet():
+    """The actual regression: a default, in a different file, that no test for
+    run.py could have caught."""
+    from system_b.morning import main  # noqa: F401  (import guards the module)
+    import argparse
+    import inspect
+
+    import system_b.morning as morning
+
+    src = inspect.getsource(morning.main)
+    assert "seen-prospects.csv" in src
+    assert "outreach-history.csv" not in src.split("--ledger")[1][:400]

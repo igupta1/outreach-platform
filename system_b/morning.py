@@ -207,8 +207,17 @@ def main(argv: list[str] | None = None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--prospects", type=Path,
                     default=ROOT / "system_b" / "data" / "prospects.csv")
+    # seen-prospects.csv, NOT outreach-history.csv. The two files have
+    # different jobs and different shapes, and pointing this at the wrong one
+    # broke dedup silently: `run._append_ledger` writes two columns
+    # (email, first_seen), the history sheet has seventeen starting with
+    # `pack`, so every appended address landed under `pack` and the `email`
+    # column stayed blank. `_load_ledger` reads `email` -- so it saw nothing,
+    # and the 20 prospects sequenced on 2026-09-30 were still queued to go out
+    # a second time. Nothing raised; the run printed "skipping 30" when the
+    # file held 50 rows.
     ap.add_argument("--ledger", type=Path,
-                    default=ROOT / "system_b" / "data" / "outreach-history.csv")
+                    default=ROOT / "system_b" / "data" / "seen-prospects.csv")
     ap.add_argument("--out", type=Path, default=ROOT / "sequences.csv")
     ap.add_argument("--pack", default="cfo",
                     help="FALLBACK voice only; the rung is read off each firm's site")
