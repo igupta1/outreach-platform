@@ -607,6 +607,29 @@ def nonprofit_phrase(lead: Lead) -> str:
         return "auditors flagged their controls, two years running"
     if p.get("fac_material_weakness"):
         return "auditors flagged their financial controls"
+    # A significant deficiency is the grade below a weakness, and still a CPA
+    # flagging the controls -- the same short form is true of both.
+    if p.get("fac_significant_deficiency"):
+        if p.get("fac_prior_control_finding"):
+            return "auditors flagged their controls, two years running"
+        return "auditors flagged their financial controls"
+    # The dated problems. "Not on file" and "months late" are both read
+    # straight off clearinghouse dates; neither says they MISSED anything,
+    # since an agency can grant an extension. No fiscal-year label: lead lines
+    # are lowercased prose, and "fy2024" reads as a typo.
+    if p.get("fac_overdue"):
+        return "their next federal audit isn't on file"
+    days = p.get("fac_days_late")
+    if p.get("fac_late") and isinstance(days, int) and days >= 60:
+        return f"filed their federal audit {days // 30} months late"
+    # An organization can now qualify on its audit alone while LISTING a
+    # finance officer, so the absence is only claimed when the 990 says so.
+    # Inventories from before the field existed passed the Part VII filter
+    # by construction, hence the True default.
+    if not p.get("no_finance_officer_listed", True):
+        if p.get("fac_audit_year") or p.get("federal_audit_required"):
+            return "files a federal audit every year"
+        return "grant funded, files a federal audit"
     if p.get("fac_audit_year") or p.get("federal_audit_required"):
         return "files a federal audit, no finance officer"
     if p.get("audit_flag") == "near_threshold":

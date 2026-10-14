@@ -296,6 +296,12 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent
   email either. Do not remove that scrub.
+- **A firm never receives its own audit client.** A nonprofit lead carries the
+  CPA firm that signed its Single Audit (`fac_auditor_firm`); `gift.engine.
+  _audited_by` skips it for that prospect only (not added to `excluded`).
+- **"No finance officer" only when the 990 says so.** Nonprofits can qualify on
+  an audit problem alone while listing one; `nonprofit_phrase` reads
+  `no_finance_officer_listed` (missing = true, for older inventories).
 - Nothing is ever sent — the tool only writes a CSV for you to review.
 
 ## Lead inventory: three VERTICAL magnets (2026-09-08)

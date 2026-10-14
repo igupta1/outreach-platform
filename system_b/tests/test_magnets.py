@@ -716,3 +716,70 @@ def test_a_mixed_magnet_gift_falls_back_rather_than_picking_one():
                 geo_level="city", subject_shape="plural",
                 what_category="unstaffed", best_lead_level=1)
     assert need_for(gift, default="NEUTRAL") == "NEUTRAL"
+
+
+# --- nonprofit audit problems ------------------------------------------------
+
+NP = "nonprofit_grant_no_finance_officer"
+
+
+def test_a_significant_deficiency_reads_as_a_flagged_control():
+    assert nonprofit_phrase(lead_with(NP, {"fac_significant_deficiency": True})) == \
+        "auditors flagged their financial controls"
+    assert nonprofit_phrase(lead_with(NP, {
+        "fac_significant_deficiency": True,
+        "fac_prior_control_finding": "material weakness"})) == \
+        "auditors flagged their controls, two years running"
+
+
+def test_dated_audit_problems_never_say_missed():
+    overdue = nonprofit_phrase(lead_with(NP, {"fac_overdue": True, "fac_audit_year": 2024}))
+    late = nonprofit_phrase(lead_with(NP, {"fac_late": True, "fac_days_late": 125}))
+    assert overdue == "their next federal audit isn't on file"
+    assert late == "filed their federal audit 4 months late"
+    assert "missed" not in overdue + late
+
+
+def test_no_finance_officer_is_only_claimed_when_the_990_says_so():
+    """An organization can now qualify on its audit alone while listing a
+    finance officer. The absence claim must then disappear from the line."""
+    staffed = nonprofit_phrase(lead_with(NP, {"fac_audit_year": 2024,
+                                              "no_finance_officer_listed": False}))
+    assert "finance officer" not in staffed
+    # Inventories from before the field existed all passed the Part VII filter.
+    legacy = nonprofit_phrase(lead_with(NP, {"fac_audit_year": 2024}))
+    assert legacy == "files a federal audit, no finance officer"
+
+
+def test_a_firm_is_never_shown_its_own_audit_client():
+    from system_b.gift.engine import _audited_by
+    from system_b.gift.models import Prospect
+    lead = lead_with(NP, {"fac_auditor_firm": "Denman & Company, LLP"})
+    assert _audited_by(lead, Prospect(firm_name="Denman & Co CPAs"))
+    assert _audited_by(lead, Prospect(firm_name="DENMAN AND COMPANY"))
+    assert not _audited_by(lead, Prospect(firm_name="Ledger Bridge Advisors"))
+    # Two distinguishing words must both be present; one shared surname is not
+    # enough to call two firms the same.
+    two = lead_with(NP, {"fac_auditor_firm": "Smith Jones CPAs"})
+    assert _audited_by(two, Prospect(firm_name="Smith Jones & Associates"))
+    assert not _audited_by(two, Prospect(firm_name="Smith Advisory"))
+    # Nothing to compare: never excluded.
+    assert not _audited_by(lead_with(NP, {}), Prospect(firm_name="Denman & Co"))
+    assert not _audited_by(lead, Prospect(firm_name="CPAs LLP"))
+
+
+def test_the_auditor_never_receives_its_client_in_a_gift():
+    from system_b.gift.engine import build_gift
+    from system_b.gift.models import Prospect
+
+    from .test_gift import FakeScraper, mk
+    client = mk("np1", NP, state="IA", industry="nonprofit")
+    client.signals[0].payload = {"fac_auditor_firm": "Denman & Company, LLP"}
+    other = mk("np2", NP, state="IA", industry="nonprofit")
+    gift = build_gift(Prospect(firm_name="Denman & Co", state="IA"),
+                      FakeScraper([client, other]))
+    assert [ld.id for ld in gift.leads] == ["np2"]
+    # The same lead is still available to every other firm.
+    gift = build_gift(Prospect(firm_name="Ledger Bridge", state="IA"),
+                      FakeScraper([client, other]))
+    assert {ld.id for ld in gift.leads} == {"np1", "np2"}

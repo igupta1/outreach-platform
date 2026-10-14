@@ -205,7 +205,7 @@ def _find_priority_lead(
                 signal_type=pack.priority_signal, freshness="fresh",
                 exclude_ids=list(excluded), **kwargs,
             )
-            if lead.id not in excluded
+            if lead.id not in excluded and not _audited_by(lead, prospect)
         ]
         if leads:
             leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank))
@@ -251,6 +251,38 @@ def _same_company(lead: Lead, gift: list[Lead]) -> bool:
     return bool(name) and any(_name_key(o.company) == name for o in gift)
 
 
+# Words a CPA firm's name carries that do not identify it. "Denman & Company,
+# LLP" on a filing and "Denman & Co CPAs" on a website are the same firm.
+_FIRM_NOISE = re.compile(
+    r"\b(llp|llc|l l c|pllc|pc|p c|psc|pa|p a|ltd|inc|co|company|cpa|cpas|"
+    r"certified|public|accountants?|accounting|associates|group|partners|"
+    r"professional|corporation|corp|firm|and|the|of)\b")
+
+
+def _firm_key(name: str | None) -> frozenset[str]:
+    text = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower())
+    return frozenset(_FIRM_NOISE.sub(" ", text).split())
+
+
+def _audited_by(lead: Lead, prospect: Prospect) -> bool:
+    """True when the prospect firm is this lead's own auditor.
+
+    A nonprofit lead carries the CPA firm that signed its Single Audit
+    (`fac_auditor_firm`). Handing that firm its own audit client as a "lead"
+    is the one gift that proves we did not look -- they wrote the finding.
+    Matched on the name's distinguishing words; a false match only costs a
+    swap from a deep inventory, a missed one costs the prospect."""
+    auditor = None
+    for sig in lead.signals:
+        auditor = (getattr(sig, "payload", None) or {}).get("fac_auditor_firm")
+        if auditor:
+            break
+    a, f = _firm_key(auditor), _firm_key(prospect.firm_name)
+    if not a or not f:
+        return False
+    return a == f or (min(len(a), len(f)) >= 2 and (a <= f or f <= a))
+
+
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
@@ -267,7 +299,9 @@ def _pick_leads(
                 lead for lead in scraper.leads(
                     freshness=freshness, exclude_ids=list(excluded), **kwargs,
                 )
-                if lead.id not in excluded
+                # Not added to `excluded`: the lead is fine for every other
+                # prospect, only not for the firm that audits it.
+                if lead.id not in excluded and not _audited_by(lead, prospect)
             ]
             leads.sort(key=lambda lead: sort_key(lead, rank))
             for lead in leads:
