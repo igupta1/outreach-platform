@@ -53,6 +53,8 @@ from system_b.clients.inventory import (
     snapshot_for_niche,
 )
 from system_b.copy.naturalness import check_naturalness
+from system_b.gift.allocation import DEFAULT_PATH as ALLOCATIONS_PATH
+from system_b.gift.allocation import Allocations
 from system_b.prospects import read_apollo_csv
 from system_b.sequence import generate_sequence
 
@@ -266,6 +268,10 @@ def main() -> None:
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER),
                     help="every prospect ever sequenced; the next run skips them "
                          f"before doing any work (default: {DEFAULT_LEDGER})")
+    ap.add_argument("--allocations", default=str(ALLOCATIONS_PATH),
+                    help="which firm got which organization; a later prospect in the "
+                         "same state is never shown one already handed out "
+                         "(see gift/allocation.py)")
     ap.add_argument("--skip-naturalness", action="store_true",
                     help="skip the advisory read that flags phrases which do not "
                          "sound like a person wrote them. One extra model call per "
@@ -343,6 +349,9 @@ def main() -> None:
     if naturalness is None:
         print("[run] --skip-naturalness: no advisory copy read")
 
+    # Never the same organization to two firms in one region (gift.allocation).
+    allocations = Allocations.load(Path(args.allocations))
+
     results: list[dict] = []
     skipped: list[tuple[str, str]] = []
     backlog: list[dict] = []
@@ -350,6 +359,7 @@ def main() -> None:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
+        p["blocked_identities"] = allocations.blocked(firm, p.get("state"))
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
                                     force_pack=args.force_pack,
@@ -370,6 +380,7 @@ def main() -> None:
             skipped.append((firm, res.get("status", "?")))
             continue
         results.append(res)
+        allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
         rung = res.get("pack", "?")
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, voice: {rung})")
 
@@ -413,6 +424,11 @@ def main() -> None:
             [(r.get("email") or "").strip().lower() for r in results],
             today,
         )
+        # Same rule as the prospect ledger: a run that records nothing for
+        # prospects (iterating on copy) holds no organizations either.
+        n = allocations.save(Path(args.allocations))
+        if n:
+            print(f"[allocations] {n} organization(s) recorded -> {args.allocations}")
 
     print(f"\n[done] wrote {len(results)} sequence(s) to {args.out_path}")
     print(f"[review] wrote {review_path}  ·  review with: "

@@ -726,3 +726,14 @@ def test_a_real_posting_date_still_prints():
     lead = adapt_leadgen_lead(row, today=today)
     assert lead.signals[0].date_confidence == "high"   # absent field -> high
     assert date_suffix(lead, today) == "3 days ago"
+
+
+def test_contract_v2_leads_past_their_own_expiry_are_dropped():
+    from datetime import date
+
+    from system_b.clients.inventory import _past_expiry
+    today = date(2026, 10, 14)
+    assert _past_expiry({"status": "stale"}, today)
+    assert _past_expiry({"status": "active", "expires_at": "2026-10-13"}, today)
+    assert not _past_expiry({"status": "active", "expires_at": "2026-10-14"}, today)
+    assert not _past_expiry({}, today)                     # contract v1: older rules

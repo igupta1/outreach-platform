@@ -640,11 +640,31 @@ def _unusable_reason(row: dict[str, Any], lead: Lead) -> str | None:
     return None
 
 
+def _past_expiry(row: dict[str, Any], today: date) -> bool:
+    """Contract v2: a magnet stamps each lead with `expires_at` and `status`.
+    Re-checked here because an inventory can sit unread past the date it was
+    emitted. A row without the fields (contract v1) is judged by the older
+    per-family rules below, unchanged."""
+    if row.get("status") == "stale":
+        return True
+    exp = row.get("expires_at")
+    if not exp:
+        return False
+    try:
+        return date.fromisoformat(str(exp)[:10]) < today
+    except ValueError:
+        return False
+
+
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
     kept: list[Lead] = []
     expired = 0
     unusable: Counter[str] = Counter()
+    lapsed = 0
     for row in rows:
+        if _past_expiry(row, today):
+            lapsed += 1
+            continue
         lead = adapt_leadgen_lead(row, today=today)
         if _is_expired_job_lead(lead, today):
             expired += 1
@@ -658,6 +678,8 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
     if expired:
         log.info("inventory: dropped %d job lead(s) older than %d days",
                  expired, config.MAX_JOB_LEAD_AGE_DAYS)
+    if lapsed:
+        log.info("inventory: dropped %d lead(s) past their own expires_at", lapsed)
     if unusable:
         log.info("inventory: dropped %d unusable lead(s): %s",
                  sum(unusable.values()), dict(unusable.most_common()))

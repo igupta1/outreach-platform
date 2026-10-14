@@ -34,6 +34,9 @@ class Prospect:
     # the PROSPECT in the opener; never to claim the gift matches it.
     client_revenue: tuple[float | None, float | None] | None = None
     sent_lead_ids: list[str] = field(default_factory=list)
+    # Organizations (Lead.identity) already handed to a DIFFERENT firm in this
+    # prospect's region -- see gift.allocation. Never shown to this prospect.
+    blocked_identities: frozenset[str] = frozenset()
 
 
 @dataclass

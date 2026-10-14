@@ -632,3 +632,32 @@ def test_domainless_leads_do_not_collapse_together():
     ]
     g = build_gift(p, FakeScraper(leads))
     assert g is not None and g.gift_size == 2
+
+
+# --- allocation: never the same organization to two firms in one region ----
+
+def test_an_organization_given_to_one_firm_is_blocked_for_another_in_the_region(tmp_path):
+    from datetime import date
+
+    from system_b.gift.allocation import Allocations
+    from system_b.gift.engine import build_gift
+
+    a = Allocations()
+    a.record(["ein:1"], "Ledger Bridge", "Iowa", date(2026, 10, 14))
+    one = mk("np1", "nonprofit_grant_no_finance_officer", state="IA", industry="nonprofit")
+    one.entity_id = "ein:1"
+    two = mk("np2", "nonprofit_grant_no_finance_officer", state="IA", industry="nonprofit")
+    two.entity_id = "ein:2"
+
+    rival = Prospect(firm_name="Denman & Co", state="IA",
+                     blocked_identities=a.blocked("Denman & Co", "IA"))
+    assert ids(build_gift(rival, FakeScraper([one, two]))) == {"np2"}
+    # The holder keeps seeing it; a firm in another state is unaffected.
+    assert a.blocked("Ledger Bridge", "IA") == frozenset()
+    assert a.blocked("Coastal CPAs", "Florida") == frozenset()
+
+    path = tmp_path / "alloc.csv"
+    assert a.save(path) == 1 and a.save(path) == 0          # pending flushed once
+    again = Allocations.load(path)
+    assert again.blocked("denman  & co", "iowa") == frozenset({"ein:1"})
+    assert Allocations.load(tmp_path / "missing.csv").blocked("x", "IA") == frozenset()

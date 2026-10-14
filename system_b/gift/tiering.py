@@ -50,6 +50,7 @@ def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> 
         client_names=list(getattr(research, "nameable_clients", None) or []),
         client_revenue=getattr(research, "client_revenue", None),
         sent_lead_ids=list(row.get("sent_lead_ids") or []),
+        blocked_identities=frozenset(row.get("blocked_identities") or ()),
         **kw,
     )
 

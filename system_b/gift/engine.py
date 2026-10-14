@@ -205,7 +205,7 @@ def _find_priority_lead(
                 signal_type=pack.priority_signal, freshness="fresh",
                 exclude_ids=list(excluded), **kwargs,
             )
-            if lead.id not in excluded and not _audited_by(lead, prospect)
+            if lead.id not in excluded and not _off_limits(lead, prospect)
         ]
         if leads:
             leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank))
@@ -283,6 +283,13 @@ def _audited_by(lead: Lead, prospect: Prospect) -> bool:
     return a == f or (min(len(a), len(f)) >= 2 and (a <= f or f <= a))
 
 
+def _off_limits(lead: Lead, prospect: Prospect) -> bool:
+    """A lead this prospect must never see: its own audit client, or an
+    organization already handed to another firm in its region."""
+    return _audited_by(lead, prospect) or (
+        lead.identity is not None and lead.identity in prospect.blocked_identities)
+
+
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
@@ -300,8 +307,8 @@ def _pick_leads(
                     freshness=freshness, exclude_ids=list(excluded), **kwargs,
                 )
                 # Not added to `excluded`: the lead is fine for every other
-                # prospect, only not for the firm that audits it.
-                if lead.id not in excluded and not _audited_by(lead, prospect)
+                # prospect, only not for this one.
+                if lead.id not in excluded and not _off_limits(lead, prospect)
             ]
             leads.sort(key=lambda lead: sort_key(lead, rank))
             for lead in leads:

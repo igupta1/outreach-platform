@@ -302,6 +302,11 @@ would have dropped 12 accurate cfo leads for no honesty gain.
 - **"No finance officer" only when the 990 says so.** Nonprofits can qualify on
   an audit problem alone while listing one; `nonprofit_phrase` reads
   `no_finance_officer_listed` (missing = true, for older inventories).
+- **Never the same organization to two firms in one region** (`gift/allocation.py`,
+  `system_b/data/lead-allocations.csv`, gitignored). Region is the STATE — strictly
+  stronger than the "one metro" rule, since no city→metro crosswalk is held.
+- **Contract v2 leads past their own `expires_at` (or `status: stale`) are
+  dropped at load** (`inventory._past_expiry`); v1 rows keep the older rules.
 - Nothing is ever sent — the tool only writes a CSV for you to review.
 
 ## Lead inventory: three VERTICAL magnets (2026-09-08)
