@@ -106,9 +106,7 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
 
     kinds = {lead.signal_type for lead in gift.leads}
     if kinds and kinds <= MAGNET_SIGNALS:
-        whats = {what_key(lead) for lead in gift.leads}
-        if len(whats) == 1:
-            kinds = whats
+        kinds = {what_key(lead) for lead in gift.leads}
         if len(kinds) == 1:
             return {
                 # A charity whose 990 lists a finance officer (what_key).

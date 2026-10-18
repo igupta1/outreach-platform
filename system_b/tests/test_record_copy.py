@@ -165,6 +165,9 @@ def test_no_finance_officer_is_claimed_only_when_every_990_says_so():
     assert _cfo_what_category(none_listed) == "unstaffed_nonprofit"
     assert _cfo_what_category(one_lists) == "public_record"
     for pack_key in ("cfo", "accounting", "bookkeeping"):
-        texts = _sequence_text(_gift(one_lists), pack_key)
-        texts += _sequence_text(_gift([one_lists[-1]]), pack_key)
-        assert not any("no finance officer" in t for t in texts), pack_key
+        for gift in (_gift(one_lists), _gift([one_lists[-1]])):
+            subject, _e1, _e2, dm, evergreen = _sequence_text(gift, pack_key)
+            # Each lead LINE speaks for its own 990; the subject and the DMs
+            # speak for the whole gift.
+            for text in (subject, dm, evergreen):
+                assert "no finance officer" not in text, (pack_key, text)
