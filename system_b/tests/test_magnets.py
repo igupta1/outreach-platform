@@ -195,9 +195,12 @@ def test_a_magnet_gift_is_never_described_as_hiring():
     "hiring finance leadership right now" is a false claim in the first line
     the recipient reads."""
     from system_b.gift.engine import _cfo_what_category
-    for t in ("nonprofit_grant_no_finance_officer", "adv_no_fund_administrator",
-              "ecommerce_sku_load_no_finance_staff"):
+    for t in ("adv_no_fund_administrator", "ecommerce_sku_load_no_finance_staff"):
         assert _cfo_what_category([lead_with(t, {})]).startswith("unstaffed")
+    # A charity is described by its audit (see test_record_copy), never as hiring.
+    for payload in ({}, {"fac_material_weakness": True}):
+        assert _cfo_what_category([lead_with("nonprofit_grant_no_finance_officer", payload)]) \
+            in ("public_record", "nonprofit_audit")
 
 
 def test_each_magnet_gets_its_own_subject_words():
@@ -208,7 +211,7 @@ def test_each_magnet_gets_its_own_subject_words():
     controller. "with nobody running finance" was false for every fund lead."""
     from system_b.copy.subject import _PLURAL_WHAT
     from system_b.gift.engine import _cfo_what_category
-    got = {t: _cfo_what_category([lead_with(t, {})])
+    got = {t: _cfo_what_category([lead_with(t, {"fac_material_weakness": True})])
            for t in ("nonprofit_grant_no_finance_officer",
                      "adv_no_fund_administrator",
                      "ecommerce_sku_load_no_finance_staff")}
@@ -216,7 +219,7 @@ def test_each_magnet_gets_its_own_subject_words():
     words = {t: _PLURAL_WHAT[c] for t, c in got.items()}
     assert "nobody" not in words["adv_no_fund_administrator"]
     assert "administrator" in words["adv_no_fund_administrator"]
-    assert "990" in words["nonprofit_grant_no_finance_officer"]
+    assert "auditors flagged" in words["nonprofit_grant_no_finance_officer"]
 
 
 def test_job_leads_still_read_as_hiring():
@@ -288,7 +291,6 @@ def test_the_evergreen_dm_does_not_say_magnet_companies_posted_roles():
     from system_b.niches.cfo import CFO_PACK
 
     for t, expected in (
-        ("nonprofit_grant_no_finance_officer", "990"),
         ("adv_no_fund_administrator", "administrator"),
         ("ecommerce_sku_load_no_finance_staff", "nobody in finance"),
     ):
@@ -388,7 +390,7 @@ def test_no_sent_surface_makes_a_banned_or_false_claim():
     # The magnet subject words must not borrow a claim their filter never made.
     assert "hiring" not in _PLURAL_WHAT["unstaffed_funds"]
     assert "nobody" not in _PLURAL_WHAT["unstaffed_funds"]
-    for key in ("nonprofit_grant_no_finance_officer", "adv_no_fund_administrator",
+    for key in ("nonprofit_audit_finding", "nonprofit_record", "adv_no_fund_administrator",
                 "ecommerce_sku_load_no_finance_staff"):
         assert "hiring" not in _SINGULAR_WHAT[key]
         assert "posted" not in _SINGULAR_WHAT[key]

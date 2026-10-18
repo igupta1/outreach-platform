@@ -22,7 +22,7 @@ from system_b.copy.lex import (
     spoken_name,
     state_display,
 )
-from system_b.copy.subject import build_subject, niche_claim
+from system_b.copy.subject import build_subject, lead_noun, niche_claim
 from system_b.gift.engine import compute_match_level
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -252,7 +252,7 @@ def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None, *, need:
     rev = revenue_display(prospect.client_revenue)
     city = city_display(prospect.city)
     state = state_display(prospect.state)
-    companies = noun(n, "company", "companies")
+    companies = lead_noun(gift, n)   # "nonprofits" when every lead is one
 
     if niche:
         read = f"saw you work with {rev} {niche_noun(niche)}."
@@ -285,7 +285,7 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     # exact phrase stays in evidence / the review card, not the sent copy.
     # The VERB stays soft — "work with", never "focus on" — so we never overclaim
     # a specialty we might be wrong about. A client list reads as a sole focus.
-    companies = noun(n, "company", "companies")
+    companies = lead_noun(gift, n)   # "nonprofits" when every lead is one
     if niche:
         if prospect.niche_source == "client_list":
             # Naming the clients is what makes a 2-client threshold honest. The
@@ -351,7 +351,7 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     niche = niche_claim(gift, prospect)
     city = city_display(prospect.city)
     state = state_display(prospect.state)
-    companies = noun(n, "company", "companies")
+    companies = lead_noun(gift, n)   # "nonprofits" when every lead is one
     # Revenue is the second personalization lever and it is not CFO-specific:
     # 23% of prospects state a client-revenue range, and the prospects it helps
     # most are the GENERALISTS in every pack, whose opener is otherwise an Apollo
@@ -647,6 +647,13 @@ def nonprofit_phrase(lead: Lead) -> str:
         if p.get("fac_prior_control_finding"):
             return "auditors flagged their controls, two years running"
         return "auditors flagged their financial controls"
+    # A finding on a federal PROGRAM: how they handle the grant money itself
+    # (a control finding on the program, or material noncompliance with its
+    # terms). "two years running" only when the auditor marked it a repeat.
+    if p.get("fac_program_control_finding") or p.get("fac_material_noncompliance"):
+        if p.get("fac_program_repeat"):
+            return "auditors flagged how they handle grants, two years running"
+        return "auditors flagged how they handle grants"
     # The dated problems. "Not on file" and "months late" are both read
     # straight off clearinghouse dates; neither says they MISSED anything,
     # since an agency can grant an extension. No fiscal-year label: lead lines
@@ -744,13 +751,40 @@ def davis_bacon_phrase(lead: Lead) -> str:
         else "won federal jobs, weekly certified payroll"
 
 
+def _licensing_state(lead: Lead) -> str | None:
+    """The state that issued the license (WA L&I, Florida DBPR), read off the
+    record's own lookup / source link, else its payload `state`."""
+    p = _payload(lead)
+    where = " ".join(str(x or "") for x in (p.get("lookup"), p.get("dataset"),
+                                             lead.primary_source_url))
+    if "lni.wa.gov" in where or "data.wa.gov" in where:
+        return "WA"
+    if "myfloridalicense" in where:
+        return "FL"
+    return p.get("state") or None
+
+
+def _elsewhere(lead: Lead, issuer: str | None) -> str:
+    """` in washington` when the issuing state differs from the state the line
+    prints for the lead (a Portland, OR firm licensed in Washington), else
+    "". Without it "Acme, portland: newly licensed contractor" reads as an
+    Oregon license, which the record does not show."""
+    if not issuer:
+        return ""
+    if state_display(issuer) == state_display(lead.state):
+        return ""
+    return f" in {state_display(issuer)}"
+
+
 def new_license_phrase(lead: Lead) -> str:
     """`new contracting company, just licensed` -- only when Florida's
     corporation records show the company itself is new (`formed_class`
-    new_company); otherwise all the record shows is the license."""
+    new_company); otherwise all the record shows is the license. Names the
+    licensing state when it is not the lead's own."""
+    where = _elsewhere(lead, _licensing_state(lead))
     if _payload(lead).get("formed_class") == "new_company":
-        return "new contracting company, just licensed"
-    return "newly licensed contractor"
+        return f"new contracting company, just licensed{where}"
+    return f"newly licensed{where}" if where else "newly licensed contractor"
 
 
 _LICENSE_CLASS = {"CGC": "general", "CBC": "building", "CRC": "residential"}
@@ -760,9 +794,11 @@ def license_upgrade_phrase(lead: Lead) -> str:
     """`moved up to a general contractor license`: Florida issued a higher
     class (`license_class`) to a contractor who held a lower one."""
     kind = _LICENSE_CLASS.get(str(_payload(lead).get("license_class") or "").upper())
-    if kind:
-        return f"moved up to a {kind} contractor license"
-    return "moved up to a bigger contractor license"
+    # "a florida general contractor license": the issuing state, when it is
+    # not the lead's own, inside the noun keeps the line at 8 words.
+    issuer = _elsewhere(lead, _licensing_state(lead) or "FL").removeprefix(" in ")
+    lic = " ".join(w for w in (issuer, kind or "bigger") if w)
+    return f"moved up to a {lic} contractor license"
 
 
 def cost_contract_phrase(lead: Lead) -> str:
@@ -785,10 +821,10 @@ def first_grant_phrase(lead: Lead) -> str:
 
 
 def new_business_phrase(lead: Lead) -> str:
-    """A new LLC or corporation on the state registry (Colorado, Connecticut).
-    The wording the user chose; "books not set up yet" is what a filing this
-    new implies, not a field on the record."""
-    return "brand-new company, books not set up yet"
+    """A new LLC or corporation on a state registry (Colorado, Connecticut):
+    exactly what the filing shows. Names the registry's state when the
+    principal office printed for the lead is elsewhere."""
+    return f"just registered as a new company{_elsewhere(lead, _payload(lead).get('state'))}"
 
 
 _MAGNET_PHRASES = {
@@ -949,7 +985,9 @@ def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
             return f"{niche_noun(niche, 1)} "
     city = city_display(prospect.city)
     state = state_display(prospect.state)
-    if city and lead.city and city_display(lead.city) == city:
+    same_state = bool(prospect.state and lead.state
+                      and state_display(lead.state) == state)
+    if city and same_state and lead.city and city_display(lead.city) == city:
         return f"in {city} "
     if state and lead.state and state_display(lead.state) == state:
         return f"in {state} "

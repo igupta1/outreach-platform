@@ -176,11 +176,13 @@ def compute_match_level(lead: Lead, prospect: Prospect) -> int | None:
             niche_match = lead.niche == val
         elif kind == "industry":
             niche_match = lead.industry == val
-    city_match = bool(
-        lead.city and prospect.city and norm_loc(lead.city) == norm_loc(prospect.city)
-    )
     state_match = bool(
         lead.state and prospect.state and norm_state(lead.state) == norm_state(prospect.state)
+    )
+    # Same city NAME is not the same city: "arlington" WA is not "arlington"
+    # TX. A city match needs the state to match as well.
+    city_match = state_match and bool(
+        lead.city and prospect.city and norm_loc(lead.city) == norm_loc(prospect.city)
     )
     if prospect.classification == "niched":
         if niche_match and city_match:
@@ -206,8 +208,10 @@ def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dic
     if p.classification == "niched" and p.match_param:
         kind, val = p.match_param
         base = {kind: val}
-        if p.city:
-            levels.append((1, {**base, "city": p.city}))
+        # A city level always carries the state (see compute_match_level), so
+        # a prospect with no state gets no city level.
+        if p.city and p.state:
+            levels.append((1, {**base, "city": p.city, "state": p.state}))
         if p.state:
             levels.append((2, {**base, "state": p.state}))
         levels.append((3, dict(base)))
@@ -216,13 +220,13 @@ def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dic
         # either all_niche or empty — never padded with off-niche leads.
         if niche_only:
             return levels
-        if p.city:
-            levels.append((4, {"city": p.city}))
+        if p.city and p.state:
+            levels.append((4, {"city": p.city, "state": p.state}))
         if p.state:
             levels.append((5, {"state": p.state}))
     else:
-        if p.city:
-            levels.append((1, {"city": p.city}))
+        if p.city and p.state:
+            levels.append((1, {"city": p.city, "state": p.state}))
         if p.state:
             levels.append((2, {"state": p.state}))
     return levels
@@ -243,8 +247,8 @@ def _find_priority_lead(
         queries.append({kind: val})
     # niche_only: don't fall back to a geo priority lead — it would be off-niche.
     if not niche_only:
-        if prospect.city:
-            queries.append({"city": prospect.city})
+        if prospect.city and prospect.state:
+            queries.append({"city": prospect.city, "state": prospect.state})
         if prospect.state:
             queries.append({"state": prospect.state})
     for kwargs in queries:
@@ -345,14 +349,22 @@ def _pick_leads(
 ) -> None:
     """The two-round Level walk. Mutates `into` / `excluded` in place.
 
-    Run twice: first over every lead type EXCEPT Row 8 (new businesses), then,
-    only if places are left, over Row 8 alone. A new business therefore never
-    takes a place another lead could fill at ANY level, and when it does fill
-    one, the same levels, freshness rounds, dedupe and off-limits rules apply."""
+    First over every lead type EXCEPT Row 8 (new businesses). Then, only if
+    places are left, Row 8 -- and only from the prospect's OWN STATE (its city,
+    then its state), never at a niche level and never in a `niche_only` build.
+    A new business is a registry filing with a NAICS code, which is too thin
+    to claim a vertical on (the second review run passed a psychiatry practice
+    and a notary as "law firms"), and a Connecticut filing means nothing to a
+    Seattle firm. The same freshness rounds, dedupe and off-limits rules apply."""
     levels = _levels_for(prospect, niche_only=niche_only)
-    for backup in (False, True):
-        _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
-              backup=backup)
+    _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
+          backup=False)
+    if niche_only or not prospect.state:
+        return
+    own_state = [(lvl, kw) for lvl, kw in levels
+                 if "state" in kw and set(kw) <= {"city", "state"}]
+    _walk(prospect, scraper, excluded, own_state, target=target, into=into, rank=rank,
+          backup=True)
 
 
 def _walk(
@@ -464,17 +476,20 @@ def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None
 
 def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
     if prospect.classification == "niched":
-        all_niche = all((compute_match_level(lead, prospect) or 99) <= 3 for lead in gift)
+        # A Row 8 lead never backs a niche claim, whatever its NAICS tag says.
+        all_niche = all((compute_match_level(lead, prospect) or 99) <= 3
+                        and not is_backup(lead) for lead in gift)
     else:
         all_niche = False
-
-    def city_ok(lead: Lead) -> bool:
-        return bool(lead.city and prospect.city and norm_loc(lead.city) == norm_loc(prospect.city))
 
     def state_ok(lead: Lead) -> bool:
         return bool(
             lead.state and prospect.state and norm_state(lead.state) == norm_state(prospect.state)
         )
+
+    def city_ok(lead: Lead) -> bool:
+        return state_ok(lead) and bool(
+            lead.city and prospect.city and norm_loc(lead.city) == norm_loc(prospect.city))
 
     if all(city_ok(lead) for lead in gift):
         geo = "city"
@@ -511,7 +526,10 @@ MAGNET_SIGNALS: frozenset[str] = ABSENCE_SIGNALS | RECORD_SIGNALS
 # signal type -> subject WHAT category. Each names only what its own filter
 # actually verified.
 _MAGNET_WHAT: dict[str, str] = {
-    "nonprofit_grant_no_finance_officer": "unstaffed_nonprofit",
+    # A charity is keyed by what its audit shows (`what_key`), never by the
+    # removed Row 4 claim "no finance officer on the 990".
+    "nonprofit_audit_finding": "nonprofit_audit",
+    "nonprofit_record": "public_record",
     "adv_no_fund_administrator": "unstaffed_funds",
     "ecommerce_sku_load_no_finance_staff": "unstaffed_ecommerce",
     "construction_federal_award_davis_bacon": "davis_bacon",
@@ -520,24 +538,31 @@ _MAGNET_WHAT: dict[str, str] = {
     "federal_cost_reimbursement_contract": "auditable_contract",
     "federal_first_time_grant": "first_grant",
     "new_business_formed": "new_business",
-    "nonprofit_with_officer": "public_record",   # only that records show a need
 }
 
 
-NONPROFIT_WITH_OFFICER = "nonprofit_with_officer"
+# What a charity's federal audit shows (`nonprofit_phrase` reads the same
+# fields): an auditor's finding on its financial controls or on how it handles
+# grant money.
+_NONPROFIT_FINDINGS = ("fac_material_weakness", "fac_significant_deficiency",
+                       "fac_program_control_finding", "fac_material_noncompliance")
 
 
 def what_key(lead: Lead) -> str:
     """The key a subject / DM WHAT is looked up by: the signal type, except a
-    nonprofit whose 990 LISTS a finance officer. A charity can qualify on an
-    audit problem alone, and "with no finance officer, from their 990s" was
-    false for 3 of 24 charities in the first review run (2026-10-18). The lead
-    line already honored `no_finance_officer_listed` (missing = true, older
-    inventories); this makes the subject and the DM agree with it."""
+    nonprofit, which is keyed by what its audit shows -- `nonprofit_audit_finding`
+    when an auditor flagged its controls or its grant handling, else
+    `nonprofit_record` (a late or missing audit: neutral wording).
+
+    The old subject, "with no finance officer, from their 990s", was the claim
+    of Row 4, removed at the source on 2026-10-15; Row 1 qualifies a charity
+    on its audit, and 3 of 24 charities under that subject listed an officer."""
     if lead.signal_type == "nonprofit_grant_no_finance_officer":
         for sig in lead.signals:
-            if (getattr(sig, "payload", None) or {}).get("no_finance_officer_listed") is False:
-                return NONPROFIT_WITH_OFFICER
+            p = getattr(sig, "payload", None) or {}
+            if any(p.get(k) for k in _NONPROFIT_FINDINGS):
+                return "nonprofit_audit_finding"
+        return "nonprofit_record"
     return lead.signal_type or ""
 
 

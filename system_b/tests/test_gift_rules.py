@@ -134,10 +134,45 @@ def test_no_new_business_when_other_leads_can_fill_the_gift():
     assert "New Llc" not in names(geo(), [new, *others])
 
 
-def test_row_8_fills_a_niche_gift_only_after_the_niche_runs_dry():
+def test_row_8_never_claims_a_niche():
+    """A psychiatry practice and a notary passed Gate B as "law firms" off a
+    NAICS code. A niche_only build (Gate B's) never sees a new business."""
     p = geo(classification="niched", match_param=("industry", "real_estate"))
     re_new = lead("Perry Ave Llc", NB, industry="real_estate")
-    assert names(p, [re_new], niche_only=True) == ["Perry Ave Llc"]
+    assert names(p, [re_new], niche_only=True) == []
+    # Outside niche_only it may fill from the prospect's own state, but the
+    # gift then makes no niche claim.
+    gift = build_gift(p, SnapshotScraper([re_new], taxonomy={}))
+    assert [ld.company for ld in gift.leads] == ["Perry Ave Llc"] and not gift.all_niche
+
+
+def test_gate_b_never_passes_a_niche_on_new_businesses():
+    from system_b.gift.tiering import resolve_gift
+    from system_b.research.models import ResearchResult
+    r = ResearchResult(classification="niched", match_param=("industry", "professional_services"),
+                       niche_phrase="law firms", niche_source="site")
+    r.candidate_match_params = [("niche", "law_firm")]
+    r.candidate_phrases = ["law firms"]
+    notary = lead("Ct Mobile Notary Llc", NB, industry="professional_services")
+    notary.niche = "law_firm"
+    seen: list = []
+
+    def fit(label, leads):
+        seen.extend(leads)
+        return [True] * len(leads)
+    prospect, gift = resolve_gift(r, {"firm_name": "Prime", "city": "Denver", "state": "CO"},
+                                  SnapshotScraper([notary], taxonomy={}), fit=fit)
+    assert seen == [] and prospect.classification == "generalist"
+
+
+def test_a_seattle_firm_never_gets_connecticut_new_businesses():
+    ct = [lead(f"Ct New {i}", NB, city="Hartford", state="CT", industry="other")
+          for i in range(3)]
+    wa = lead("Seattle New Llc", NB, city="Seattle", state="WA", industry="other")
+    seattle = Prospect(firm_name="Pius CFO", city="Seattle", state="WA")
+    assert names(seattle, [*ct, wa]) == ["Seattle New Llc"]
+    nowhere = Prospect(firm_name="No State CFO", city="Seattle")
+    assert names(nowhere, [*ct, wa]) == []
 
 
 def test_the_fill_keeps_the_off_limits_rules():
@@ -207,3 +242,16 @@ def test_a_lead_with_no_id_still_goes_to_one_firm_per_state():
                  blocked_identities=a.blocked("CFO NEEDS", "FL"))
     assert names(p, [no_id]) == []
     assert Lead(id="17", company="X", signal_type=NP).allocation_key is None
+
+
+def test_a_city_matches_only_in_the_same_state():
+    from system_b.gift.engine import compute_match_level
+    wa = Prospect(firm_name="Safe Haven", city="Arlington", state="WA")
+    tx_lead = lead("Arlington Tx Llc", NP, city="Arlington", state="TX", industry="nonprofit")
+    wa_lead = lead("Arlington Wa Llc", NP, city="Arlington", state="WA", industry="nonprofit")
+    assert compute_match_level(tx_lead, wa) is None
+    assert compute_match_level(wa_lead, wa) == 1
+    gift = build_gift(wa, SnapshotScraper([tx_lead], taxonomy={}))
+    assert gift is None
+    gift = build_gift(wa, SnapshotScraper([tx_lead, wa_lead], taxonomy={}))
+    assert [ld.company for ld in gift.leads] == ["Arlington Wa Llc"] and gift.geo_level == "city"

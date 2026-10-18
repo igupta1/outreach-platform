@@ -36,7 +36,6 @@ _PLURAL_WHAT = {
     # filters both confirm no finance staff; the FUNDS filter does not — it
     # checks unadministered funds, investor counts and headcount, and a
     # 15-person adviser may well employ a controller.
-    "unstaffed_nonprofit": "with no finance officer, from their 990s",
     "unstaffed_funds": "running funds with no administrator, from their adv",
     "unstaffed_ecommerce": "with nobody in finance",
     "unstaffed": "with nobody running finance",
@@ -53,6 +52,8 @@ RECORD_PLURAL_WHAT: dict[str, str] = {
     "license_upgrade": "moving up to a bigger contractor license",
     "auditable_contract": "on federal contracts the government can audit",
     "first_grant": "with their first federal grant in 3+ years",
+    # Charities whose auditors flagged their controls or grant handling.
+    "nonprofit_audit": "whose auditors flagged problems",
     "new_business": "newly registered with the state",
     # A gift mixing record kinds (or one with an absence magnet).
     "public_record": "that need finance help, from public records",
@@ -64,8 +65,9 @@ RECORD_SINGULAR_WHAT: dict[str, str] = {
     "federal_cost_reimbursement_contract": "won a federal contract the government can audit",
     "federal_first_time_grant": "got its first federal grant in 3+ years",
     "new_business_formed": "is newly registered with the state",
-    # A charity whose 990 lists a finance officer (gift.engine.what_key).
-    "nonprofit_with_officer": "needs finance help, from public records",
+    # Charities, by what their federal audit shows (gift.engine.what_key).
+    "nonprofit_audit_finding": "whose auditors flagged problems",
+    "nonprofit_record": "needs finance help, from public records",
 }
 _PLURAL_WHAT.update(RECORD_PLURAL_WHAT)
 
@@ -82,7 +84,6 @@ _SINGULAR_WHAT = {
     "job_finance_lead": "is hiring finance leadership",
     # Magnet singulars. Each states the absence the filing shows, in the
     # plainest words, with no figure the recipient cannot check in one click.
-    "nonprofit_grant_no_finance_officer": "has no finance officer on their 990",
     "adv_no_fund_administrator": "runs funds with no administrator",
     "ecommerce_sku_load_no_finance_staff": "has nobody in finance",
 }
@@ -101,6 +102,15 @@ def niche_claim(gift: Gift, prospect: Prospect) -> str | None:
     return niche_display(prospect.match_param)
 
 
+def lead_noun(gift: Gift, n: int = 2) -> str:
+    """What to call the gift's leads when no vertical is claimed: "nonprofits"
+    when every lead is one (a charity is not a company), else "companies".
+    Describes the LEADS, so it is no claim about whom the prospect serves."""
+    if gift.leads and all(ld.industry == "nonprofit" for ld in gift.leads):
+        return "nonprofit" if n == 1 else "nonprofits"
+    return "company" if n == 1 else "companies"
+
+
 def _plural_who(gift: Gift, prospect: Prospect) -> str:
     niche = niche_claim(gift, prospect)
     city = city_display(prospect.city)
@@ -111,11 +121,12 @@ def _plural_who(gift: Gift, prospect: Prospect) -> str:
         if gift.geo_level == "state":
             return f"{niche_noun(niche)} in {state}"
         return niche_noun(niche)
+    things = lead_noun(gift)
     if gift.geo_level == "city":
-        return f"companies in {city}"
+        return f"{things} in {city}"
     if gift.geo_level == "state":
-        return f"{state} companies"
-    return "companies"
+        return f"{state} {things}"
+    return things
 
 
 def _singular_who(gift: Gift, prospect: Prospect) -> str:
@@ -135,11 +146,11 @@ def _singular_who(gift: Gift, prospect: Prospect) -> str:
         else:
             who = f"a {niche_noun(niche, 1)}"
     elif gift.geo_level == "city":
-        who = f"a company in {city}"
+        who = f"a {lead_noun(gift, 1)} in {city}"
     elif gift.geo_level == "state":
-        who = f"a {state} company"
+        who = f"a {state} {lead_noun(gift, 1)}"
     else:
-        who = "a company"
+        who = f"a {lead_noun(gift, 1)}"
     return apply_article(who)
 
 

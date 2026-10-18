@@ -34,7 +34,6 @@ from system_b.niches.base import NichePack
 # actual seat rather than a generic "finance role" — "a bookkeeper" is the
 # recognizable thing to this reader.
 _SINGULAR_WHAT = {
-    "nonprofit_grant_no_finance_officer": "has no finance officer on their 990",
     "adv_no_fund_administrator": "runs funds with no administrator",
     "ecommerce_sku_load_no_finance_staff": "has nobody in finance",
     **RECORD_SINGULAR_WHAT,
@@ -45,7 +44,6 @@ _PLURAL_WHAT = {
     # names the DOCUMENT it came from — that is the positioning: everyone else
     # scraped a job board. Without these a magnet gift falls through to
     # "mixed", which says nothing about why the company is on the list.
-    "unstaffed_nonprofit": "with no finance officer, from their 990s",
     "unstaffed_funds": "running funds with no administrator, from their adv",
     "unstaffed_ecommerce": "with nobody in finance",
     "unstaffed": "with nobody running finance",

@@ -56,7 +56,9 @@ CASES = [
     (NL, {"formed_class": "new_company"}, "new contracting company, just licensed"),
     (NL, {"formed_class": "existing_company"}, "newly licensed contractor"),
     (NL, {"formed_class": "unknown"}, "newly licensed contractor"),
-    (NL, {"state": "WA", "license": "ALLSECC741PN"}, "newly licensed contractor"),
+    (NL, {"state": "WA", "license": "ALLSECC741PN"}, "newly licensed in washington"),
+    (NL, {"formed_class": "new_company", "lookup": "https://www.myfloridalicense.com/x"},
+     "new contracting company, just licensed"),
     (UP, {"license_class": "CGC", "prior_license": "CBC1254464"},
      "moved up to a general contractor license"),
     (UP, {"license_class": "CBC", "prior_license": "CRC1"},
@@ -68,8 +70,30 @@ CASES = [
     (CR, {"pricing_kind": "labor-hour"}, "hourly federal contract, hours can be audited"),
     (CR, {}, "federal contract the government can audit"),
     (FG, {"grants_in_window": 2}, "first federal grant in 3+ years"),
-    (NB, {"state": "CO", "entity_kind": "LLC"}, "brand-new company, books not set up yet"),
+    (NB, {"state": "FL", "entity_kind": "LLC"}, "just registered as a new company"),
+    (NB, {"state": "CT", "entity_kind": "LLC"}, "just registered as a new company in connecticut"),
 ]
+
+# Printed state differs from the licensing state: say where it was licensed.
+ELSEWHERE = [
+    (NL, {"state": "WA", "lookup": "Search license X at https://secure.lni.wa.gov/verify/"},
+     "OR", "newly licensed in washington"),
+    (NL, {"state": "WA", "lookup": "https://secure.lni.wa.gov/verify/"}, "WA",
+     "newly licensed contractor"),
+    (NL, {"formed_class": "new_company", "lookup": "https://www.myfloridalicense.com/x"},
+     "GA", "new contracting company, just licensed in florida"),
+    (UP, {"license_class": "CGC", "lookup": "https://www.myfloridalicense.com/x"}, "AL",
+     "moved up to a florida general contractor license"),
+    (UP, {"license_class": "CRC"}, "FL", "moved up to a residential contractor license"),
+    (NB, {"state": "CT"}, "CA", "just registered as a new company in connecticut"),
+    (NB, {"state": "CO"}, "CO", "just registered as a new company"),
+]
+
+
+@pytest.mark.parametrize("signal_type,payload,state,want", ELSEWHERE)
+def test_a_license_or_filing_from_another_state_says_which(signal_type, payload, state, want):
+    said = magnet_phrase(lead(signal_type, payload, state=state))
+    assert said == want and len(said.split()) <= 8
 
 
 @pytest.mark.parametrize("signal_type,payload,want", CASES)
@@ -153,21 +177,64 @@ def test_email_2_says_same_signal_only_when_it_is():
                                 gift_signals={DB})
     assert "showing the same signal" in same.body
     assert "same signal" not in diff.body and "from public records" in diff.body
-    assert "brand-new company, books not set up yet" in diff.body
+    assert "just registered as a new company" in diff.body
+    assert "books" not in diff.body
 
 
-def test_no_finance_officer_is_claimed_only_when_every_990_says_so():
-    """3 of 24 charities in the first review run sat under "with no finance
-    officer, from their 990s" while their 990 listed one."""
+def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():
+    """The old subject, "with no finance officer, from their 990s", was the
+    removed Row 4 claim, and 3 of 24 charities under it listed an officer. A
+    gift of audit findings says so; a mix (a late filing) stays neutral."""
     np = "nonprofit_grant_no_finance_officer"
-    none_listed = [lead(np, {"no_finance_officer_listed": True}, name=n) for n in ("A", "B")]
-    one_lists = [*none_listed, lead(np, {"no_finance_officer_listed": False}, name="C")]
-    assert _cfo_what_category(none_listed) == "unstaffed_nonprofit"
-    assert _cfo_what_category(one_lists) == "public_record"
+    findings = [lead(np, {"fac_material_weakness": True}, name="A"),
+                lead(np, {"fac_program_control_finding": True}, name="B")]
+    mixed = [*findings, lead(np, {"fac_late": True, "fac_days_late": 90}, name="C")]
+    assert _cfo_what_category(findings) == "nonprofit_audit"
+    assert _cfo_what_category(mixed) == "public_record"
     for pack_key in ("cfo", "accounting", "bookkeeping"):
-        for gift in (_gift(one_lists), _gift([one_lists[-1]])):
-            subject, _e1, _e2, dm, evergreen = _sequence_text(gift, pack_key)
-            # Each lead LINE speaks for its own 990; the subject and the DMs
-            # speak for the whole gift.
-            for text in (subject, dm, evergreen):
-                assert "no finance officer" not in text, (pack_key, text)
+        subject, _e1, _e2, dm, evergreen = _sequence_text(_gift(findings), pack_key)
+        assert "whose auditors flagged problems" in subject
+        assert "whose auditors flagged problems" in evergreen
+        for gift in (_gift(findings), _gift(mixed), _gift([mixed[-1]])):
+            for text in _sequence_text(gift, pack_key):
+                assert "finance officer" not in text and "990" not in text, text
+        subject = _sequence_text(_gift(mixed), pack_key)[0]
+        assert "public records" in subject, subject
+
+
+NPS = "nonprofit_grant_no_finance_officer"
+
+
+@pytest.mark.parametrize("payload,want", [
+    ({"fac_program_control_finding": True}, "auditors flagged how they handle grants"),
+    ({"fac_program_control_finding": True, "fac_program_repeat": True},
+     "auditors flagged how they handle grants, two years running"),
+    ({"fac_material_noncompliance": True}, "auditors flagged how they handle grants"),
+    # A financial-statement finding still leads when both are there.
+    ({"fac_material_weakness": True, "fac_program_control_finding": True},
+     "auditors flagged their financial controls"),
+])
+def test_grant_compliance_findings_have_their_own_line(payload, want):
+    said = magnet_phrase(lead(NPS, payload))
+    assert said == want and len(said.split()) <= 9
+
+
+def test_no_row_1_lead_falls_through_to_a_generic_line():
+    """Row 1 emits only audit problems: a control finding, a program finding,
+    or a late / missing audit. None may reach the 990-only fallbacks."""
+    import itertools
+    import json
+    from pathlib import Path
+    generic = ("files a federal audit", "no finance officer", "grant funded")
+    problems = [{"fac_material_weakness": True}, {"fac_significant_deficiency": True},
+                {"fac_program_control_finding": True}, {"fac_material_noncompliance": True},
+                {"fac_overdue": True}, {"fac_late": True, "fac_days_late": 75}]
+    for a, b in itertools.combinations_with_replacement(problems, 2):
+        said = magnet_phrase(lead(NPS, {**a, **b, "no_finance_officer_listed": False}))
+        assert not said.startswith(generic), said
+    published = Path.home() / "Developer/Inventory/exports/magnets/nonprofit-leads.json"
+    if published.exists():                       # the real Row 1 file, when on disk
+        from system_b.clients.inventory import adapt_leadgen_lead
+        for row in json.loads(published.read_text())["leads"]:
+            said = magnet_phrase(adapt_leadgen_lead(row, today=TODAY))
+            assert not said.startswith(generic), (row["name"], said)

@@ -109,10 +109,9 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
         kinds = {what_key(lead) for lead in gift.leads}
         if len(kinds) == 1:
             return {
-                # A charity whose 990 lists a finance officer (what_key).
-                "nonprofit_with_officer": "that look like they need finance help",
-                "nonprofit_grant_no_finance_officer":
-                    "with no finance officer on their 990",
+                # Charities, by what their audit shows (what_key).
+                "nonprofit_audit_finding": "whose auditors flagged problems",
+                "nonprofit_record": "that look like they need finance help",
                 "adv_no_fund_administrator":
                     "running funds with no outside administrator",
                 "ecommerce_sku_load_no_finance_staff":
@@ -131,7 +130,7 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
                 "federal_first_time_grant":
                     "getting their first federal grant in 3+ years",
                 "new_business_formed":
-                    "registering as brand-new companies",
+                    "registering as new companies",
             }[next(iter(kinds))]
         return "that look like they need finance help"
     return f"posting {pack.dm_role_plural}"

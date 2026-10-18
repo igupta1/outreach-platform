@@ -253,16 +253,23 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    bookkeeping; accounting -> construction / govcon / grant accounting,
    controls_remediation; cfo -> fractional_cfo, controls_remediation,
    govcon_accounting). Otherwise no preference. Never a filter.
-3. **Row 8 is a backup.** `_pick_leads` walks every type except
-   `new_business_*` first, then lets Row 8 fill only the places left, under
-   the same levels, dedupe and off-limits rules. So a state-level charity
-   beats a city-level new business, and a niche gift with no other supply
-   (real estate) can still be all Row 8.
+3. **Row 8 is a backup, in the prospect's own state, never a niche.**
+   `_pick_leads` walks every type except `new_business_*` first, then lets
+   Row 8 fill only the places left, and only at the prospect's own city /
+   state levels: never in a `niche_only` build (so Gate B never sees one and
+   no niche is ever claimed on one; the second review run passed a psychiatry
+   practice and a notary as "law firms" off a NAICS code), never from another
+   state (a Seattle firm got Connecticut filings), and `_honesty` never counts
+   one as on-niche.
 4. **Strength order** (`TYPE_ORDER`): charity audit problems, Davis-Bacon
    award, cost-type contract, first-time grant, license upgrade, new license,
    (anything else), new business. Within a type, the lead's `score` (the
    inventory's 0-100 strength). `_best_lead` (the subject's lead) follows the
    same order.
+
+**A city matches only in the same state** (`compute_match_level`, the city
+levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
+"arlington" TX. A prospect with no state gets no city level.
 
 One organization per firm per state (`gift/allocation.py`) and never a firm's
 own audit client (`_audited_by`) apply to every pass. Allocation keys on
@@ -339,13 +346,18 @@ would have dropped 12 accurate cfo leads for no honesty gain.
 - **A firm never receives its own audit client.** A nonprofit lead carries the
   CPA firm that signed its Single Audit (`fac_auditor_firm`); `gift.engine.
   _audited_by` skips it for that prospect only (not added to `excluded`).
-- **"No finance officer" only when the 990 says so.** Nonprofits can qualify on
-  an audit problem alone while listing one; `nonprofit_phrase` reads
-  `no_finance_officer_listed` (missing = true, for older inventories), and so
-  do the subject and the evergreen DM via `gift.engine.what_key` (a charity
-  that lists one is `nonprofit_with_officer` -> "need finance help, from
-  public records"). Before 2026-10-18 only the lead line checked: 3 of 24
-  charities in the first review run sat under "with no finance officer".
+- **A charity is described by its audit, never "no finance officer".** That
+  was Row 4's claim (removed at the source 2026-10-15); Row 1 qualifies on an
+  audit problem, and 3 of 24 charities under "with no finance officer, from
+  their 990s" listed one. `gift.engine.what_key`: an auditor's finding on
+  controls or grant handling -> `nonprofit_audit` ("whose auditors flagged
+  problems", subject and evergreen DM); a late or missing audit, or a mix ->
+  neutral "from public records". `nonprofit_phrase` covers program findings
+  ("auditors flagged how they handle grants", ", two years running" only on
+  the auditor's repeat flag); no Row 1 lead reaches the 990-only fallbacks
+  (a test reads the published file when it is on disk). A gift of charities
+  with no claimed vertical calls them "nonprofits", not "companies"
+  (`copy.subject.lead_noun`).
 - **Never the same organization to two firms in one region** (`gift/allocation.py`,
   `system_b/data/lead-allocations.csv`, gitignored). Region is the STATE — strictly
   stronger than the "one metro" rule, since no city→metro crosswalk is held.
@@ -440,11 +452,11 @@ line (<= 8 words, payload fields only, no date, no figure):
 | signal | line (by payload) |
 |---|---|
 | construction_federal_award_davis_bacon | "won a federal job, weekly certified payroll"; `first_contract_on_record` -> "first federal job on record, ..."; `awards_in_window` > 1 -> "jobs" |
-| construction_new_licensed_business | `formed_class` new_company -> "new contracting company, just licensed"; else "newly licensed contractor" |
-| construction_license_upgrade | "moved up to a {general/building/residential} contractor license" by `license_class` |
+| construction_new_licensed_business | `formed_class` new_company -> "new contracting company, just licensed"; else "newly licensed contractor"; licensed in another state than the one printed -> "newly licensed in washington" / "..., just licensed in florida" |
+| construction_license_upgrade | "moved up to a {general/building/residential} contractor license" by `license_class` ("a florida general ..." when printed elsewhere) |
 | federal_cost_reimbursement_contract | `pricing_kind` cost-reimbursement -> "federal contract where every cost is auditable"; time-and-materials / labor-hour -> "hourly federal contract, hours can be audited" |
 | federal_first_time_grant | "first federal grant in 3+ years" (as verified; never "first ever") |
-| new_business_formed | "brand-new company, books not set up yet" (the user's wording; the record shows a new filing, "books not set up" is what it implies) |
+| new_business_formed | "just registered as a new company" (+ " in connecticut" when the office printed is elsewhere); "books not set up yet" was a guess, removed 2026-10-18 |
 
 "on record": the construction source checked USAspending back to FY2008.
 Audit is a RIGHT ("can be audited", "auditable"), never an event. None of
