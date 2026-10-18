@@ -14,6 +14,7 @@ from system_b.copy.lex import (
     niche_noun,
     state_display,
 )
+from system_b.gift.engine import what_key
 from system_b.gift.models import Gift, Prospect
 
 # 4b WHAT (plural), first match wins. `what_category` already encodes the
@@ -63,6 +64,8 @@ RECORD_SINGULAR_WHAT: dict[str, str] = {
     "federal_cost_reimbursement_contract": "won a federal contract the government can audit",
     "federal_first_time_grant": "got its first federal grant in 3+ years",
     "new_business_formed": "is newly registered with the state",
+    # A charity whose 990 lists a finance officer (gift.engine.what_key).
+    "nonprofit_with_officer": "needs finance help, from public records",
 }
 _PLURAL_WHAT.update(RECORD_PLURAL_WHAT)
 
@@ -144,7 +147,7 @@ def _cfo_subject(gift: Gift, prospect: Prospect) -> str:
     """The CFO subject body (the CFO pack's `subject`)."""
     if gift.subject_shape == "singular":
         who = _singular_who(gift, prospect)
-        what = _SINGULAR_WHAT.get(gift.best_lead.signal_type, "")
+        what = _SINGULAR_WHAT.get(what_key(gift.best_lead), "")
     else:
         who = _plural_who(gift, prospect)
         what = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])

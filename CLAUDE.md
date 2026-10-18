@@ -341,7 +341,11 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   _audited_by` skips it for that prospect only (not added to `excluded`).
 - **"No finance officer" only when the 990 says so.** Nonprofits can qualify on
   an audit problem alone while listing one; `nonprofit_phrase` reads
-  `no_finance_officer_listed` (missing = true, for older inventories).
+  `no_finance_officer_listed` (missing = true, for older inventories), and so
+  do the subject and the evergreen DM via `gift.engine.what_key` (a charity
+  that lists one is `nonprofit_with_officer` -> "need finance help, from
+  public records"). Before 2026-10-18 only the lead line checked: 3 of 24
+  charities in the first review run sat under "with no finance officer".
 - **Never the same organization to two firms in one region** (`gift/allocation.py`,
   `system_b/data/lead-allocations.csv`, gitignored). Region is the STATE — strictly
   stronger than the "one metro" rule, since no city→metro crosswalk is held.

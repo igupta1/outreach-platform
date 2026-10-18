@@ -102,12 +102,17 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
     names only what its own filter verified: the Funds filter checks for an
     outside administrator and says nothing about who works there, so it must
     not borrow the "nobody in finance" phrasing the other two earn."""
-    from system_b.gift.engine import MAGNET_SIGNALS
+    from system_b.gift.engine import MAGNET_SIGNALS, what_key
 
     kinds = {lead.signal_type for lead in gift.leads}
     if kinds and kinds <= MAGNET_SIGNALS:
+        whats = {what_key(lead) for lead in gift.leads}
+        if len(whats) == 1:
+            kinds = whats
         if len(kinds) == 1:
             return {
+                # A charity whose 990 lists a finance officer (what_key).
+                "nonprofit_with_officer": "that look like they need finance help",
                 "nonprofit_grant_no_finance_officer":
                     "with no finance officer on their 990",
                 "adv_no_fund_administrator":

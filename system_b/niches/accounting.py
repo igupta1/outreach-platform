@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from system_b.copy.email import _cta, framing_line, need_for
 from system_b.copy.subject import RECORD_PLURAL_WHAT, RECORD_SINGULAR_WHAT, build_who_what
-from system_b.gift.engine import _cfo_what_category
+from system_b.gift.engine import _cfo_what_category, what_key
 from system_b.gift.models import Gift, Prospect
 from system_b.niches.base import NichePack
 
@@ -56,7 +56,7 @@ _PLURAL_WHAT = {
 
 
 def _accounting_subject(gift: Gift, prospect: Prospect) -> str:
-    singular = _SINGULAR_WHAT.get(gift.best_lead.signal_type, "that could use accounting help")
+    singular = _SINGULAR_WHAT.get(what_key(gift.best_lead), "that could use accounting help")
     plural = _PLURAL_WHAT.get(gift.what_category, _PLURAL_WHAT["mixed"])
     return build_who_what(gift, prospect, singular_what=singular, plural_what=plural)
 

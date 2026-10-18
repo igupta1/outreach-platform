@@ -154,3 +154,17 @@ def test_email_2_says_same_signal_only_when_it_is():
     assert "showing the same signal" in same.body
     assert "same signal" not in diff.body and "from public records" in diff.body
     assert "brand-new company, books not set up yet" in diff.body
+
+
+def test_no_finance_officer_is_claimed_only_when_every_990_says_so():
+    """3 of 24 charities in the first review run sat under "with no finance
+    officer, from their 990s" while their 990 listed one."""
+    np = "nonprofit_grant_no_finance_officer"
+    none_listed = [lead(np, {"no_finance_officer_listed": True}, name=n) for n in ("A", "B")]
+    one_lists = [*none_listed, lead(np, {"no_finance_officer_listed": False}, name="C")]
+    assert _cfo_what_category(none_listed) == "unstaffed_nonprofit"
+    assert _cfo_what_category(one_lists) == "public_record"
+    for pack_key in ("cfo", "accounting", "bookkeeping"):
+        texts = _sequence_text(_gift(one_lists), pack_key)
+        texts += _sequence_text(_gift([one_lists[-1]]), pack_key)
+        assert not any("no finance officer" in t for t in texts), pack_key

@@ -520,7 +520,25 @@ _MAGNET_WHAT: dict[str, str] = {
     "federal_cost_reimbursement_contract": "auditable_contract",
     "federal_first_time_grant": "first_grant",
     "new_business_formed": "new_business",
+    "nonprofit_with_officer": "public_record",   # only that records show a need
 }
+
+
+NONPROFIT_WITH_OFFICER = "nonprofit_with_officer"
+
+
+def what_key(lead: Lead) -> str:
+    """The key a subject / DM WHAT is looked up by: the signal type, except a
+    nonprofit whose 990 LISTS a finance officer. A charity can qualify on an
+    audit problem alone, and "with no finance officer, from their 990s" was
+    false for 3 of 24 charities in the first review run (2026-10-18). The lead
+    line already honored `no_finance_officer_listed` (missing = true, older
+    inventories); this makes the subject and the DM agree with it."""
+    if lead.signal_type == "nonprofit_grant_no_finance_officer":
+        for sig in lead.signals:
+            if (getattr(sig, "payload", None) or {}).get("no_finance_officer_listed") is False:
+                return NONPROFIT_WITH_OFFICER
+    return lead.signal_type or ""
 
 
 def _cfo_what_category(gift: list[Lead]) -> str:
@@ -550,7 +568,7 @@ def _cfo_what_category(gift: list[Lead]) -> str:
         # thing. Nonprofit and Ecommerce both confirm no finance staff; Funds
         # confirms no outside ADMINISTRATOR and says nothing about who works
         # there, so it must not borrow their phrasing.
-        kinds = {lead.signal_type for lead in gift}
+        kinds = {what_key(lead) for lead in gift}
         if len(kinds) == 1:
             return _MAGNET_WHAT[next(iter(kinds))]
         if kinds <= ABSENCE_SIGNALS:
