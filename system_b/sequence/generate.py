@@ -53,7 +53,8 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
 
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,
-                             include_signoff=False),
+                             include_signoff=False,
+                             gift_signals={ld.signal_type for ld in gift.leads}),
         build_followup_email(None, prospect, step=3, today=today, pack=pack,
                              include_signoff=False),
     ]

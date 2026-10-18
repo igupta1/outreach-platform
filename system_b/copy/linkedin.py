@@ -114,6 +114,21 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
                     "running funds with no outside administrator",
                 "ecommerce_sku_load_no_finance_staff":
                     "with nobody in finance",
+                # The inventory's record signals: the kind of record the
+                # system watches for, never a claim about one company, so
+                # nothing here can age into a false statement.
+                "construction_federal_award_davis_bacon":
+                    "winning federal jobs with weekly certified payroll",
+                "construction_new_licensed_business":
+                    "getting a new contractor license",
+                "construction_license_upgrade":
+                    "moving up to a bigger contractor license",
+                "federal_cost_reimbursement_contract":
+                    "winning federal contracts the government can audit",
+                "federal_first_time_grant":
+                    "getting their first federal grant in 3+ years",
+                "new_business_formed":
+                    "registering as brand-new companies",
             }[next(iter(kinds))]
         return "that look like they need finance help"
     return f"posting {pack.dm_role_plural}"

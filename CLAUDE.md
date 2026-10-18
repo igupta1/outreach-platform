@@ -383,9 +383,40 @@ Each was a silent failure before it was fixed. All are tested in
   filed, not when the situation arose.
 
 **Copy is templated per magnet** (`nonprofit_phrase` / `funds_phrase` /
-`ecommerce_phrase`), never the raw `evidence_text`. The full evidence is ~60
+`ecommerce_phrase`, and the six record phrases below), never the raw
+`evidence_text`. The full evidence is ~60
 words and would arrive lowercased with every dollar figure stripped by the
 safety net — the long form belongs in the review gate, not an email.
+
+## The inventory's record signals (copy, 2026-10-18)
+
+Six signal types from the lead inventory are EVENTS on a public record, not
+absences: `copy.email.RECORD_SIGNALS` (mirrored in `gift.engine`, where
+`MAGNET_SIGNALS = ABSENCE_SIGNALS | RECORD_SIGNALS`). Each has one templated
+line (<= 8 words, payload fields only, no date, no figure):
+
+| signal | line (by payload) |
+|---|---|
+| construction_federal_award_davis_bacon | "won a federal job, weekly certified payroll"; `first_contract_on_record` -> "first federal job on record, ..."; `awards_in_window` > 1 -> "jobs" |
+| construction_new_licensed_business | `formed_class` new_company -> "new contracting company, just licensed"; else "newly licensed contractor" |
+| construction_license_upgrade | "moved up to a {general/building/residential} contractor license" by `license_class` |
+| federal_cost_reimbursement_contract | `pricing_kind` cost-reimbursement -> "federal contract where every cost is auditable"; time-and-materials / labor-hour -> "hourly federal contract, hours can be audited" |
+| federal_first_time_grant | "first federal grant in 3+ years" (as verified; never "first ever") |
+| new_business_formed | "brand-new company, books not set up yet" (the user's wording; the record shows a new filing, "books not set up" is what it implies) |
+
+"on record": the construction source checked USAspending back to FY2008.
+Audit is a RIGHT ("can be audited", "auditable"), never an event. None of
+them is hiring or raised anywhere in the sequence: each has its own subject
+category (`davis_bacon`, `new_license`, `license_upgrade`,
+`auditable_contract`, `first_grant`, `new_business`; shared by every pack via
+`copy.subject.RECORD_PLURAL_WHAT` / `RECORD_SINGULAR_WHAT`), its own framing
+need clause (`_MAGNET_NEED`) and its own evergreen-DM words
+(`linkedin._flags_what`). A gift MIXING record kinds (or with a nonprofit)
+is `public_record`: "that need finance help, from public records" and the
+need "showing they need finance help" -- never "with nobody running finance"
+(false of a license) nor the pack's job-post default. Email 2 says "showing
+the same signal" only when its lead's type is one email 1 used; otherwise
+"from public records". Tests: `tests/test_record_copy.py`.
 
 **`Lead.score` is now read from the inventory row.** The live job-post API
 never served one, so the field sat permanently None and `sort_key` had nothing

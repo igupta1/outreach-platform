@@ -150,6 +150,28 @@ def _client_names_phrase(prospect: Prospect) -> str:
 _CFO_NEED = "showing they need finance help"
 
 
+# Magnet signal types (the phrases for each are further down).
+NONPROFIT_SIGNAL = "nonprofit_grant_no_finance_officer"
+FUNDS_SIGNAL = "adv_no_fund_administrator"
+ECOMMERCE_SIGNAL = "ecommerce_sku_load_no_finance_staff"
+# The lead inventory's record-based signals (2026-10-18). Each is an EVENT on a
+# public record -- an award, a license, a contract, a grant, a formation --
+# not an absence, and none is a job post or a raise.
+DAVIS_BACON_SIGNAL = "construction_federal_award_davis_bacon"
+NEW_LICENSE_SIGNAL = "construction_new_licensed_business"
+LICENSE_UPGRADE_SIGNAL = "construction_license_upgrade"
+COST_CONTRACT_SIGNAL = "federal_cost_reimbursement_contract"
+FIRST_GRANT_SIGNAL = "federal_first_time_grant"
+NEW_BUSINESS_SIGNAL = "new_business_formed"
+
+RECORD_SIGNALS = frozenset({
+    DAVIS_BACON_SIGNAL, NEW_LICENSE_SIGNAL, LICENSE_UPGRADE_SIGNAL,
+    COST_CONTRACT_SIGNAL, FIRST_GRANT_SIGNAL, NEW_BUSINESS_SIGNAL,
+})
+
+MAGNET_SIGNALS = frozenset({NONPROFIT_SIGNAL, FUNDS_SIGNAL, ECOMMERCE_SIGNAL}) | RECORD_SIGNALS
+
+
 # Each magnet's value-prop clause, in the words its own filter can support.
 #
 # The magnets verify an ABSENCE, and the job-post packs' wording claims the
@@ -168,7 +190,22 @@ _MAGNET_NEED: dict[str, str] = {
     "nonprofit_grant_no_finance_officer": "showing they need finance help",
     "adv_no_fund_administrator": "running funds with no administrator",
     "ecommerce_sku_load_no_finance_staff": "with nobody in finance",
+    # The record-based signals: the event each record shows, nothing more.
+    DAVIS_BACON_SIGNAL: "on federal jobs with weekly certified payroll",
+    NEW_LICENSE_SIGNAL: "with a new contractor license",
+    LICENSE_UPGRADE_SIGNAL: "moving up to a bigger contractor license",
+    COST_CONTRACT_SIGNAL: "on federal contracts the government can audit",
+    FIRST_GRANT_SIGNAL: "with their first federal grant in 3+ years",
+    NEW_BUSINESS_SIGNAL: "newly registered with the state",
 }
+
+# A gift mixing record-based signals (an award, a license, a 990 audit
+# finding, a formation) states what each record SHOWS: a need for finance
+# help. The pack defaults ("looking for bookkeeping help right now") describe
+# a company that advertised a role, which none of these did. Funds and
+# ecommerce stay out: their filters verify an absence this does not cover.
+_MIXED_RECORD_NEED = "showing they need finance help"
+_RECORD_FAMILY = RECORD_SIGNALS | {NONPROFIT_SIGNAL}
 
 
 def need_for(gift: Gift, *, default: str) -> str:
@@ -182,6 +219,8 @@ def need_for(gift: Gift, *, default: str) -> str:
     kinds = {lead.signal_type for lead in gift.leads}
     if len(kinds) == 1:
         return _MAGNET_NEED.get(next(iter(kinds)), default)
+    if kinds and kinds <= _RECORD_FAMILY:
+        return _MIXED_RECORD_NEED
     return default
 
 
@@ -556,11 +595,6 @@ def breach_phrase(lead: Lead) -> str:
 # the plainest words available, with no figure the recipient cannot verify in
 # one click via the lead's source_url.
 
-NONPROFIT_SIGNAL = "nonprofit_grant_no_finance_officer"
-FUNDS_SIGNAL = "adv_no_fund_administrator"
-ECOMMERCE_SIGNAL = "ecommerce_sku_load_no_finance_staff"
-
-MAGNET_SIGNALS = frozenset({NONPROFIT_SIGNAL, FUNDS_SIGNAL, ECOMMERCE_SIGNAL})
 
 
 def is_magnet_lead(lead: Lead) -> bool:
@@ -688,13 +722,91 @@ def ecommerce_phrase(lead: Lead) -> str:
     return f"{scale}, {where}, nobody in finance"
 
 
+# --- The inventory's record-based signals ----------------------------------
+#
+# Each reads ONLY fields the source put in the lead's payload, and says no
+# more than that record does. None carries a date or a figure: the record is
+# one click away on the lead's source_url.
+
+
+def davis_bacon_phrase(lead: Lead) -> str:
+    """`won a federal job, weekly certified payroll`.
+
+    The award carries Davis-Bacon wage rates, so the contractor owes certified
+    payroll every week (FAR 22.406-6). "on record" because the source checked
+    USAspending back to FY2008, not a contractor's whole history."""
+    p = _payload(lead)
+    jobs = "jobs" if isinstance(p.get("awards_in_window"), int) \
+        and p["awards_in_window"] > 1 else "job"
+    if p.get("first_contract_on_record"):
+        return f"first federal {jobs} on record, weekly certified payroll"
+    return f"won a federal {jobs}, weekly certified payroll" if jobs == "job" \
+        else "won federal jobs, weekly certified payroll"
+
+
+def new_license_phrase(lead: Lead) -> str:
+    """`new contracting company, just licensed` -- only when Florida's
+    corporation records show the company itself is new (`formed_class`
+    new_company); otherwise all the record shows is the license."""
+    if _payload(lead).get("formed_class") == "new_company":
+        return "new contracting company, just licensed"
+    return "newly licensed contractor"
+
+
+_LICENSE_CLASS = {"CGC": "general", "CBC": "building", "CRC": "residential"}
+
+
+def license_upgrade_phrase(lead: Lead) -> str:
+    """`moved up to a general contractor license`: Florida issued a higher
+    class (`license_class`) to a contractor who held a lower one."""
+    kind = _LICENSE_CLASS.get(str(_payload(lead).get("license_class") or "").upper())
+    if kind:
+        return f"moved up to a {kind} contractor license"
+    return "moved up to a bigger contractor license"
+
+
+def cost_contract_phrase(lead: Lead) -> str:
+    """By pricing kind. Cost-reimbursement: the government reimburses actual
+    costs and CAN audit every one. Time-and-materials and labor-hour: paid by
+    the hour, and the hours can be audited. A right, never an event
+    ("can be audited", not "get audited")."""
+    kind = _payload(lead).get("pricing_kind")
+    if kind in ("time-and-materials", "labor-hour"):
+        return "hourly federal contract, hours can be audited"
+    if kind == "cost-reimbursement":
+        return "federal contract where every cost is auditable"
+    return "federal contract the government can audit"
+
+
+def first_grant_phrase(lead: Lead) -> str:
+    """Worded exactly as the source checked it: no grant on record for this
+    recipient in the 3 years before. Never "first ever"."""
+    return "first federal grant in 3+ years"
+
+
+def new_business_phrase(lead: Lead) -> str:
+    """A new LLC or corporation on the state registry (Colorado, Connecticut).
+    The wording the user chose; "books not set up yet" is what a filing this
+    new implies, not a field on the record."""
+    return "brand-new company, books not set up yet"
+
+
+_MAGNET_PHRASES = {
+    NONPROFIT_SIGNAL: nonprofit_phrase,
+    FUNDS_SIGNAL: funds_phrase,
+    ECOMMERCE_SIGNAL: ecommerce_phrase,
+    DAVIS_BACON_SIGNAL: davis_bacon_phrase,
+    NEW_LICENSE_SIGNAL: new_license_phrase,
+    LICENSE_UPGRADE_SIGNAL: license_upgrade_phrase,
+    COST_CONTRACT_SIGNAL: cost_contract_phrase,
+    FIRST_GRANT_SIGNAL: first_grant_phrase,
+    NEW_BUSINESS_SIGNAL: new_business_phrase,
+}
+
+
 def magnet_phrase(lead: Lead) -> str:
     """The templated line for a magnet lead."""
-    return {
-        NONPROFIT_SIGNAL: nonprofit_phrase,
-        FUNDS_SIGNAL: funds_phrase,
-        ECOMMERCE_SIGNAL: ecommerce_phrase,
-    }[lead.signal_type](lead)
+    return _MAGNET_PHRASES[lead.signal_type](lead)
 
 
 def _grounded_line(lead: Lead) -> str:
@@ -874,6 +986,7 @@ def build_followup_email(
     today: date,
     pack=None,
     include_signoff: bool = False,
+    gift_signals: frozenset[str] | set[str] | None = None,
 ) -> EmailDraft:
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
@@ -882,6 +995,9 @@ def build_followup_email(
       * value    — a genuinely NEW lead surfaced (`lead` given): one honest lead
                    line + the same binary ask Email #1 makes.
       * fallback — no new lead (`lead is None`): a light bump, no fabricated lead.
+
+    `gift_signals` (email 1's signal types) decides whether email 2 may say
+    "showing the same signal"; None keeps the old wording.
 
     Email #3 (step 3) is ALWAYS `_FINAL_PIVOT`: no lead, no gift, one question
     about their real bottleneck. `lead` is accepted and ignored there so the
@@ -902,7 +1018,17 @@ def build_followup_email(
         line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
         flags.extend(lf)
         qual = _followup_qualifier(lead, prospect)
-        opener = f"found one more {qual}showing the same signal:"
+        # "the same signal" only when it IS email 1's signal. A follow-up lead
+        # can be another kind (a new business filling a construction gift),
+        # and claiming sameness then is a small false claim the recipient can
+        # check against the email above it.
+        same = gift_signals is None or lead.signal_type in gift_signals
+        if same:
+            opener = f"found one more {qual}showing the same signal:"
+        elif lead.signal_type in _RECORD_FAMILY:
+            opener = f"found one more {qual}from public records:"
+        else:
+            opener = f"found one more {qual}worth sharing:"
         # The tail asks for the same thing email #1 did. The old one ("want me
         # to keep sending these?") recruited a subscriber, which is the wrong
         # yes: a sequence whose steps chase different outcomes converts on the

@@ -25,7 +25,7 @@ vertical only when `niche_claim` allows it, otherwise it opens on geography.
 from __future__ import annotations
 
 from system_b.copy.email import _cta, framing_line, need_for
-from system_b.copy.subject import build_who_what
+from system_b.copy.subject import RECORD_PLURAL_WHAT, RECORD_SINGULAR_WHAT, build_who_what
 from system_b.gift.engine import _cfo_what_category
 from system_b.gift.models import Gift, Prospect
 from system_b.niches.base import NichePack
@@ -37,6 +37,7 @@ _SINGULAR_WHAT = {
     "nonprofit_grant_no_finance_officer": "has no finance officer on their 990",
     "adv_no_fund_administrator": "runs funds with no administrator",
     "ecommerce_sku_load_no_finance_staff": "has nobody in finance",
+    **RECORD_SINGULAR_WHAT,
     "job_junior_finance": "is hiring a bookkeeper",
 }
 _PLURAL_WHAT = {
@@ -48,6 +49,7 @@ _PLURAL_WHAT = {
     "unstaffed_funds": "running funds with no administrator, from their adv",
     "unstaffed_ecommerce": "with nobody in finance",
     "unstaffed": "with nobody running finance",
+    **RECORD_PLURAL_WHAT,     # the inventory's record signals, shared wording
     "hiring": "hiring bookkeeping help right now",
     "mixed": "that could use bookkeeping help right now",
 }

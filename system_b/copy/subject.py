@@ -42,6 +42,30 @@ _PLURAL_WHAT = {
     "mixed": "that need finance help right now",
 }
 
+# The lead inventory's record-based signals, shared by every pack: none says
+# "accountant" or "bookkeeper", so each pack's subject can use them as-is.
+# Each states the EVENT the record shows; none is "hiring" or "raised", and
+# none carries a date or a figure.
+RECORD_PLURAL_WHAT: dict[str, str] = {
+    "davis_bacon": "on federal jobs with weekly certified payroll",
+    "new_license": "with a new contractor license",
+    "license_upgrade": "moving up to a bigger contractor license",
+    "auditable_contract": "on federal contracts the government can audit",
+    "first_grant": "with their first federal grant in 3+ years",
+    "new_business": "newly registered with the state",
+    # A gift mixing record kinds (or one with an absence magnet).
+    "public_record": "that need finance help, from public records",
+}
+RECORD_SINGULAR_WHAT: dict[str, str] = {
+    "construction_federal_award_davis_bacon": "won a federal job with weekly certified payroll",
+    "construction_new_licensed_business": "has a new contractor license",
+    "construction_license_upgrade": "moved up to a bigger contractor license",
+    "federal_cost_reimbursement_contract": "won a federal contract the government can audit",
+    "federal_first_time_grant": "got its first federal grant in 3+ years",
+    "new_business_formed": "is newly registered with the state",
+}
+_PLURAL_WHAT.update(RECORD_PLURAL_WHAT)
+
 # 4c WHAT (singular), from the best lead's signal type (leadgen raw vocab). One
 # phrasing each: the equivalent variants this used to rotate through were the
 # same sentence said five ways, and picking between them by a hash of the firm
@@ -59,7 +83,7 @@ _SINGULAR_WHAT = {
     "adv_no_fund_administrator": "runs funds with no administrator",
     "ecommerce_sku_load_no_finance_staff": "has nobody in finance",
 }
-
+_SINGULAR_WHAT.update(RECORD_SINGULAR_WHAT)
 
 
 def niche_claim(gift: Gift, prospect: Prospect) -> str | None:

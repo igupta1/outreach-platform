@@ -420,11 +420,24 @@ def _honesty(gift: list[Lead], prospect: Prospect) -> tuple[bool, str]:
 # raise — the whole point is that it emitted no announcement at all. Named here
 # rather than imported from copy.email to keep the engine free of a copy
 # dependency; `test_magnets` pins the two lists together.
-MAGNET_SIGNALS: frozenset[str] = frozenset({
+# The magnets that verify an ABSENCE (no finance officer, no administrator,
+# nobody in finance).
+ABSENCE_SIGNALS: frozenset[str] = frozenset({
     "nonprofit_grant_no_finance_officer",
     "adv_no_fund_administrator",
     "ecommerce_sku_load_no_finance_staff",
 })
+# The lead inventory's record-based signals: an EVENT on a public record (an
+# award, a license, a contract, a grant, a formation). Not hiring, not a raise.
+RECORD_SIGNALS: frozenset[str] = frozenset({
+    "construction_federal_award_davis_bacon",
+    "construction_new_licensed_business",
+    "construction_license_upgrade",
+    "federal_cost_reimbursement_contract",
+    "federal_first_time_grant",
+    "new_business_formed",
+})
+MAGNET_SIGNALS: frozenset[str] = ABSENCE_SIGNALS | RECORD_SIGNALS
 
 # signal type -> subject WHAT category. Each names only what its own filter
 # actually verified.
@@ -432,11 +445,19 @@ _MAGNET_WHAT: dict[str, str] = {
     "nonprofit_grant_no_finance_officer": "unstaffed_nonprofit",
     "adv_no_fund_administrator": "unstaffed_funds",
     "ecommerce_sku_load_no_finance_staff": "unstaffed_ecommerce",
+    "construction_federal_award_davis_bacon": "davis_bacon",
+    "construction_new_licensed_business": "new_license",
+    "construction_license_upgrade": "license_upgrade",
+    "federal_cost_reimbursement_contract": "auditable_contract",
+    "federal_first_time_grant": "first_grant",
+    "new_business_formed": "new_business",
 }
 
 
 def _cfo_what_category(gift: list[Lead]) -> str:
-    """CFO subject WHAT category: raised | hiring | unstaffed | mixed.
+    """CFO subject WHAT category: raised | hiring | unstaffed[_magnet] | a
+    record-signal category (davis_bacon, new_license, ...) | public_record |
+    mixed.
 
     `unstaffed` exists because the previous logic was a two-way split — a lead
     either raised or, by elimination, was "hiring". That inverted the truth for
@@ -463,7 +484,12 @@ def _cfo_what_category(gift: list[Lead]) -> str:
         kinds = {lead.signal_type for lead in gift}
         if len(kinds) == 1:
             return _MAGNET_WHAT[next(iter(kinds))]
-        return "unstaffed"
+        if kinds <= ABSENCE_SIGNALS:
+            return "unstaffed"
+        # A gift mixing an event (an award, a formation) with anything else:
+        # "with nobody running finance" is false of a new license, so the
+        # subject says only that public records show a need.
+        return "public_record"
     if all(hiring(lead) for lead in gift):
         return "hiring"
     return "mixed"
