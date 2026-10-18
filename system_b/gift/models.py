@@ -37,6 +37,11 @@ class Prospect:
     # Organizations (Lead.identity) already handed to a DIFFERENT firm in this
     # prospect's region -- see gift.allocation. Never shown to this prospect.
     blocked_identities: frozenset[str] = frozenset()
+    # The ONE kind of work their site is plainly about (bookkeeping |
+    # accounting | cfo), only when the rung detection is high-confidence
+    # (research.rung.clear_focus); None = no preference. A tiebreak among
+    # leads at the SAME match level, never a filter.
+    focus: str | None = None
 
 
 @dataclass

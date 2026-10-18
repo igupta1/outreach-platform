@@ -73,6 +73,10 @@ class Lead(BaseModel):
     # the domain field. Keying identity on domain therefore made every lead
     # from those two magnets look both un-dedupable and unfindable.
     entity_id: str | None = None
+    # What kind of finance work the source says this lead needs
+    # ("bookkeeping_setup", "govcon_accounting", "fractional_cfo", ...). Read
+    # only as a tiebreak toward a firm's clear focus (gift.engine.sort_key).
+    service_tags: list[str] = Field(default_factory=list)
 
     @property
     def identity(self) -> str | None:

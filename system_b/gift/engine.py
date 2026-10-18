@@ -4,18 +4,15 @@
 lead, 3e honesty values. Geography-first: gift is assembled by match
 level; signal type then date are tiebreaks WITHIN a level (except 3a).
 
-Sort note (field-name reality): the live API exposes no `score`, so the
-within-level re-sort is `signal-type rank -> newest date -> date_confidence
-(high before low)`. Best-lead selection is `signal-type rank -> freshness
--> match level` (score dropped).
-
-If System A later adds `score`, it slots into the MIDDLE of each key,
-directly AFTER signal-type rank (spec 3b: "rank, then score, then newest
-date"; spec 3d: "signal type, then score, then freshness"). It is never
-appended at the end:
-  * sort_key:  rank -> has-domain -> newest-date -> confidence
-  * _best_lead: rank -> [-score] -> freshness -> match-level
-See the `# <-- score slots here` markers in both functions.
+Order (2026-10-18, the user's rules): the match level always decides first
+(industry + area; the walk itself is unchanged, and so are Gates A and B).
+Within a level `sort_key`: the pack's `signal_rank` -> a lead suiting the
+firm's CLEAR focus (`Prospect.focus`, only when its site is plainly one kind of
+work) -> `TYPE_ORDER` across the magnets -> findable -> the lead's score
+(within a type) -> newest -> date confidence. Row 8 (new businesses) is a
+backup: `_pick_leads` walks every other type first and lets Row 8 fill only
+the places left. `_best_lead`: rank -> TYPE_ORDER -> domain -> score ->
+freshness -> match level.
 """
 
 from __future__ import annotations
@@ -63,6 +60,50 @@ _US_STATES = {
 }
 
 
+# Strength order ACROSS the magnets' signal types (lower = stronger), applied
+# after the pack's own `signal_rank` (job types) and before the lead's score,
+# which orders leads WITHIN a type (each source scores on its own scale, and
+# the inventory's 0-100 strength is a percentile within the type). An audit
+# finding a CPA signed is the strongest public evidence of a finance problem;
+# a fresh registration says the least. Types not listed sit just above the
+# new-business rows.
+TYPE_ORDER: dict[str, int] = {
+    "nonprofit_grant_no_finance_officer": 0,        # charity audit problems
+    "construction_federal_award_davis_bacon": 1,    # federal construction award
+    "federal_cost_reimbursement_contract": 2,       # cost-type federal contract
+    "federal_first_time_grant": 3,
+    "construction_license_upgrade": 4,
+    "construction_new_licensed_business": 5,
+    "new_business_formed": 7,
+    "new_business_expanding": 8,
+}
+_OTHER_TYPE = 6
+
+# Row 8 is a BACKUP: a gift is built from every other lead type first, and a
+# new business only fills a place nothing else could (see `_pick_leads`).
+BACKUP_PREFIX = "new_business_"
+
+
+def is_backup(lead: Lead) -> bool:
+    return (lead.signal_type or "").startswith(BACKUP_PREFIX)
+
+
+# The service tags that suit a firm whose site is plainly about ONE kind of
+# work (Prospect.focus, from research.rung.clear_focus). A tiebreak among
+# leads at the same match level; a firm is never limited to these.
+FOCUS_TAGS: dict[str, frozenset[str]] = {
+    "bookkeeping": frozenset({"bookkeeping_setup", "payroll_setup", "bookkeeping"}),
+    "accounting": frozenset({"construction_accounting", "govcon_accounting",
+                             "grant_accounting", "controls_remediation"}),
+    "cfo": frozenset({"fractional_cfo", "controls_remediation", "govcon_accounting"}),
+}
+
+
+def suits_focus(lead: Lead, focus: str | None) -> bool:
+    tags = FOCUS_TAGS.get(focus or "")
+    return bool(tags) and bool(tags & set(lead.service_tags or ()))
+
+
 class _Scraper(Protocol):
     def leads(self, **params: Any) -> list[Lead]: ...
 
@@ -86,10 +127,14 @@ def _recency(lead: Lead) -> float:
         return float("-inf")
 
 
-def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, int, float, int]:
-    """Within-level re-sort: strongest signal (per the active pack's
-    `signal_rank`), then a resolvable company, then freshest, then
-    high-confidence date before low.
+def sort_key(lead: Lead, rank: dict[str, int] | None = None,
+             focus: str | None = None) -> tuple:
+    """Within-level re-sort (the level itself is never re-ordered: industry +
+    area always take precedence). Strongest signal per the active pack's
+    `signal_rank`, then -- when the firm plainly does ONE kind of work -- a
+    lead whose service tags suit it, then the magnets' strength order
+    (`TYPE_ORDER`), then a resolvable company, then the lead's own score,
+    then freshest, then high-confidence date before low.
 
     The identifier never appears in a sent email, so this is not about the
     link — it is about FINDABILITY. A lead the recipient cannot look up is the
@@ -104,6 +149,9 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None) -> tuple[int, int, 
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
+        # No focus -> 0 for everyone, so no preference at all.
+        0 if focus is None or suits_focus(lead, focus) else 1,
+        TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
         0 if lead.is_findable else 1,
         # The magnet's own score, where it serves one. Every lead from a single
         # magnet shares one signal_type, so without this the first tiebreak
@@ -208,7 +256,7 @@ def _find_priority_lead(
             if lead.id not in excluded and not _off_limits(lead, prospect)
         ]
         if leads:
-            leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank))
+            leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank, prospect.focus))
             return leads[0]
     return None
 
@@ -294,8 +342,23 @@ def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
 ) -> None:
-    """The two-round Level walk. Mutates `into` / `excluded` in place."""
+    """The two-round Level walk. Mutates `into` / `excluded` in place.
+
+    Run twice: first over every lead type EXCEPT Row 8 (new businesses), then,
+    only if places are left, over Row 8 alone. A new business therefore never
+    takes a place another lead could fill at ANY level, and when it does fill
+    one, the same levels, freshness rounds, dedupe and off-limits rules apply."""
     levels = _levels_for(prospect, niche_only=niche_only)
+    for backup in (False, True):
+        _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
+              backup=backup)
+
+
+def _walk(
+    prospect: Prospect, scraper: _Scraper, excluded: set[str],
+    levels: list[tuple[int, dict[str, Any]]], *, target: int, into: list[Lead],
+    rank: dict[str, int], backup: bool,
+) -> None:
     for freshness in ("fresh", "stale"):
         if len(into) >= target:
             return
@@ -309,8 +372,9 @@ def _pick_leads(
                 # Not added to `excluded`: the lead is fine for every other
                 # prospect, only not for this one.
                 if lead.id not in excluded and not _off_limits(lead, prospect)
+                and is_backup(lead) == backup
             ]
-            leads.sort(key=lambda lead: sort_key(lead, rank))
+            leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus))
             for lead in leads:
                 if len(into) >= target:
                     break
@@ -380,13 +444,17 @@ def pull_one_lead(
 
 def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None = None) -> Lead:
     rank = rank if rank is not None else SIGNAL_RANK
-    def key(lead: Lead) -> tuple[int, int, int, int]:
+    def key(lead: Lead) -> tuple:
         return (
             rank.get(lead.signal_type, 9),
+            # The same strength order the gift was built in, so the subject
+            # speaks for its strongest lead (a charity audit finding before a
+            # new license, never a Row 8 fill before either).
+            TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
             # A domainless lead is the likeliest to read as invented, so it
             # must not be the one the subject line is built from.
             0 if lead.domain else 1,
-            # <-- score slots here: -(lead.score or 0), once System A serves it
+            -(lead.score or 0.0),
             0 if lead.freshness == "fresh" else 1,
             compute_match_level(lead, prospect) or 99,
         )

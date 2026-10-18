@@ -105,6 +105,33 @@ def score_rungs(text: str) -> dict[str, list[str]]:
     return hits
 
 
+# A firm FOCUSES on one rung only when its own page leaves no doubt: the leader
+# names at least this many of its terms, and no other rung clears MIN_TERMS.
+# That is stricter than `detect_rung`, which always picks a voice; the focus
+# only steers a tiebreak in the gift (gift.engine.sort_key), so when the page
+# is mixed there is no preference at all.
+FOCUS_MIN_TERMS = 3
+
+
+def clear_focus(site: dict[str, str]) -> str | None:
+    """The ONE rung this firm's site is plainly about, or None.
+
+    "We do bookkeeping, QuickBooks cleanup, AP/AR and reconciliations" is a
+    bookkeeping focus; the same page also selling "fractional CFO" and
+    "financial statements" is not, and gets no preference."""
+    text = " ".join(site.values()) if site else ""
+    if not text.strip():
+        return None
+    hits = score_rungs(text)
+    ranked = sorted(SENIORITY, key=lambda r: -len(hits[r]))
+    best = ranked[0]
+    if len(hits[best]) < FOCUS_MIN_TERMS:
+        return None
+    if any(len(hits[r]) >= MIN_TERMS for r in SENIORITY if r != best):
+        return None
+    return best
+
+
 def detect_rung(site: dict[str, str], default: str = CFO) -> tuple[str, list[str]]:
     """(rung, the phrases that decided it).
 

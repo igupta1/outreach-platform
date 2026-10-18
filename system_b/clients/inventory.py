@@ -441,6 +441,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         # outranks an ordinary grant-funded nonprofit — so it is read here.
         score=row.get("score"),
         role_qualifier=qualifier,
+        service_tags=[str(t) for t in (row.get("service_tags") or [])],
         signal_type=signal_type,
         freshness=freshness,
         signals=signals,

@@ -238,6 +238,35 @@ answered badly:
   "oversee outsourced accounting providers", "This is not a purely advisory
   position"). Do not re-loosen it on the theory that there is signal in there.
 
+## How a gift is ordered (`gift/engine.py`, 2026-10-18)
+
+The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
+
+1. **Industry + area first.** The match-level walk (niche+city, niche+state,
+   niche, city, state) and Gates A/B are unchanged; nothing below crosses a
+   level.
+2. **Firm focus, a tiebreak only.** When the prospect's site is PLAINLY one
+   kind of work (`research.rung.clear_focus`: >= 3 of one rung's terms and no
+   other rung at `MIN_TERMS`; stricter than `detect_rung`, which always picks
+   a voice), leads at the SAME level whose `service_tags` suit it come first
+   (`FOCUS_TAGS`: bookkeeping -> bookkeeping_setup / payroll_setup /
+   bookkeeping; accounting -> construction / govcon / grant accounting,
+   controls_remediation; cfo -> fractional_cfo, controls_remediation,
+   govcon_accounting). Otherwise no preference. Never a filter.
+3. **Row 8 is a backup.** `_pick_leads` walks every type except
+   `new_business_*` first, then lets Row 8 fill only the places left, under
+   the same levels, dedupe and off-limits rules. So a state-level charity
+   beats a city-level new business, and a niche gift with no other supply
+   (real estate) can still be all Row 8.
+4. **Strength order** (`TYPE_ORDER`): charity audit problems, Davis-Bacon
+   award, cost-type contract, first-time grant, license upgrade, new license,
+   (anything else), new business. Within a type, the lead's `score` (the
+   inventory's 0-100 strength). `_best_lead` (the subject's lead) follows the
+   same order.
+
+One organization per firm per state (`gift/allocation.py`) and never a firm's
+own audit client (`_audited_by`) apply to every pass.
+
 ## Lead quality gates (two layers, both drop-and-swap)
 
 The inventory carries hundreds of leads per niche against ~100 prospects, so a

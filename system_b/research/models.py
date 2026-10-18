@@ -51,3 +51,6 @@ class ResearchResult:
     # was "built for fractional cfos".
     rung: str | None = None
     rung_evidence: list[str] = field(default_factory=list)
+    # The ONE rung the site is plainly about (research.rung.clear_focus), or
+    # None when it sells several. Only a tiebreak inside the gift.
+    rung_focus: str | None = None
