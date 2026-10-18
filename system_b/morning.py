@@ -1,23 +1,26 @@
-"""One command for the daily batch: pull, check, generate, review.
+"""One command for the daily batch: publish, check, generate, review.
 
     python -m system_b.morning
 
-The three lead magnets refresh themselves on GitHub Actions. This is the other
-half -- everything that happens on your machine, in the order it has to happen,
-so the morning is one command rather than four and a checklist.
+Everything happens on your machine, in the order it has to happen, so the
+morning is one command rather than four and a checklist.
 
-    1. PULL      the newest inventory artifact from each magnet repo
+    1. PUBLISH   the lead inventory's outreach files:
+                 cd ~/Developer/Inventory && .venv/bin/python -m leadinv.run publish
+                 (one JSON per lead type into Inventory/exports/magnets/)
     2. CHECK     refuse to run, and say why, if something is wrong
-    3. GENERATE  build the batch
+    3. GENERATE  build the batch, LEADGEN_INVENTORY_DIR = exports/magnets
     4. REVIEW    open the review gate in a browser
 
-## Why artifacts and not a blob store
+## Why the inventory, and not GitHub artifacts
 
-The magnets publish their inventory as a GitHub Actions artifact and this
-downloads it with `gh`. The alternative -- a Vercel Blob, which the retired
-job-post pipeline used -- would mean standing up a project and holding a write
-token purely to move 13 MB between two machines that already authenticate to
-GitHub. `gh run download` needs no new service and no new secret.
+The magnets used to publish a GitHub Actions artifact each, downloaded here
+with `gh run download`. Every source now flows into ONE lead inventory
+(~/Developer/Inventory), refreshed by hand for the MVP (`leadinv.run refresh`),
+and its `publish` step writes exactly the files this reads -- with SAM.gov
+websites, contacts and strong IDs the sources alone do not have. `publish`
+does not refresh any source; a stale source shows up in step 2 as an old
+`generated_at`.
 
 ## Why the check comes before the work
 
@@ -32,8 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import tempfile
+import os
 import subprocess
 import sys
 import webbrowser
@@ -43,14 +45,12 @@ from pathlib import Path
 from system_b.clients.inventory import MAGNET_MAX_AGE_DAYS, MAGNETS
 
 ROOT = Path(__file__).resolve().parent.parent
-INVENTORY_DIR = ROOT / "system_b" / "data" / "inventory"
-
-# magnet key -> (GitHub repo, artifact name)
-SOURCES: dict[str, tuple[str, str]] = {
-    "nonprofit": ("igupta1/Nonprofit", "nonprofit-leads"),
-    "funds": ("igupta1/Funds", "fund-leads"),
-    "ecommerce": ("igupta1/Ecommerce", "ecommerce-leads"),
-}
+# The lead inventory repo and the folder its `publish` writes. Overridable so a
+# test, or a second checkout, can point elsewhere.
+INVENTORY_REPO = Path(os.environ.get("LEADGEN_INVENTORY_REPO")
+                      or Path.home() / "Developer" / "Inventory")
+INVENTORY_DIR = INVENTORY_REPO / "exports" / "magnets"
+PUBLISH_CMD = (".venv/bin/python", "-m", "leadinv.run", "publish")
 
 # Below this many unsent prospects, say so. Not an error -- you can still send
 # today -- but the list is the thing that runs out first, and finding that out
@@ -62,7 +62,7 @@ def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, check=False, **kw)
 
 
-# --- 1. pull ---------------------------------------------------------------
+# --- 1. publish ------------------------------------------------------------
 
 
 def _lead_count(path: Path) -> int:
@@ -74,51 +74,23 @@ def _lead_count(path: Path) -> int:
     return data.get("count") or len(data.get("leads") or [])
 
 
-def pull(only: str | None = None) -> dict[str, str]:
-    """Download the newest inventory artifact per magnet. Returns {key: status}.
+def pull() -> dict[str, str]:
+    """Run the inventory's `publish` and report each file. Returns {key: status}.
 
-    A magnet that fails to download is NOT fatal: the three refresh on their
-    own cadences, the local copy from last time is still on disk, and a run
-    with yesterday's funds data is a useful run. The freshness check that
-    follows is what decides whether it is too old to use."""
-    INVENTORY_DIR.mkdir(parents=True, exist_ok=True)
-    if not shutil.which("gh"):
-        return {k: "no gh CLI — using the local copy" for k in SOURCES}
-
-    out: dict[str, str] = {}
-    for key, (repo, artifact) in SOURCES.items():
-        if only and key != only:
-            continue
-        # Into a TEMP dir, then move into place. `gh run download` refuses to
-        # overwrite a file that already exists -- "error extracting zip
-        # archive: ... file exists" -- so downloading straight into
-        # INVENTORY_DIR worked exactly ONCE and failed silently every run
-        # after, reporting "kept local copy" as if the artifact were simply
-        # missing. Nothing downstream would have caught it: nonprofit's
-        # freshness limit is 400 days.
-        with tempfile.TemporaryDirectory() as tmp:
-            proc = _run(["gh", "run", "download", "--repo", repo,
-                         "--name", artifact, "--dir", tmp])
-            got = list(Path(tmp).glob("*.json"))
-            if proc.returncode == 0 and got:
-                dest = INVENTORY_DIR / got[0].name
-                fresh, have = _lead_count(got[0]), _lead_count(dest)
-                # NEVER trade a populated inventory for an empty one. The very
-                # first funds run published 231 bytes of zero leads before the
-                # workflow had a health check, and pulling it overwrote a good
-                # 359-lead file -- a download that destroys working data is
-                # worse than no download. The magnet's own health check is the
-                # real defence; this is the second one, on this side.
-                if have and not fresh:
-                    out[key] = f"kept local copy ({have:,} leads; artifact was empty)"
-                    continue
-                shutil.move(str(got[0]), dest)
-                out[key] = f"downloaded ({fresh:,} leads)"
-            else:
-                first = (proc.stderr or "").strip().splitlines()
-                out[key] = ("kept local copy "
-                            f"({first[0][:60] if first else 'no artifact yet'})")
-    return out
+    A failed publish is NOT fatal: the files from the last publish are still
+    on disk, and the freshness check that follows decides whether they are too
+    old to use."""
+    before = {k: _lead_count(INVENTORY_DIR / f) for k, f in MAGNETS.items()}
+    if not (INVENTORY_REPO / PUBLISH_CMD[0]).exists():
+        return {k: f"no inventory at {INVENTORY_REPO} — using the files on disk ({n:,} leads)"
+                for k, n in before.items()}
+    proc = _run(list(PUBLISH_CMD), cwd=INVENTORY_REPO)
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:]
+        return {k: f"publish failed ({tail[0][:60] if tail else 'no output'}) — "
+                   f"kept {n:,} on disk" for k, n in before.items()}
+    return {k: f"published ({_lead_count(INVENTORY_DIR / f):,} leads)"
+            for k, f in MAGNETS.items()}
 
 
 # --- 2. check --------------------------------------------------------------
@@ -157,13 +129,14 @@ def check(today: date | None = None) -> tuple[list[str], list[str]]:
         cap = MAGNET_MAX_AGE_DAYS.get(key, 3)
         line = f"{key}: {count:,} leads, {age}d old"
         if age > cap:
-            problems.append(f"{line} — past the {cap}d limit; re-run its workflow")
+            problems.append(f"{line} — past the {cap}d limit; refresh that source in the "
+                            "inventory (leadinv.run refresh --source ...), then publish")
         else:
             warnings.append(line)
 
     if not any(not w.startswith(tuple(f"{k}: no inventory" for k in MAGNETS))
                for w in warnings) and not warnings:
-        problems.append("no inventory at all — run the magnet workflows first")
+        problems.append("no inventory at all — run `leadinv.run publish` in ~/Developer/Inventory")
     return problems, warnings
 
 
@@ -233,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     print("═" * 66)
 
     if not a.skip_pull:
-        print("\n1 · pulling the newest inventory")
+        print(f"\n1 · publishing the inventory ({' '.join(PUBLISH_CMD)} in {INVENTORY_REPO})")
         for key, status in pull().items():
             print(f"    {key:11} {status}")
 
@@ -266,13 +239,13 @@ def main(argv: list[str] | None = None) -> int:
     cmd = [sys.executable, "-m", "system_b.run", "--pack", a.pack,
            "--in", str(a.prospects), "--out", str(a.out),
            "--target", str(a.limit), "--ledger", str(a.ledger)]
-    import os
     env = {**os.environ,
            "LEADGEN_INVENTORY_DIR": str(INVENTORY_DIR),
-           # The magnets publish as GitHub artifacts now, not to a blob. A
-           # LEADGEN_BLOB_BASE_URL left over in the shell would send every
-           # inventory read to a dead Vercel store first and cost three failed
-           # HTTP retries per magnet before falling back to the local file.
+           # The inventory publishes local files, not to a blob. A
+           # LEADGEN_BLOB_BASE_URL left over in the shell (or system_b/.env)
+           # would send every inventory read to a dead Vercel store first and
+           # cost three failed HTTP retries per magnet before falling back to
+           # the local file -- and read the blob's old taxonomy.
            "LEADGEN_BLOB_BASE_URL": ""}
     proc = subprocess.run(cmd, env=env, check=False)
     if proc.returncode != 0:

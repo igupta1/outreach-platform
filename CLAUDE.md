@@ -209,13 +209,15 @@ answered badly:
     generalist geo gift).
   - `copy/` writes the emails; `research/` classifies the prospect's site;
     `sequence/` assembles the 3 emails.
-- `clients/inventory.py` — the single adapter from the `leadgen` per-niche
-  inventory (`snapshot_for_niche`) onto the outreach `Lead`. Source: env
-  `LEADGEN_BLOB_BASE_URL` set → read `<base>/<niche>-leads.json` from the lead
-  platform's PUBLIC Vercel Blob (daily-fresh, no auth, no website); else
-  `LEADGEN_INVENTORY_DIR` → local JSON (offline). A freshness guard refuses
-  inventory older than `LEADGEN_MAX_INVENTORY_AGE_DAYS` (default 3) unless
-  `LEADGEN_ALLOW_STALE=1`, so a broken daily refresh can't ship stale gifts.
+- `clients/inventory.py` — the single adapter from a contract-v2 inventory
+  file onto the outreach `Lead`. Source: the lead inventory's published files,
+  `LEADGEN_INVENTORY_DIR` = `~/Developer/Inventory/exports/magnets` (written by
+  `cd ~/Developer/Inventory && .venv/bin/python -m leadinv.run publish`;
+  `morning.py` runs that and sets the dir itself). `LEADGEN_BLOB_BASE_URL` is
+  the retired lead platform's blob: leave it EMPTY (`system_b/.env` still sets
+  it; when set it wins, and its taxonomy lacks government_contracting). A
+  freshness guard refuses a file older than its `MAGNET_MAX_AGE_DAYS` (45
+  days each: refresh is manual for now) unless `LEADGEN_ALLOW_STALE=1`.
 - Conventions: ALL copy is deterministic code. Every lead line is templated
   (hiring, breach), so no model writes any part of a sent email — `copy/llm.py`
   was deleted (2026-08-04). The LLM only proposes site classification and the
@@ -309,33 +311,46 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   dropped at load** (`inventory._past_expiry`); v1 rows keep the older rules.
 - Nothing is ever sent — the tool only writes a CSV for you to review.
 
-## Lead inventory: three VERTICAL magnets (2026-09-08)
+## Lead inventory: five magnets from one inventory (2026-10-18)
 
-The inventory is no longer one file per NICHE from the job-post pipeline. It is
-one file per VERTICAL, from three independent magnets, each computed from a
-mandatory public filing:
+Every gift lead now comes from the lead inventory (`~/Developer/Inventory`):
+each source repo feeds one SQLite store, refreshed by hand for the MVP, and
+`leadinv.run publish` writes one file per lead type into `exports/magnets/`.
+Each file is the source's own contract-v2 records with the inventory laid over
+them: SAM.gov websites (`domain`), its chosen contact when the source named
+nobody, `score` = the inventory's 0-100 strength, `status`/`expires_at`, and
+every strong ID in the signal payload.
 
-| magnet | source | id | taxonomy tag |
-|---|---|---|---|
-| Nonprofit | IRS Form 990 + Federal Audit Clearinghouse | EIN | `nonprofit` |
-| Funds | SEC Form ADV Schedule D | CRD | `fintech` / `wealth_investing` |
-| Ecommerce | Shopify catalog crawl + Apollo | domain | `ecommerce_retail` |
+| magnet key | file | source | id | taxonomy tag |
+|---|---|---|---|---|
+| nonprofit | nonprofit-leads.json | Row 1: IRS 990 + Federal Audit Clearinghouse | EIN | `nonprofit` |
+| construction | construction-leads.json | Row 7: Davis-Bacon awards, FL + WA licenses | UEI / license | `construction` |
+| govcon | govcon-leads.json | Row 5: cost-type federal contracts | UEI | `government_contracting` |
+| grant | grant-leads.json | Row 6: first federal grant in 3+ years | UEI / EIN | `nonprofit` or none |
+| newbusiness | new-business-leads.json | Row 8: CO + CT new LLCs / corporations | state ID | per lead (NAICS) |
 
-Job-post leads were retired as gift content: a company posting an in-house
-bookkeeper has decided AGAINST outsourcing, and "Fractional CFO wanted" is on
-every job board, so handing one over proves no access the recipient lacks.
-Measured at retirement: 543 finance leads (293 of them in-house posts) against
-29,697 from the magnets. The IT niches (mssp/msp/cloud) still read the old
-inventory — `--legacy-niche`.
+Funds (Form ADV) and Ecommerce are switched off upstream (free sources only),
+so they are out of `MAGNETS`; their adapters, phrases and tests stay. A
+business grant recipient carries no industry and so is only ever a
+generalist (city/state) gift. `government_contracting` has NO children: govcon
+leads carry no niche, so a child would map a prospect to a niche no lead can
+match; "government / federal contractors" and "govcon" reach the parent
+through `gift.taxonomy._PHRASE_PARENTS`. First publish, 2026-10-18: 749 /
+4,313 / 238 / 791 / 49,484 load (55,575, all of them; 1,644 Florida
+construction leads have no ID of their own and rank as unfindable).
+
+Job-post leads were retired as gift content on 2026-09-08: a company posting
+an in-house bookkeeper has decided AGAINST outsourcing, and "Fractional CFO
+wanted" is on every job board. The IT niches (mssp/msp/cloud) still read the
+old inventory — `--legacy-niche`.
 
 **NICHE and VERTICAL are orthogonal.** `--pack` selects the copy VOICE (which
 rung of finance service the prospect sells). The vertical selects which leads
 they can be shown at all. A prospect is both.
 
-`snapshot_all_magnets()` loads all three into one addressable snapshot; the
-gift engine needed no change because it already filters by `industry` at query
-time. A magnet missing from the blob falls back to `LEADGEN_INVENTORY_DIR`,
-then is skipped — one absent magnet must not end a run.
+`snapshot_all_magnets()` loads every magnet into one addressable snapshot; the
+gift engine filters by `industry` at query time. A missing file is skipped —
+one absent magnet must not end a run.
 
 The taxonomy is vendored at `system_b/data/taxonomy.json`. It is a CONTRACT,
 not data: the magnets emit into this vocabulary and the classifier maps
@@ -346,15 +361,20 @@ prospects into it, so retiring the leadgen pipeline cannot take it away.
 Each was a silent failure before it was fixed. All are tested in
 `tests/test_magnets.py`.
 
-- **Identity is `entity_id`, not domain.** An EIN or CRD with a public filing
+- **Identity is `entity_id`, not domain.** A government ID with a public record
   behind it beats a domain: most nonprofits and funds have no useful website
   (some carry a LinkedIn URL in the domain field), so domain-only matching
   deduped nothing across two of three magnets and ranked every one of their
-  leads last as "unfindable". `Lead.identity` falls back to domain.
+  leads last as "unfindable". `_ID_FIELDS`, strongest first: EIN, CRD, UEI,
+  `fl_license`, `wa_license`, `state_id`; then domain. An EIN is written
+  in the dashed IRS form (the BMF's "411386089" and the 990's "41-1386089" are
+  one charity), so the nonprofit and grant files dedupe.
 - **They do not expire like job posts.** `_STRUCTURAL_MAX_AGE_DAYS` gives each
   family its own rule: Form ADV 550 days (annual filing, so 18 months means a
-  missed cycle), nonprofit and ecommerce none. An undated structural lead is
-  KEPT; an undated job post is dropped.
+  missed cycle), nonprofit and ecommerce none; `construction_`, `federal_` and
+  `new_business_` none either, because their own `expires_at` (contract v2)
+  already governs. An undated structural lead is KEPT; an undated job post is
+  dropped.
 - **They are NOT "hiring".** `_cfo_what_category` used to be a two-way split —
   raised, or by elimination hiring — which made the subject line claim a named
   organization was "hiring finance leadership right now" when the entire signal

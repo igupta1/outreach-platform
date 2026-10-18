@@ -59,21 +59,21 @@ flags to double-check. The subject and three email bodies are editable inline; a
 **Download CSV** button at the bottom rebuilds the exact output CSV from your
 edits. Fully local and send-free — it never sends or stores anything.
 
-## Lead inventory source (blob vs local)
+## Lead inventory source
 
-The gift companies come from the `leadgen` platform via `clients/inventory.py`
-(`snapshot_for_niche`):
+The gift companies come from the lead inventory (`~/Developer/Inventory`),
+via `clients/inventory.py` (`snapshot_all_magnets`):
 
-- **Blob (primary):** set `LEADGEN_BLOB_BASE_URL` to the lead platform's public
-  Vercel Blob base. The client reads `<base>/<niche>-leads.json` directly — the
-  daily-fresh inventory `leadgen` publishes every night. No auth, no website.
-- **Local (offline fallback):** unset the blob URL and set `LEADGEN_INVENTORY_DIR`
-  to a folder of `leadgen` output (`<niche>-leads.json` + `taxonomy.json`).
+    cd ~/Developer/Inventory && .venv/bin/python -m leadinv.run publish
 
-Either way a freshness guard refuses inventory older than
-`LEADGEN_MAX_INVENTORY_AGE_DAYS` (default 3 days) unless `LEADGEN_ALLOW_STALE=1`,
-so you never generate against stale gifts by accident. Config lives in
-`system_b/.env` (gitignored — never commit).
+writes one JSON per lead type into `Inventory/exports/magnets/`; set
+`LEADGEN_INVENTORY_DIR` to that folder (`python -m system_b.morning` runs the
+publish and sets it for you). Leave `LEADGEN_BLOB_BASE_URL` empty: it is the
+retired lead platform's blob and, when set, takes precedence.
+
+A freshness guard refuses a file older than 45 days (refresh is manual for
+now) unless `LEADGEN_ALLOW_STALE=1`. Config lives in `system_b/.env`
+(gitignored — never commit).
 
 ## Pipeline (per prospect)
 

@@ -47,6 +47,18 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
 }
 
 
+# Multi-word names for a parent that has NO children. Government contractors
+# are matched at the industry level only: the govcon magnet's leads carry
+# `industry=government_contracting` and no niche, so a child token would map a
+# prospect to a niche no lead can ever match. These phrases say the parent in
+# the trade's own words ("government contractors", "federal contractors",
+# "govcon"), where the all-tokens rule needs "government contracting" exactly.
+_PHRASE_PARENTS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\b(?:government|federal|gov't|govt)\s+contract(?:or|ors|ing)\b"
+                r"|\bgov\s?cons?\b", re.IGNORECASE), "government_contracting"),
+)
+
+
 def _stem(w: str) -> str:
     """Crude depluralize: drop a trailing 's' on longer words (never '...ss'), so
     a plural phrase word matches a singular taxonomy token ('firms' -> 'firm')."""
@@ -117,6 +129,9 @@ def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str 
                     best_child, best_len = child, len(cw)
         if hit:
             found[parent] = best_child
+    for rx, parent in _PHRASE_PARENTS:
+        if parent in taxonomy and rx.search(phrase or ""):
+            found.setdefault(parent, None)
     # Synonym aliases recover a single distinctive industry word (e.g. "saas",
     # "ecommerce") the all-tokens match missed — but ONLY as a fallback when the
     # phrase mapped to nothing. If it already named a real vertical, an alias word

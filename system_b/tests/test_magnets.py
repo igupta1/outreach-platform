@@ -402,21 +402,23 @@ class _Research:
 
 
 class _Prospect:
-    match_param = ("industry", "construction")
-    niche_phrase = "we serve construction contractors"
+    # Healthcare: no magnet serves it. (Construction was the example until the
+    # construction magnet arrived, 2026-10-18.)
+    match_param = ("industry", "healthcare")
+    niche_phrase = "we serve healthcare practices"
 
 
 def test_a_firm_we_have_no_magnet_for_is_held_not_discarded():
-    """A construction-focused firm is a perfectly good prospect; there is just
-    no construction magnet yet. Throwing it away loses both the prospect and
+    """A healthcare-focused firm is a perfectly good prospect; there is just
+    no healthcare magnet yet. Throwing it away loses both the prospect and
     the evidence for what to build next."""
     from system_b.sequence.generate import _backlog_row
     row = {"firm_name": "Acme CFO", "email": "a@b.co", "website": "https://b.co",
            "city": "Denver", "state": "CO"}
     got = _backlog_row(row, _Research(), _Prospect())
     assert got["reason"] == "no_magnet"
-    assert got["stated_vertical"] == "construction"
-    assert got["stated_phrase"] == "we serve construction contractors"
+    assert got["stated_vertical"] == "healthcare"
+    assert got["stated_phrase"] == "we serve healthcare practices"
     assert got["email"] == "a@b.co"
 
 
@@ -603,7 +605,7 @@ def test_there_is_an_alarm_when_too_many_prospects_have_no_rung():
 
 
 def test_magnet_industry_matches_the_real_inventory():
-    """The one map that has to track three other repos' `vertical.py`.
+    """The one map that has to track every source's own tagging.
 
     It drifted once: the funds magnet was retagged `investment_management` and
     this map kept saying `fintech`, so a funds prospect with an empty gift was
@@ -611,19 +613,20 @@ def test_magnet_industry_matches_the_real_inventory():
     the inventory was simply dry. Nothing raised — the value is only read for a
     backlog label, which is exactly why a rename can sit here unnoticed.
 
-    Whenever an inventory file is on disk it is the ground truth, so assert
-    against it. Skipped, not failed, when a magnet has not been pulled: the
-    three refresh on their own cadence and CI has none of them.
+    Whenever a published file is on disk (the inventory's exports/magnets, the
+    folder `morning` reads) it is the ground truth, so assert against it. A
+    magnet mapped to None tags each lead on its own (grants, new businesses).
+    Skipped, not failed, when nothing is published: CI has none of them.
     """
     import json
 
     from system_b.clients.inventory import MAGNET_INDUSTRY, MAGNETS
+    from system_b.morning import INVENTORY_DIR
 
-    inventory = Path(__file__).resolve().parent.parent / "data" / "inventory"
     checked = 0
     for key, filename in MAGNETS.items():
-        path = inventory / filename
-        if not path.exists():
+        path = INVENTORY_DIR / filename
+        if MAGNET_INDUSTRY[key] is None or not path.exists():
             continue
         rows = json.loads(path.read_text()).get("leads") or []
         found = {r.get("industry") for r in rows if r.get("industry")}

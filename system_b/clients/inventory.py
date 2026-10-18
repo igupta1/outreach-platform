@@ -83,20 +83,24 @@ def _blob_base() -> str:
 # How long each magnet may go without a refresh before the run complains.
 #
 # The old rule was a single 3-day limit for every source, which was correct
-# when one nightly cron rebuilt everything. The vertical magnets refresh on
-# their OWN cadences and none of them is daily: the IRS publishes 990 data
-# annually, the SEC publishes Form ADV monthly, and the e-commerce seed only
-# changes when a new Apollo export is bought. Under a shared 3-day rule every
-# run failed after three days and the only escape was LEADGEN_ALLOW_STALE,
-# which switches the guard off for ALL sources — including the one that really
-# has gone stale. A limit nobody can satisfy is a limit everybody disables.
+# when one nightly cron rebuilt everything. The magnets now come out of ONE
+# place -- the lead inventory (~/Developer/Inventory), refreshed BY HAND for
+# the MVP (`leadinv.run refresh`, then `publish`) -- so each file gets the same
+# 45 days: a missed fortnight still runs, a forgotten month and a half stops
+# the batch. A file's `generated_at` is its SOURCE's emit date, so a fresh
+# publish of old data still reads as old. Per-lead expiry is separate: every
+# contract-v2 lead carries its own `expires_at` (see `_past_expiry`).
 #
-# Each is roughly two refresh cycles, so a single missed cycle warns and a
-# genuinely abandoned magnet still gets caught.
+# The older magnets (funds, ecommerce) are switched off upstream; their limits
+# stay so `LEADGEN_INVENTORY_DIR` pointed at an old folder still reads them.
 MAGNET_MAX_AGE_DAYS: dict[str, int] = {
-    "nonprofit": 400,     # IRS publishes annually
-    "funds": 75,          # SEC publishes monthly
-    "ecommerce": 180,     # refreshed when a new Apollo export is bought
+    "nonprofit": 45,
+    "construction": 45,
+    "govcon": 45,
+    "grant": 45,
+    "newbusiness": 45,
+    "funds": 75,          # SEC publishes monthly (off upstream)
+    "ecommerce": 180,     # refreshed when a new Apollo export is bought (off upstream)
 }
 
 DEFAULT_MAX_AGE_DAYS = 3          # the old job-post inventory: a nightly cron
@@ -313,21 +317,40 @@ def _fractional_evidence(row: dict[str, Any]) -> tuple[str | None, bool]:
 
 
 # Public identifiers a magnet may carry, strongest first. An EIN or a CRD is a
-# government-issued key with a public filing behind it; a domain is whatever
-# the company registered. Order matters: a nonprofit with both should dedupe on
+# government-issued key with a public filing behind it; so is a UEI (SAM.gov
+# registration), a state contractor license (Florida DBPR, Washington L&I) and
+# a state business-registry ID ("CO:20261234567"). A domain is whatever the
+# company registered. Order matters: a nonprofit with both should dedupe on
 # its EIN, because two records for one charity can easily disagree about the
-# website while never disagreeing about the EIN.
-_ID_FIELDS: tuple[tuple[str, str], ...] = (("ein", "ein"), ("crd", "crd"))
+# website while never disagreeing about the EIN. The inventory's `publish`
+# writes every ID it holds into the signal payload under these names.
+_ID_FIELDS: tuple[tuple[str, str], ...] = (
+    ("ein", "ein"), ("crd", "crd"), ("uei", "uei"),
+    ("fl_license", "fl_license"), ("wa_license", "wa_license"), ("state_id", "state_id"),
+)
+
+_EIN_DIGITS_RE = re.compile(r"\D")
+
+
+def _id_value(key: str, raw: Any) -> str:
+    """One spelling per ID. An EIN arrives as "41-1386089" from the 990 and as
+    "411386089" from the IRS BMF (the grant magnet); both are the same charity,
+    so a 9-digit EIN is written in the IRS's dashed form."""
+    value = str(raw).strip()
+    if key == "ein":
+        digits = _EIN_DIGITS_RE.sub("", value)
+        if len(digits) == 9:
+            return f"{digits[:2]}-{digits[2:]}"
+    return value
 
 
 def _entity_id(row: dict[str, Any]) -> str | None:
-    """`"ein:27-1693939"` / `"crd:313945"` / `"domain:acme.com"` / None."""
-    for signal in (row.get("signals") or []):
-        payload = signal.get("payload") or {}
-        for key, prefix in _ID_FIELDS:
-            raw = payload.get(key)
+    """`"ein:27-1693939"` / `"uei:RFCKU47QJQK3"` / `"domain:acme.com"` / None."""
+    for key, prefix in _ID_FIELDS:
+        for signal in (row.get("signals") or []):
+            raw = (signal.get("payload") or {}).get(key)
             if raw is not None and str(raw).strip():
-                return f"{prefix}:{str(raw).strip()}"
+                return f"{prefix}:{_id_value(key, raw)}"
     domain = (row.get("domain") or "").strip().lower()
     return f"domain:{domain}" if domain else None
 
@@ -507,6 +530,13 @@ _STRUCTURAL_MAX_AGE_DAYS: dict[str, int | None] = {
     "nonprofit_": None,
     # A storefront crawl is a live observation with no event date at all.
     "ecommerce_": None,
+    # The inventory's own families (contract v2). No extra ceiling here: each
+    # lead carries its own `expires_at`, set by its source from the window it
+    # was found in (a 180-day award window, a 90-day license or formation
+    # window), and `_past_expiry` drops it on that date.
+    "construction_": None,
+    "federal_": None,
+    "new_business_": None,
 }
 
 
@@ -699,33 +729,42 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
 # CFO who serves nonprofits"). The rung still selects the copy voice (--pack);
 # the vertical selects which leads they can be shown at all.
 #
-# Each magnet is self-contained, refreshes on its own cadence, and tags its
-# leads with the shared taxonomy so `SnapshotScraper.leads(industry=...)` can
-# address them.
+# Every magnet now comes out of the lead inventory (~/Developer/Inventory):
+# `python -m leadinv.run publish` writes one file per lead type into
+# Inventory/exports/magnets/, which is what LEADGEN_INVENTORY_DIR points at.
+# Each file is its source's own contract-v2 records with the inventory's
+# websites, contacts, IDs and 0-100 strength laid over them.
+#
+# Funds and ecommerce are switched off upstream (the MVP uses free sources
+# only), so they are not listed; their adapters and copy stay.
 MAGNETS: dict[str, str] = {
-    "nonprofit": "nonprofit-leads.json",   # IRS Form 990 + Federal Audit Clearinghouse
-    "funds": "fund-leads.json",            # SEC Form ADV Schedule D
-    "ecommerce": "ecommerce-leads.json",   # Shopify catalog crawl + Apollo staffing
+    "nonprofit": "nonprofit-leads.json",          # Row 1: IRS Form 990 + Federal Audit Clearinghouse
+    "construction": "construction-leads.json",    # Row 7: Davis-Bacon awards, FL + WA licenses
+    "govcon": "govcon-leads.json",                # Row 5: cost-type federal contracts
+    "grant": "grant-leads.json",                  # Row 6: first federal grant in 3+ years
+    "newbusiness": "new-business-leads.json",     # Row 8: CO + CT new LLCs / corporations
 }
 
-# magnet key -> the taxonomy PARENT its leads carry. Kept here as the one place
-# that has to agree with each magnet's own `vertical.py`, so a rename shows up
-# as a mismatch in one file rather than as leads that silently never match.
-MAGNET_INDUSTRY: dict[str, str] = {
+# magnet key -> the taxonomy PARENT its leads carry, or None when the
+# industry differs lead by lead. Kept here as the one place that has to agree
+# with each source's own tagging, so a rename shows up as a mismatch in one
+# file rather than as leads that silently never match.
+MAGNET_INDUSTRY: dict[str, str | None] = {
     "nonprofit": "nonprofit",
-    # NOT "fintech": the funds magnet was retagged `investment_management`
-    # because "fintech" rendered copy about "fintech companies" to PE/VC firms.
-    # Left stale here it read a funds prospect's empty gift as `no_magnet`
-    # ("build this next") when the truth was `inventory_dry`.
-    "funds": "investment_management",
-    "ecommerce": "ecommerce_retail",
+    "construction": "construction",
+    "govcon": "government_contracting",
+    # A grant recipient is a nonprofit (tagged `nonprofit`) or a business with
+    # no industry on the award (untagged -> generalist, city/state only).
+    "grant": None,
+    # From the NAICS code each registry filing states, when it states one.
+    "newbusiness": None,
 }
 
 
 def _load_one(name: str, key: str, today: date) -> list[dict[str, Any]]:
     """Raw rows for one magnet, blob first then local dir. A magnet that is not
-    published yet is skipped with a warning rather than failing the run — the
-    three refresh independently, so a missing one is normal, not broken."""
+    published yet is skipped with a warning rather than failing the run — a
+    missing one is normal, not broken."""
     inventory_dir = os.environ.get("LEADGEN_INVENTORY_DIR")
     data: dict[str, Any] | None = None
 
@@ -779,7 +818,8 @@ def snapshot_all_magnets(today: date | None = None) -> SnapshotScraper:
     if not rows:
         raise RuntimeError(
             f"no lead magnet produced any rows (looked for {list(MAGNETS.values())}). "
-            "Run each magnet's emit step, or point LEADGEN_INVENTORY_DIR at their output."
+            "Run `cd ~/Developer/Inventory && .venv/bin/python -m leadinv.run publish` and "
+            "point LEADGEN_INVENTORY_DIR at Inventory/exports/magnets."
         )
     leads = _adapt_rows(rows, today=today)
     log.info("inventory(magnets): %d lead(s) — %s", len(leads), per_magnet)

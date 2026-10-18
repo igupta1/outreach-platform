@@ -47,6 +47,9 @@ NICHE_DISPLAY: dict[str, str] = {
     "energy": "energy",
     "agriculture": "agriculture",
     "nonprofit": "nonprofit",
+    # Federal contractors (the govcon magnet: cost-type contracts). Not
+    # "aerospace & defense": most are research, services and IT shops.
+    "government_contracting": "government contracting",
     "cannabis": "cannabis",
     # --- children (granular) — category-adjective forms that read as
     # "[label] companies". Tune these as niches surface on real calls;
@@ -118,6 +121,9 @@ NICHE_NOUNS: dict[str, tuple[str, str]] = {
     "private fund": ("private fund manager", "private fund managers"),
     "wealth management": ("wealth management firm", "wealth management firms"),
     "family office": ("family office", "family offices"),
+    # "government contracting companies" is not a phrase; the trade says
+    # "government contractors".
+    "government contracting": ("government contractor", "government contractors"),
 }
 
 
