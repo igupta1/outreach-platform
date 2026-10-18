@@ -265,7 +265,16 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    same order.
 
 One organization per firm per state (`gift/allocation.py`) and never a firm's
-own audit client (`_audited_by`) apply to every pass.
+own audit client (`_audited_by`) apply to every pass. Allocation keys on
+`Lead.allocation_key`: the identity, else the source record's own id (a
+Florida business with no license of its own has no identity, and the first
+review run gave three of them to two Fort Lauderdale firms).
+
+An active contract-v2 lead (it has `expires_at`) is `fresh`: its event date
+is a document's, and its own expiry already governs. Judged by the date, every
+990-dated charity read stale, the walk's fresh round gave every place to
+grants and licenses, and the first review run (2026-10-18) used no charity
+audit lead at all.
 
 ## Lead quality gates (two layers, both drop-and-swap)
 

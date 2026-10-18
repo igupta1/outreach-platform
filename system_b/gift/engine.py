@@ -334,8 +334,9 @@ def _audited_by(lead: Lead, prospect: Prospect) -> bool:
 def _off_limits(lead: Lead, prospect: Prospect) -> bool:
     """A lead this prospect must never see: its own audit client, or an
     organization already handed to another firm in its region."""
+    key = lead.allocation_key
     return _audited_by(lead, prospect) or (
-        lead.identity is not None and lead.identity in prospect.blocked_identities)
+        key is not None and key in prospect.blocked_identities)
 
 
 def _pick_leads(

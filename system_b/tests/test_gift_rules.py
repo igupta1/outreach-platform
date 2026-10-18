@@ -174,3 +174,36 @@ def test_the_subject_speaks_for_the_strongest_lead():
     gift = build_gift(geo(), SnapshotScraper(
         [lead("New License", NL, score=99), lead("Award", DB, score=1)], taxonomy={}))
     assert gift.best_lead.company == "Award"
+
+
+# --- found by the 2026-10-18 review run ----------------------------------------
+
+
+def test_an_active_v2_lead_is_current_whatever_its_document_date():
+    """A 990-dated charity read 'stale' and lost every place to a fresh grant in
+    the walk's first round, so charity audit problems never led a gift."""
+    from datetime import date
+
+    from system_b.clients.inventory import adapt_leadgen_lead
+    row = {"id": "np:1", "name": "Old Filing Charity", "signal_type": NP,
+           "expires_at": "2026-12-13", "status": "active", "industry": "nonprofit",
+           "signals": [{"type": NP, "event_date": "2025-06-30T00:00:00", "payload": {}}]}
+    assert adapt_leadgen_lead(row, today=date(2026, 10, 18)).freshness == "fresh"
+    v1 = {k: v for k, v in row.items() if k not in ("expires_at", "status")}
+    assert adapt_leadgen_lead(v1, today=date(2026, 10, 18)).freshness == "stale"
+
+
+def test_a_lead_with_no_id_still_goes_to_one_firm_per_state():
+    from datetime import date
+
+    from system_b.gift.allocation import Allocations
+    no_id = Lead(id="fl:ravello construction:33301", company="Ravello Construction Llc",
+                 city="Fort Lauderdale", state="FL", industry="construction",
+                 signal_type=NL, freshness="fresh")
+    assert no_id.identity is None and no_id.allocation_key
+    a = Allocations()
+    a.record([no_id.allocation_key], "CFOBPO", "FL", date(2026, 10, 18))
+    p = Prospect(firm_name="CFO NEEDS", city="Fort Lauderdale", state="FL",
+                 blocked_identities=a.blocked("CFO NEEDS", "FL"))
+    assert names(p, [no_id]) == []
+    assert Lead(id="17", company="X", signal_type=NP).allocation_key is None

@@ -92,6 +92,22 @@ class Lead(BaseModel):
         return f"domain:{domain}" if domain else None
 
     @property
+    def allocation_key(self) -> str | None:
+        """What `gift.allocation` records so one organization never goes to two
+        firms in a region: `identity`, else the source record's own id.
+
+        A lead with no ID and no website (a Florida business licensed through
+        its qualifier) has no identity, and keying on identity alone let the
+        same company go to two Florida firms in one run (2026-10-18). The
+        inventory's record ids ("fl:ravello construction:33301", "ct:3535301")
+        are stable across refreshes; a bare row number ("17") is not, so it is
+        never used."""
+        if self.identity:
+            return self.identity
+        rid = (self.id or "").strip().lower()
+        return f"record:{rid}" if rid and not rid.isdigit() else None
+
+    @property
     def is_findable(self) -> bool:
         """Whether a recipient can look this company up and confirm it exists.
 

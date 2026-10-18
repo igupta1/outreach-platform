@@ -379,6 +379,14 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
 
     primary = _primary_signal(row)
     freshness = _freshness(primary.get("event_date"), today)
+    # Contract v2: the source says how long the lead holds (`expires_at`; one
+    # past it never gets here, see `_past_expiry`), so an active v2 lead IS
+    # current. Its event date is when a DOCUMENT was filed: judged by it, every
+    # 990-dated charity read "stale" and the gift walk's fresh round handed
+    # every place to recent grants and licenses, so the strength order
+    # (charity audit problems first) never applied.
+    if row.get("expires_at") and row.get("status", "active") == "active":
+        freshness = "fresh"
 
     # A fractional tag we cannot evidence is downgraded HERE, once, rather than
     # special-cased at each place that reads the type. Doing it at the door means

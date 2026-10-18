@@ -184,8 +184,8 @@ def generate_sequence(
         "rung_evidence": list(getattr(research, "rung_evidence", None) or []),
         "gift_size": gift.gift_size,
         # Every organization this sequence names, for the allocation ledger.
-        "lead_identities": [ld.identity for ld in [*gift.leads, *followup_leads]
-                            if ld is not None and ld.identity],
+        "lead_identities": [ld.allocation_key for ld in [*gift.leads, *followup_leads]
+                            if ld is not None and ld.allocation_key],
         # Which campaign this row belongs to, and the day email 1 goes out. Every
         # LinkedIn step is an offset from that date, so carrying it means the
         # schedule is arithmetic rather than something to remember.
