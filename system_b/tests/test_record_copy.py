@@ -238,3 +238,15 @@ def test_no_row_1_lead_falls_through_to_a_generic_line():
         for row in json.loads(published.read_text())["leads"]:
             said = magnet_phrase(adapt_leadgen_lead(row, today=TODAY))
             assert not said.startswith(generic), (row["name"], said)
+
+
+def test_the_evergreen_dm_names_the_gifts_own_place_and_noun():
+    np = "nonprofit_grant_no_finance_officer"
+    charities = [lead(np, {"fac_material_weakness": True}, name=n, city=c, state="CT")
+                 for n, c in (("A", "Hartford"), ("B", "Chester"))]
+    for ld in charities:
+        ld.industry = "nonprofit"
+    bolton = Prospect(firm_name="Lumi", city="Bolton", state="CT", first_name="Dalila")
+    dm = build_dm_1_evergreen(_gift(charities, geo="state"), bolton, pack=pack_for("cfo"))
+    assert "flags connecticut nonprofits whose auditors flagged problems" in dm
+    assert "bolton companies" not in dm

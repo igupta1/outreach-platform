@@ -148,6 +148,10 @@ left to protect it. Use the evergreen past ~3 weeks. `build_dm_1` also falls
 back to it whenever the best lead is not a job posting (a breach describes an
 event, not an open role).
 
+The evergreen DM names the GIFT's place (the state for a state-level gift,
+never the prospect's city: "flags bolton companies" over statewide leads was
+false) and the leads' own noun ("connecticut nonprofits").
+
 No DM references the email: while the sending mailboxes carry a name other than
 the LinkedIn profile's, the prospect cannot connect the two.
 

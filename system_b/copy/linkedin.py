@@ -36,7 +36,7 @@ from typing import Any
 from system_b.copy.email import is_job_posting, job_role
 from system_b.copy.honesty import strip_em_dashes
 from system_b.copy.lex import city_display, niche_noun, spoken_name, state_display
-from system_b.copy.subject import niche_claim
+from system_b.copy.subject import lead_noun, niche_claim
 from system_b.gift.models import Gift, Prospect
 from system_b.niches.base import NichePack, default_pack
 
@@ -88,8 +88,11 @@ def _vertical(gift: Gift, prospect: Prospect) -> str:
     state = state_display(prospect.state)
     if gift.geo_level == "city" and city:
         return city
-    if gift.geo_level == "state" and (city or state):
-        return city or state
+    # The gift's own geography: a state-level gift's leads are across the
+    # state, so naming the prospect's city ("flags bolton companies") claimed
+    # a place the leads are not in.
+    if gift.geo_level == "state" and (state or city):
+        return state or city
     return ""
 
 
@@ -194,7 +197,11 @@ def build_dm_1_evergreen(
     pack = pack or default_pack()
     vertical = _vertical(gift, prospect)
     opener = _opener(gift, prospect)
-    what = niche_noun(vertical) if vertical else "companies"
+    if niche_claim(gift, prospect):
+        what = niche_noun(vertical)
+    else:
+        # A place, not a vertical: "denver nonprofits" when every lead is one.
+        what = " ".join(w for w in (vertical, lead_noun(gift)) if w)
     built = (
         f"i built something that flags {what} {_flags_what(gift, pack)}, so "
         "i can send you a few whenever."
