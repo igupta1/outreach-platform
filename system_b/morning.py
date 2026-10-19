@@ -172,6 +172,16 @@ def prospect_runway(prospects: Path, ledger: Path) -> tuple[int, int]:
     return unsent, total
 
 
+# --- 4. review -------------------------------------------------------------
+
+
+def serve_command(review: Path) -> list[str]:
+    """The review gate for this batch. `serve` takes the file as `--review`;
+    passed bare, argparse rejected it, the server never started, and the
+    browser opened on nothing (morning of 2026-10-19)."""
+    return [sys.executable, "-m", "system_b.review.serve", "--review", str(review)]
+
+
 # --- CLI -------------------------------------------------------------------
 
 
@@ -255,8 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     review = a.out.with_name(f"{a.out.stem}.review.json")
     print(f"\n4 · review gate  →  {review}")
     if not a.no_open:
-        serve = subprocess.Popen(
-            [sys.executable, "-m", "system_b.review.serve", str(review)])
+        serve = subprocess.Popen(serve_command(review))
         webbrowser.open("http://localhost:8000")
         print("    serving on http://localhost:8000 — ctrl-c when you are done")
         try:

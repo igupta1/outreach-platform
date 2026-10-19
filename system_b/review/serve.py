@@ -107,14 +107,18 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def main(argv: list[str] | None = None) -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Serve the outreach review gate.")
     ap.add_argument("--review", nargs="+", default=["sequences.review.json"],
                     help="review JSON emitted by run.py — pass one per pack, in "
                          "the order you ran them")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
-    args = ap.parse_args(argv)
+    return ap.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
 
     paths = [Path(p).resolve() for p in args.review]
     missing = [p for p in paths if not p.exists()]

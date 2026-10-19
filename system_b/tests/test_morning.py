@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from system_b.morning import _lead_count
+from system_b.morning import _lead_count, serve_command
+from system_b.review.serve import parse_args as serve_args
 
 
 def _write(path: Path, n: int) -> Path:
@@ -51,3 +52,12 @@ def test_a_populated_artifact_does_replace_an_older_one(tmp_path):
     have = _lead_count(_write(tmp_path / "local.json", 3984))
     fresh = _lead_count(_write(tmp_path / "artifact.json", 3928))
     assert not (have and not fresh)
+
+
+def test_the_review_gate_accepts_what_morning_passes(tmp_path):
+    """morning once passed the review file bare; serve rejected it and the
+    morning's last step silently never served anything."""
+    review = tmp_path / "sequences.review.json"
+    cmd = serve_command(review)
+    assert cmd[1:3] == ["-m", "system_b.review.serve"]
+    assert serve_args(cmd[3:]).review == [str(review)]
