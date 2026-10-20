@@ -11,6 +11,7 @@ Apollo's export is wide (60+ columns); we use only what a sequence needs:
     City        -> city
     State       -> state
     Person Linkedin Url -> linkedin
+    _source     -> _source        (the Apollo list(s) it came from)
 """
 
 from __future__ import annotations
@@ -67,6 +68,10 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
         "last_name": _clean(record.get("Last Name")) or None,
         "email": email,
         "linkedin": _clean(record.get("Person Linkedin Url")),
+        # Which Apollo finance-firm list(s) the contact came from, joined with
+        # "+" ("FractionalCFO+Accounting"). Picks the voice when their site
+        # never says which service they sell (sequence/generate.choose_voice).
+        "_source": _clean(record.get("_source")),
     }
 
 

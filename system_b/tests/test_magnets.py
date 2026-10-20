@@ -567,14 +567,15 @@ def test_no_custody_claim_when_the_column_was_absent():
     assert "client assets" not in said
 
 
-# --- the rung is required, not guessed -------------------------------------
+# --- the site's rung is read, not guessed ----------------------------------
 
 
 def test_a_site_that_names_no_service_gets_no_rung():
     """Every prospect here is supposed to sell bookkeeping, accounting or
     fractional-CFO work. Guessing one would tell a stranger the tool was "built
     for fractional cfos" on no evidence — the same borrowed confidence the copy
-    rules exist to prevent."""
+    rules exist to prevent. No rung from the site leaves the voice to the
+    Apollo list or the neutral pack (test_voice.py)."""
     from system_b.research.rung import detect_rung
     assert detect_rung({"x": "we are a consultancy for growing businesses"}) == (None, [])
     assert detect_rung({}) == (None, [])

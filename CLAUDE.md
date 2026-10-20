@@ -96,7 +96,7 @@ different sale to a different buyer, and leadgen keeps the inventories separate
 
 **One voice, one line.** Every pack renders the SAME left-field line with only
 the audience word swapped (`copy.email.left_field_for`, keyed on `dm_audience`):
-"i'm an engineer. built this one for {bookkeepers|accountants|fractional cfos}
+"i'm an engineer. built this one for {bookkeepers|accountants|fractional cfos|finance firms}
 after hearing the same thing over and over, referrals dried up and nothing
 replaced them." The engineer reveal is what stops a machine-built gift reading
 as spray-and-pray, and nothing about it is CFO-specific. What legitimately
@@ -118,12 +118,31 @@ variety nobody could act on and made the copy harder to reason about, so each
 key holds exactly one phrasing. The subject already varies per prospect through
 the WHO — their city, their vertical, the lead's role.
 
-**No pack is ever inferred.** The operator hands a list to `--pack` and that
-decides the voice; nothing reads a company name. So each pack owns its word
-absolutely: `bookkeeping` never says "accountant", `accounting` never says
-"bookkeeper". Calling a CPA a bookkeeper reads as not having looked, and the
-reverse leaves a bookkeeper feeling the mail was meant for someone else. A test
-pins this.
+**Which voice a prospect gets** (`sequence.generate.choose_voice`, recorded on
+the review card as `voice` / `voice_source`), first match wins:
+
+1. `--force-pack`: `--pack` for every prospect ("forced").
+2. Their own site names the service they sell (`research.rung.detect_rung`):
+   that rung ("site").
+3. Exactly ONE Apollo list in the prospect's `_source` column (FractionalCFO
+   -> cfo, Accounting -> accounting, Bookkeeping -> bookkeeping): that pack
+   ("apollo list").
+4. Several lists ("FractionalCFO+Accounting") or none: the NEUTRAL `finance`
+   pack, "built this one for finance firms" ("neutral").
+
+Never a skip: every prospect comes from an Apollo finance-firm list, so a site
+that names no service is still a finance firm; only its rung is unknown. Until
+2026-10-19 such a firm was held as `no_rung`. Several lists is neutral rather
+than the senior one because a firm on the CFO and accounting lists may be
+either. `run.py` still alarms when over 20% of drafted firms got their voice
+from anything but their site: that is usually the Apollo filters, not the sites.
+
+So each pack owns its word absolutely: `bookkeeping` never says "accountant",
+`accounting` never says "bookkeeper", and `finance` (`niches/finance.py`, the
+cfo pack with "finance firms" as its audience and no fractional-CFO lead-first
+signal) names no rung at all. Calling a CPA a bookkeeper reads as not having
+looked, and the reverse leaves a bookkeeper feeling the mail was meant for
+someone else. A test pins this.
 
 `accounting` and `cfo` do share `job_finance_lead` — neither a
 fractional-controller nor a fractional-CFO pool is deep enough to gift from
@@ -402,8 +421,8 @@ an in-house bookkeeper has decided AGAINST outsourcing, and "Fractional CFO
 wanted" is on every job board. The IT niches (mssp/msp/cloud) still read the
 old inventory — `--legacy-niche`.
 
-**NICHE and VERTICAL are orthogonal.** `--pack` selects the copy VOICE (which
-rung of finance service the prospect sells). The vertical selects which leads
+**NICHE and VERTICAL are orthogonal.** The pack is the copy VOICE (which
+rung of finance service the prospect sells; see "Which voice" above). The vertical selects which leads
 they can be shown at all. A prospect is both.
 
 `snapshot_all_magnets()` loads every magnet into one addressable snapshot; the

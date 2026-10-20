@@ -216,6 +216,7 @@ def build_review(
     row: dict[str, Any],
     dms: dict[str, str] | None = None,
     sounds_off: list[dict[str, str]] | None = None,
+    voice: tuple[str, str] | None = None,
 ) -> dict[str, Any]:
     """One prospect's review card as a plain dict.
 
@@ -268,6 +269,12 @@ def build_review(
         "niche_exclusivity": prospect.niche_exclusivity,
         "how_we_know": how,
         "geo_level": gift.geo_level,
+        # Whose voice the copy speaks in, and what chose it: "site" (their own
+        # service words), "apollo list" (the one list they came from),
+        # "neutral" ("finance firms": several lists or none) or "forced".
+        "voice": voice[0] if voice else None,
+        "voice_source": voice[1] if voice else None,
+        "apollo_lists": row.get("_source") or "",
         # Drives the review gate's sort order, which is also the CSV's row order.
         "personalization": _personalization(prospect, gift),
         # The two extra levers, rendered exactly as the copy renders them, so the

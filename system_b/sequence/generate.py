@@ -108,6 +108,42 @@ def _backlog_row(row: dict[str, Any], research: Any, prospect: Any,
     }
 
 
+# The Apollo finance-firm lists, by the name `_source` gives each, and the pack
+# whose voice fits a firm pulled from it.
+APOLLO_LIST_PACKS = {
+    "fractionalcfo": "cfo",
+    "accounting": "accounting",
+    "bookkeeping": "bookkeeping",
+}
+NEUTRAL_PACK = "finance"
+
+
+def choose_voice(
+    rung: str | None, source: str | None, *, pack_key: str = "cfo",
+    force_pack: bool = False,
+) -> tuple[str, str]:
+    """(pack key, what chose it) for one prospect.
+
+    In order: `--force-pack` over everything ("forced"); the rung their own
+    site states ("site"); the ONE Apollo list they came from ("apollo list");
+    otherwise the neutral "finance firms" voice ("neutral"). Several lists
+    ("FractionalCFO+Accounting") is neutral too: a firm on the CFO and the
+    accounting list may be either, and calling a CPA a bookkeeper (or a
+    bookkeeper a CFO) reads as not having looked. Never a skip: every
+    prospect is a finance firm, only its rung can be unknown.
+    """
+    if force_pack:
+        return pack_key, "forced"
+    if rung:
+        return rung, "site"
+    lists = {part.strip().lower() for part in (source or "").split("+") if part.strip()}
+    if len(lists) == 1:
+        only = APOLLO_LIST_PACKS.get(next(iter(lists)))
+        if only:
+            return only, "apollo list"
+    return NEUTRAL_PACK, "neutral"
+
+
 def generate_sequence(
     row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
     *, pack_key: str = "cfo", force_pack: bool = False,
@@ -117,9 +153,9 @@ def generate_sequence(
 
     Pure of any store: research the site, classify the served vertical, build a
     vertical-matched gift (or a generalist geo gift fallback), then write all
-    three emails. `sc` is the niche inventory scraper; `pack_key` is the FALLBACK voice, used only when
-    the site says nothing that separates the rungs;
-    lead preference. Returns a row dict ready for the CSV, or a `no_gift`/`error`
+    three emails. `sc` is the niche inventory scraper; the voice comes from
+    `choose_voice` (site, then Apollo list, then neutral), and `pack_key` is
+    used only with `force_pack`. Returns a row dict ready for the CSV, or a `no_gift`/`error`
     marker (status != "ok") when the inventory had no matching leads.
 
     Signoffs are omitted (`include_signoff=False`): you add your signature + the
@@ -127,20 +163,16 @@ def generate_sequence(
     """
     # Research FIRST, then pick the voice. The rung a firm sells is read off
     # their own site (research/rung.py), so a mixed export no longer tells a
-    # bookkeeper the tool was "built for fractional cfos". `pack_key` becomes
-    # the FALLBACK for a site that says nothing separating the rungs, and
-    # `--force-pack` overrides detection entirely.
+    # bookkeeper the tool was "built for fractional cfos". A site that says
+    # nothing separating the rungs no longer holds the firm: its Apollo list
+    # decides, or the neutral voice does (`choose_voice`). `--force-pack`
+    # overrides both.
     research = research_prospect(row["website"], taxonomy)
-    detected = getattr(research, "rung", None)
-    if detected is None and not force_pack:
-        # Their site never says whether they sell bookkeeping, accounting or
-        # fractional-CFO work. Held rather than guessed -- see research/rung.py.
-        return {
-            "firm": row.get("firm_name"),
-            "status": "no_rung",
-            "backlog": _backlog_row(row, research, prospect=None, reason="no_rung"),
-        }
-    pack = pack_for(detected if not force_pack else pack_key)
+    pack_key, voice_source = choose_voice(
+        getattr(research, "rung", None), row.get("_source"),
+        pack_key=pack_key, force_pack=force_pack,
+    )
+    pack = pack_for(pack_key)
     prospect, gift = resolve_gift(research, row, sc, pack=pack)
     if gift is None:
         # A prospect with no gift is NOT discarded. Most of them are firms
@@ -182,6 +214,7 @@ def generate_sequence(
         # operator can disagree with the evidence in front of them.
         "rung_detected": getattr(research, "rung", None),
         "rung_evidence": list(getattr(research, "rung_evidence", None) or []),
+        "voice_source": voice_source,
         "gift_size": gift.gift_size,
         # Every organization this sequence names, for the allocation ledger.
         "lead_identities": [ld.allocation_key for ld in [*gift.leads, *followup_leads]
@@ -205,6 +238,6 @@ def generate_sequence(
         # companion review JSON; the CSV writer ignores it).
         "review": build_review(
             prospect, gift, research, email1, followups, followup_leads, row, dms,
-            sounds_off,
+            sounds_off, voice=(pack.key, voice_source),
         ),
     }

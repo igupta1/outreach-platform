@@ -215,8 +215,8 @@ def _append_ledger(path: Path, emails: list[str], today: date) -> None:
             w.writerow([email, today.isoformat()])
 
 
-# Share of prospects with no readable rung above which the problem is almost
-# certainly the prospect list rather than their websites.
+# Share of drafted firms whose site names no rung above which the problem is
+# almost certainly the prospect list rather than their websites.
 NO_RUNG_ALARM = 0.20
 
 BACKLOG_COLUMNS = [
@@ -256,13 +256,15 @@ def main() -> None:
     ap.add_argument("--in", dest="in_path", help="Apollo contacts export CSV")
     ap.add_argument("--out", dest="out_path", default="sequences.csv", help="output CSV")
     ap.add_argument("--force-pack", action="store_true",
-                    help="use --pack for EVERY prospect instead of detecting the "
-                         "rung they sell from their own website")
+                    help="use --pack for EVERY prospect instead of their site's "
+                         "rung, their Apollo list, or the neutral voice")
     ap.add_argument("--legacy-niche", action="store_true",
                     help="load the old per-niche job-post inventory instead of "
                          "the vertical magnets (mssp/msp/cloud still use it)")
     ap.add_argument("--pack", default="cfo", choices=sorted(VALID_NICHES),
-                    help="niche pack for the whole run (voice + which gifts fit)")
+                    help="the voice for every prospect with --force-pack (and the IT "
+                         "packs' inventory with --legacy-niche); otherwise each "
+                         "prospect's voice is chosen per firm (choose_voice)")
     ap.add_argument("--review-out", dest="review_out", default=None,
                     help="review-gate JSON path (default: <out> with a .review.json suffix)")
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER),
@@ -381,8 +383,23 @@ def main() -> None:
             continue
         results.append(res)
         allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
-        rung = res.get("pack", "?")
-        print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, voice: {rung})")
+        print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, "
+              f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
+
+    # A HEALTH SIGNAL, not a per-prospect fact. Every firm in this campaign is
+    # supposed to sell one of the three finance services; a handful of
+    # unreadable sites is normal, but a large share whose site names none means
+    # the PROSPECT LIST is wrong: an Apollo pull that swept in consultancies and
+    # IT shops rather than finance practices. Such firms are no longer held
+    # (their Apollo list or the neutral voice speaks for them), so the count is
+    # of drafted rows whose voice did not come from their own site.
+    unread = sum(1 for r in results if r.get("voice_source") in ("apollo list", "neutral"))
+    if results and unread / len(results) > NO_RUNG_ALARM:
+        print(f"\n[!] {unread} of {len(results)} drafted firms "
+              f"({100*unread/len(results):.0f}%) name none of bookkeeping, "
+              "accounting or CFO work on their own website.")
+        print("    Above ~20% that is usually the LIST, not the sites; "
+              "check the Apollo filters brought back finance firms.")
 
     if target is not None and len(results) < target:
         print(f"[run] input exhausted at {len(results)} of {target} — "
@@ -444,25 +461,8 @@ def main() -> None:
                              "this is the list that says what to build next",
                 "no_vertical": "state no industry we could map — founder ask, not a gift",
                 "inventory_dry": "right vertical, but no unused lead was left",
-                "no_rung": "their site never says whether they sell bookkeeping, "
-                           "accounting or CFO work",
             }.get(reason, "")
             print(f"    {n:>4}  {reason:<14} {note}")
-        # A HEALTH SIGNAL, not a per-prospect fact. Every firm in this campaign
-        # is supposed to sell one of the three finance services; a handful of
-        # unreadable sites is normal, but a large share means the PROSPECT LIST
-        # is wrong — an Apollo pull that swept in consultancies and IT shops
-        # rather than finance practices. Cheaper to catch here than after a
-        # send.
-        no_rung = by_reason.get("no_rung", 0)
-        attempted = len(results) + len(backlog)
-        if attempted and no_rung / attempted > NO_RUNG_ALARM:
-            print(f"\n[!] {no_rung} of {attempted} prospects "
-                  f"({100*no_rung/attempted:.0f}%) sell none of bookkeeping, "
-                  "accounting or CFO work by their own website.")
-            print("    Above ~20% that is usually the LIST, not the sites — "
-                  "check the Apollo filters brought back finance firms.")
-
         verticals = _Counter(r["stated_vertical"] for r in backlog
                              if r["reason"] == "no_magnet" and r["stated_vertical"])
         if verticals:

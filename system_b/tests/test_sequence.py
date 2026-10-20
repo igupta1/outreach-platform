@@ -11,9 +11,8 @@ TODAY = date(2026, 7, 8)
 
 
 class _Research:
-    """Stub for the site crawl. Carries a `rung` because a prospect whose site
-    never says which of bookkeeping / accounting / CFO work they sell is now
-    HELD rather than given a guessed voice."""
+    """Stub for the site crawl. Carries a `rung` so the voice comes from the
+    site; test_voice.py covers a site that names none."""
     rung = "cfo"
     rung_evidence = ("fractional cfo",)
     candidate_phrases = ()

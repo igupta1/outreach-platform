@@ -304,6 +304,23 @@ function nicheLine(p) {
 }
 
 
+// Which pack's voice the copy speaks in, and what chose it. "site" is their own
+// service words; "apollo list" the one list they came from; "neutral" says
+// "finance firms" because the lists disagree or are missing.
+const VOICE_SOURCE = {
+  "site": "from their site",
+  "apollo list": "from their Apollo list",
+  "neutral": "neutral: their site and Apollo lists do not say which service",
+  "forced": "forced with --force-pack",
+};
+function voiceLine(p) {
+  if (!p.voice) return null;
+  const box = el("div", {class:"niche"});
+  box.append(el("b", {}, text(p.voice)), text("  ·  " + (VOICE_SOURCE[p.voice_source] || p.voice_source || "")));
+  if (p.apollo_lists) box.append(el("div", {class:"sub"}, text("apollo lists: " + p.apollo_lists)));
+  return box;
+}
+
 // The advisory read (copy/naturalness.py). Deliberately NOT merged into
 // `flags`: those are stop-signs a human has to clear, these are suggestions, and
 // mixing them teaches you to skim the box that matters.
@@ -405,6 +422,7 @@ function card(p, idx, pi) {
     sec("copy", fieldsBlock(p, idx)),
     sec("evidence", evidenceBlock(p)),
     sec("who they serve", nicheLine(p)),
+    sec("voice", voiceLine(p)),
   ].forEach(s => { if (s) c.append(s); });
   return c;
 }

@@ -203,7 +203,8 @@ def main(argv: list[str] | None = None) -> int:
                     default=ROOT / "system_b" / "data" / "seen-prospects.csv")
     ap.add_argument("--out", type=Path, default=ROOT / "sequences.csv")
     ap.add_argument("--pack", default="cfo",
-                    help="FALLBACK voice only; the rung is read off each firm's site")
+                    help="labels the run only; each firm's voice comes from its site, "
+                         "else its Apollo list, else the neutral 'finance firms'")
     ap.add_argument("--limit", type=int, default=20,
                     help="how many prospects to draft this morning")
     ap.add_argument("--skip-pull", action="store_true")

@@ -68,6 +68,9 @@ def pack_for(key: str | None) -> NichePack:
     if k == "accounting":
         from system_b.niches.accounting import ACCOUNTING_PACK
         return ACCOUNTING_PACK
+    if k == "finance":
+        from system_b.niches.finance import FINANCE_PACK
+        return FINANCE_PACK
     if k == "msp":
         from system_b.niches.it_provider import MSP_PACK
         return MSP_PACK
