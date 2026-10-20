@@ -902,6 +902,11 @@ def _lead_line(
 
     if not lead.is_findable:
         flags.append(f"unfindable lead ({lead.company}) — google the name to confirm it's real")
+    if lead.name_cut_off:
+        flags.append(
+            f"name cut off by the source ({lead.company}: \"{lead.name_cut_off}\") — "
+            "check the real name before sending"
+        )
     if is_raise(lead, pack.raise_signals) and geo_level == "city":
         flags.append(
             f"funding lead ({lead.company}) drives a city claim — its city may be "

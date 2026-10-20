@@ -232,15 +232,142 @@ def _fix_shouting(name: str) -> str:
     return " ".join(_decap_token(t) for t in tokens)
 
 
+# --- title-cased names: acronyms and registry abbreviations -----------------
+#
+# Most sources title-case what they were given, so an acronym arrives as a
+# word ("Wscadv", "Sc Uplift", "Houston Sro Housing") and a registry's
+# abbreviation as a non-word ("Comn Action Partnership", "Lndscpg"). Both read
+# as scraped in an email. A token is only touched when it is in plain Title
+# case (`_fix_token`), so a name that chose its own casing ("iRobot",
+# "F3EA Inc") never is.
+
+# Registry abbreviations with ONE obvious reading (the IRS's 990 names and
+# Florida's DBPR names). Anything ambiguous ("Mnt": mount or maintenance?) is
+# left as the source wrote it.
+_EXPAND = {
+    "comn": "Community", "cmty": "Community", "assn": "Association",
+    "assoc": "Association", "fdn": "Foundation", "fndtn": "Foundation",
+    "natl": "National", "intl": "International", "ctr": "Center",
+    "svcs": "Services", "srvs": "Services", "srvcs": "Services", "svs": "Services",
+    "svc": "Service", "srv": "Service", "mgmt": "Management", "grp": "Group",
+    "sltns": "Solutions", "rmdlng": "Remodeling", "rmdl": "Remodel",
+    "lndscpg": "Landscaping", "lndscp": "Landscape", "clng": "Cleaning",
+    "cnst": "Construction", "const": "Construction", "constr": "Construction",
+    "cnstrtion": "Construction", "flrng": "Flooring", "bldrs": "Builders",
+    "rpr": "Repair", "rprs": "Repairs", "gnrl": "General",
+    "cnsltnts": "Consultants", "hrdscpng": "Hardscaping", "rnvtns": "Renovations",
+    "rstrtn": "Restoration", "dsgn": "Design", "cncrt": "Concrete",
+    "htg": "Heating", "wndw": "Window", "pwr": "Power", "fncng": "Fencing",
+    "outdr": "Outdoor",
+}
+# Acronyms the letter rules below cannot see: they start with a vowel or read
+# like a syllable.
+_ACRONYMS = frozenset({"ahec", "hiv", "naacp", "nami", "aarp", "aclu", "uso",
+                       "ame", "esl", "sos"})
+# Title-cased words and abbreviations that keep their case although a rule
+# below would otherwise read them as initials.
+_TITLE_WORDS = frozenset({
+    "of", "on", "to", "in", "up", "by", "at", "no", "go", "my", "we", "hi", "an",
+    "as", "is", "or", "so", "do", "be", "he", "me", "am", "oh", "ox", "de", "la",
+    "el", "le", "du", "da", "di", "st", "jr", "sr", "dr", "mr", "ms", "mt", "ft",
+    "co", "ed", "re", "ma", "mo", "yo", "us", "it", "ag",
+    "ltd", "mrs", "hwy", "pkwy", "blvd", "mfg", "rd", "ln", "bros", "sri", "tsai",
+})
+_ROMAN_RE = re.compile(r"^(?=[ivx]{2,4}$)x{0,3}(ix|iv|v?i{0,3})$")   # "Ii", "Iii", "Iv"
+# Two consonants that can start an English (or a common surname's) word. A
+# token starting with any other pair is initials: "Wscadv", "Sro", "Sfa".
+_ONSETS = frozenset((
+    "bl br ch cl cr dr dw fl fr gl gr gn gh gw kl kn kr kw kh ph pl pr ps pn pt "
+    "pf sc sh sk sl sm sn sp sq st sv sw sz th tr ts tw vl wh wr zh zw rh mc ll "
+    "ng bj bh dh cz dj"
+).split())
+_VOWELS = frozenset("aeiouy")
+_TOKEN_RE = re.compile(r"^([^A-Za-z]*)([A-Za-z]+)([^A-Za-z]*)$")
+_TITLE_S_RE = re.compile(r"(?<=[a-z])'S\b")          # "Barrett'S" -> "Barrett's"
+
+
+def _fix_token(token: str) -> str:
+    m = _TOKEN_RE.match(token)
+    if not m or "'" in token:
+        return token                       # "Me 'Oe": a word, not initials
+    lead, core, tail = m.groups()
+    if not (core[0].isupper() and core[1:].islower()):
+        return token                       # chose its own casing, or prose
+    low = core.lower()
+    if low in _EXPAND:
+        return lead + _EXPAND[low] + tail
+    if len(low) == 1 or low in _TITLE_WORDS:
+        return token
+    upper = lead + core.upper() + tail
+    if low in _KEEP_UPPER or low in _ACRONYMS or _ROMAN_RE.match(low):
+        return upper                       # "Llc", "Ahec", "Ii"
+    if len(low) == 2 or not set(low) & _VOWELS:
+        return upper                       # "Sc", "Nw", "Mds", "Pnw"
+    if (low[0] not in "aeiou" and low[1] not in _VOWELS and low[:2] not in _ONSETS
+            and (len(low) <= 4 or sum(c in _VOWELS for c in low) <= 1)):
+        return upper                       # "Wscadv", "Sro", "Sfa"
+    return token
+
+
+def _fix_title_tokens(name: str) -> str:
+    """`Sc Uplift` -> `SC Uplift`, `Mds Ii` -> `MDS II`, `Comn Action` ->
+    `Community Action`."""
+    name = _TITLE_S_RE.sub("'s", name)
+    return " ".join(_fix_token(t) for t in name.split(" "))
+
+
+# Long words a source cuts mid-way ("Golden Triangle Resource Conservati &
+# Development Area"). A token that is a strict prefix of one, and not itself a
+# word, is FLAGGED for review and never completed: "Conservati" is almost
+# certainly "Conservation", but the name is the one fact a recipient checks.
+_LONG_WORDS = (
+    "conservation", "development", "association", "foundation", "international",
+    "community", "communities", "organization", "corporation", "educational",
+    "education", "services", "national", "management", "construction",
+    "contractors", "technologies", "technology", "solutions", "consulting",
+    "restoration", "renovations", "partnership", "administration", "institute",
+    "incorporated", "rehabilitation", "environmental", "residential",
+    "commercial", "industries", "enterprises", "behavioral", "recreation",
+    "cooperative", "neighborhood", "opportunities", "opportunity",
+    "collaborative", "transportation", "agricultural", "manufacturing",
+    "engineering", "improvement", "preservation", "independent", "properties",
+    "investments", "healthcare", "university", "children", "assistance",
+    "coalition", "resources", "authority", "department", "consortium",
+    "integrated", "landscaping", "remodeling", "maintenance",
+)
+# Real words (English, or a name's own spelling) that are such prefixes.
+_WHOLE_WORDS = frozenset({
+    "partners", "partner", "industrie", "technologie", "contract", "contractor",
+    "develop", "construct", "conserve", "associate", "resource", "industrial",
+    "enterprise", "restore", "renovation", "national", "solution", "engineer",
+    "property", "investment", "independ", "transport", "community", "children",
+    "neighbor", "environment", "residential", "commercial", "educational",
+    "technical", "corporate", "integrate", "landscape", "remodel", "maintain",
+    "cooperate", "administer", "institut", "behavior", "recreate",
+})
+
+
+def cut_off_word(name: str) -> str | None:
+    """The fragment of a word the source cut off ("Conservati"), or None."""
+    for word in re.findall(r"[A-Za-z]+", name or ""):
+        low = word.lower()
+        if len(low) < 8 or low in _WHOLE_WORDS or low in _LONG_WORDS:
+            continue
+        if any(w.startswith(low) for w in _LONG_WORDS):
+            return word
+    return None
+
+
 def _clean_company_name(name: str) -> str:
     """Tidy raw leadgen company names that get listed verbatim in the email —
     drop a trailing state-registration marker ("... / DE /"), stray separators,
-    doubled whitespace, and ALL-CAPS shouting. Conservative: only removes clear
-    artifacts, never guesses at truncated names."""
+    doubled whitespace, ALL-CAPS shouting, title-cased acronyms ("Wscadv" ->
+    "WSCADV") and one-reading registry abbreviations ("Comn" -> "Community").
+    Never guesses at a truncated name: `cut_off_word` flags it instead."""
     name = _REG_ARTIFACT_RE.sub("", name)
     name = name.replace(" / ", " ").strip(" /|-")
     name = _MULTISPACE_RE.sub(" ", name).strip()
-    return _fix_shouting(name)
+    return _fix_title_tokens(_fix_shouting(name))
 
 
 # Part-time words safe to print in front of a role. leadgen matches a WIDER set
@@ -434,6 +561,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         id=str(lead_id),
         entity_id=_entity_id(row),
         company=company,
+        name_cut_off=cut_off_word(company),
         domain=row.get("domain"),
         city=row.get("city"),
         state=row.get("state"),

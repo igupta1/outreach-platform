@@ -103,7 +103,7 @@ def test_a_30_day_old_published_file_loads(tmp_path, monkeypatch):
              [row(payload={"uei": "U1"}), row(payload={"uei": "U2"}, name="Two Llc")], 30)
     snap = snapshot_all_magnets(today=TODAY)
     assert {ld.company for ld in snap.leads(industry="government_contracting")} == \
-        {"Vantage Llc", "Two Llc"}
+        {"Vantage LLC", "Two LLC"}
 
 
 def test_a_file_past_45_days_stops_the_run(tmp_path, monkeypatch):
@@ -130,4 +130,4 @@ def test_the_new_families_age_by_their_own_expiry_only(tmp_path, monkeypatch):
     (tmp_path / "new-business-leads.json").write_text(json.dumps(
         {"generated_at": TODAY.isoformat(), "contract": 2, "count": 1, "leads": nb}))
     names = {ld.company for ld in snapshot_all_magnets(today=TODAY).leads()}
-    assert names == {"Kept Llc", "Fresh Llc"}
+    assert names == {"Kept LLC", "Fresh LLC"}

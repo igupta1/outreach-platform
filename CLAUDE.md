@@ -362,6 +362,12 @@ would have dropped 12 accurate cfo leads for no honesty gain.
 - Soft verb ("work with"), never "focus on".
 - No dollar amounts on raises; relative dates only for high-confidence signals;
   lead company names keep their casing, all other prose is lowercase.
+- **Lead names are cleaned once, at the door** (`clients.inventory._clean_company_name`):
+  ALL-CAPS calmed (`_fix_shouting`), title-cased acronyms restored ("Wscadv" ->
+  "WSCADV", "Sc Uplift" -> "SC Uplift", "Mds Ii" -> "MDS II"), registry
+  abbreviations with one reading expanded ("Comn" -> "Community", "Lndscpg" ->
+  "Landscaping"). A word the SOURCE cut off ("Conservati") is never completed:
+  `cut_off_word` sets `Lead.name_cut_off` and the lead line raises a review flag.
 - **No em dashes anywhere.** Templates are authored comma-only, and every
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent

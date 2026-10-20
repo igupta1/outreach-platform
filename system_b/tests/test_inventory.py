@@ -737,3 +737,83 @@ def test_contract_v2_leads_past_their_own_expiry_are_dropped():
     assert _past_expiry({"status": "active", "expires_at": "2026-10-13"}, today)
     assert not _past_expiry({"status": "active", "expires_at": "2026-10-14"}, today)
     assert not _past_expiry({}, today)                     # contract v1: older rules
+
+
+# --- title-cased acronyms, registry abbreviations, cut-off names ------------
+
+from system_b.clients.inventory import _clean_company_name as _clean  # noqa: E402
+from system_b.clients.inventory import cut_off_word  # noqa: E402
+
+
+def test_title_cased_acronyms_are_restored():
+    """Sources title-case what they were given, so an acronym arrives as a
+    word. Every input here reached a real email or the review gate."""
+    cases = {
+        "Wscadv": "WSCADV",
+        "Sc Uplift Community Outreach": "SC Uplift Community Outreach",
+        "West Central Alabama Ahec": "West Central Alabama AHEC",
+        "Houston Sro Housing Corporation": "Houston SRO Housing Corporation",
+        "Mds Ii": "MDS II",
+        "Region Iii Workforce Investment Board": "Region III Workforce Investment Board",
+        "Ywca Of Southern Arizona": "YWCA Of Southern Arizona",
+        "Charterchoice Collaborative Sfa": "Charterchoice Collaborative SFA",
+        "Basic Nwfl Inc": "Basic NWFL Inc",
+        "Land Iq, Llc": "Land IQ, LLC",
+    }
+    for raw, want in cases.items():
+        assert _clean(raw) == want, raw
+
+
+def test_one_reading_registry_abbreviations_are_expanded():
+    cases = {
+        "Comn Action Partnership Huntsville Madison & Limestone Counties":
+            "Community Action Partnership Huntsville Madison & Limestone Counties",
+        "Johnson-Williams Lndscpg Llc": "Johnson-Williams Landscaping LLC",
+        "Cooper Ridge Fncng & Outdr Llc": "Cooper Ridge Fencing & Outdoor LLC",
+        "Tree of Knowledge Learning Ctr LLC": "Tree of Knowledge Learning Center LLC",
+        "Pa Assoc Of Conservation Districts Inc":
+            "PA Association Of Conservation Districts Inc",
+    }
+    for raw, want in cases.items():
+        assert _clean(raw) == want, raw
+
+
+def test_real_words_and_names_keep_their_case():
+    """Words, surnames and names that chose their own casing are not initials."""
+    for name in ("Think Of Us", "Me 'Oe LLC", "Kwang Lee Inc", "Nguyen Construction",
+                 "Mxene Co", "Sri Ganesh Temple", "Lynn Gym LLC", "Ag Land Trust",
+                 "Mcdonald Partners", "Square One Builders", "iRobot", "F3EA Inc",
+                 "St. Mary Housing", "Dr Smith Dental, Ltd.", "Kscube Labs"):
+        assert _clean(name) == name, name
+
+
+def test_title_case_apostrophe_s_is_lowered():
+    assert _clean("Barrett'S Home Contracting Llc") == "Barrett's Home Contracting LLC"
+
+
+def test_a_name_the_source_cut_off_is_flagged_never_completed():
+    name = "Golden Triangle Resource Conservati & Development Area Inc"
+    assert _clean(name) == name                       # not guessed at
+    assert cut_off_word(name) == "Conservati"
+    for whole in ("Mandela Partners", "Proper Irrigation Services Inc.",
+                  "Technologie Dataonde Inc", "Multicultural Career Intern Program",
+                  "Cooper Communications LLC"):
+        assert cut_off_word(whole) is None, whole
+
+
+def test_a_cut_off_name_raises_a_review_flag_on_its_lead_line():
+    from datetime import date
+
+    from system_b.clients.inventory import adapt_leadgen_lead
+    from system_b.copy.email import _lead_line
+
+    row = {"id": "ein:72-0000000", "name": "Golden Triangle Resource Conservati & Development Area Inc",
+           "signal_type": "nonprofit_grant_no_finance_officer", "city": "Columbus",
+           "state": "MS", "industry": "nonprofit",
+           "signals": [{"type": "nonprofit_grant_no_finance_officer",
+                        "event_date": "2026-06-30"}]}
+    lead = adapt_leadgen_lead(row, today=date(2026, 10, 20))
+    assert lead.name_cut_off == "Conservati"
+    from system_b.niches.cfo import CFO_PACK
+    _, flags = _lead_line(lead, date(2026, 10, 20), "state", pack=CFO_PACK)
+    assert any("cut off by the source" in f and "Conservati" in f for f in flags)
