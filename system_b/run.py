@@ -277,9 +277,8 @@ def main() -> None:
                     help="every prospect ever sequenced; the next run skips them "
                          f"before doing any work (default: {DEFAULT_LEDGER})")
     ap.add_argument("--allocations", default=str(ALLOCATIONS_PATH),
-                    help="which firm got which organization; a later prospect in the "
-                         "same state is never shown one already handed out "
-                         "(see gift/allocation.py)")
+                    help="a log of which firm got which organization; since "
+                         "2026-10-25 it no longer blocks a lead from other firms")
     ap.add_argument("--skip-naturalness", action="store_true",
                     help="skip the advisory read that flags phrases which do not "
                          "sound like a person wrote them. One extra model call per "
@@ -357,7 +356,11 @@ def main() -> None:
     if naturalness is None:
         print("[run] --skip-naturalness: no advisory copy read")
 
-    # Never the same organization to two firms in one region (gift.allocation).
+    # A LOG of which firm got which organization, nothing more. Until
+    # 2026-10-25 a lead handed to one firm was off limits to every other firm
+    # in its state; the user dropped that rule ("we are not big enough where
+    # prospects will compare notes"), so every firm gets the strongest leads
+    # near it. A firm's own sequence still never repeats an organization.
     allocations = Allocations.load(Path(args.allocations))
 
     results: list[dict] = []
@@ -374,7 +377,6 @@ def main() -> None:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
-        p["blocked_identities"] = allocations.blocked(firm, p.get("state"))
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
                                     force_pack=args.force_pack,
@@ -403,17 +405,11 @@ def main() -> None:
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, "
               f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
 
-    # Fill what the industry matches left. A held draft was built before later
-    # firms took their organizations, so one naming an organization now
-    # allocated in its region is dropped (one organization per region).
+    # Fill what the industry matches left, in file order.
     for p, res in location_only:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
-        taken = allocations.blocked(firm, p.get("state"))
-        if taken & set(res.get("lead_identities") or []):
-            print(f"  · {firm:32} location-only draft dropped: a lead went to another firm")
-            continue
         results.append(res)
         allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
         print(f"  · {res['company']:32} ok, location-only ({res.get('gift_size')} in gift)")

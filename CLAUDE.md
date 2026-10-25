@@ -353,19 +353,19 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
 levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
 "arlington" TX. A prospect with no state gets no city level.
 
-One organization per firm per state (`gift/allocation.py`), never a firm's
-own audit client (`_audited_by`) and never a license another state issued
-(`_licensed_elsewhere`: a Clovis, CA roofer's new FLORIDA license reached a
-California firm, 2026-10-25) apply to every pass.
+Never a firm's own audit client (`_audited_by`) and never a license another
+state issued (`_licensed_elsewhere`: a Clovis, CA roofer's new FLORIDA license
+reached a California firm, 2026-10-25) apply to every pass. **Any firm may get
+any lead** (the user, 2026-10-25: "we are not big enough where prospects will
+compare notes"): the old one-organization-per-state rule is gone from `run.py`,
+and `lead-allocations.csv` is now only a log of who got what. A firm's own
+sequence still never repeats an organization.
 
 **Location-only firms are drafted last** (`run.py`, with `--target`): a firm
 whose email claims a place, not an industry (review `niche` empty), is held
 and used only when the export runs out of industry matches before the target.
-A held draft is not on the ledger (retried later) and is dropped if a lead in
-it went to another firm in its region meanwhile. Allocation keys on
-`Lead.allocation_key`: the identity, else the source record's own id (a
-Florida business with no license of its own has no identity, and the first
-review run gave three of them to two Fort Lauderdale firms).
+A held draft is not on the ledger (retried later). The allocation log keys on
+`Lead.allocation_key`: the identity, else the source record's own id.
 
 An active contract-v2 lead (it has `expires_at`) is `fresh`: its event date
 is a document's, and its own expiry already governs. Judged by the date, every
@@ -462,9 +462,9 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   (a test reads the published file when it is on disk). A gift of charities
   with no claimed vertical calls them "nonprofits", not "companies"
   (`copy.subject.lead_noun`).
-- **Never the same organization to two firms in one region** (`gift/allocation.py`,
-  `system_b/data/lead-allocations.csv`, gitignored). Region is the STATE — strictly
-  stronger than the "one metro" rule, since no city→metro crosswalk is held.
+- **Two firms may get the same organization** (since 2026-10-25, the user's
+  call). `system_b/data/lead-allocations.csv` (gitignored) only logs who got
+  what; `gift/allocation.py` can still block by state if the rule comes back.
 - **Contract v2 leads past their own `expires_at` (or `status: stale`) are
   dropped at load** (`inventory._past_expiry`); v1 rows keep the older rules.
 - Nothing is ever sent — the tool only writes a CSV for you to review.

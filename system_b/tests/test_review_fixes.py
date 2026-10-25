@@ -108,5 +108,39 @@ def test_location_only_firms_fill_a_short_batch_in_file_order(tmp_path, monkeypa
                _result("Geo2", niche=None, leads=["ein:2"]),
                _result("Geo3", niche=None, leads=["ein:3"])]
     firms, _, _ = _run(tmp_path, monkeypatch, rows, results, target=3)
-    # Geo1's organization went to Ind1 in its region first, so Geo1 is dropped.
-    assert sorted(firms) == ["Geo2", "Geo3", "Ind1"]
+    # Industry match first, then location-only in file order. Geo1 shares an
+    # organization with Ind1 and still goes: since 2026-10-25 any firm may get
+    # any lead.
+    assert sorted(firms) == ["Geo1", "Geo2", "Ind1"]
+
+
+def test_two_firms_in_one_state_may_get_the_same_lead(tmp_path, monkeypatch):
+    """2026-10-25, the user: any prospect may get any lead. The run no longer
+    hands the gift builder a list of organizations other firms already got."""
+    import system_b.run as run
+
+    seen_rows = []
+    rows = [{"firm_name": f, "state": "TX", "email": f"{f.lower()}@x.com"}
+            for f in ("Ind1", "Ind2")]
+    results = {r["firm_name"]: _result(r["firm_name"], niche="nonprofit", leads=["ein:1"])
+               for r in rows}
+    apollo = tmp_path / "apollo.csv"
+    apollo.write_text("x\n")
+    monkeypatch.setattr(run, "read_apollo_csv", lambda path: [dict(r) for r in rows])
+    monkeypatch.setattr(run, "load_taxonomy", lambda: {})
+    monkeypatch.setattr(run, "snapshot_all_magnets", lambda today=None: None)
+    monkeypatch.setattr(run.config, "require", lambda *a: None)
+
+    def fake(p, *a, **k):
+        seen_rows.append(dict(p))
+        return dict(results[p["firm_name"]])
+    monkeypatch.setattr(run, "generate_sequence", fake)
+    monkeypatch.setattr(sys, "argv", [
+        "run", "--in", str(apollo), "--out", str(tmp_path / "s.csv"), "--target", "2",
+        "--ledger", str(tmp_path / "seen.csv"),
+        "--allocations", str(tmp_path / "alloc.csv"), "--skip-naturalness",
+    ])
+    run.main()
+    assert all(not r.get("blocked_identities") for r in seen_rows)
+    with open(tmp_path / "s.csv", newline="") as fh:
+        assert sorted(r["company"] for r in csv.DictReader(fh)) == ["Ind1", "Ind2"]
