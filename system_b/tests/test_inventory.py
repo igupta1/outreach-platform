@@ -817,3 +817,44 @@ def test_a_cut_off_name_raises_a_review_flag_on_its_lead_line():
     from system_b.niches.cfo import CFO_PACK
     _, flags = _lead_line(lead, date(2026, 10, 20), "state", pack=CFO_PACK)
     assert any("cut off by the source" in f and "Conservati" in f for f in flags)
+
+
+def test_vowel_pair_initials_and_hyphen_pieces_are_restored():
+    """2026-10-25 batch: "Aoc Calton" (SAM.gov's AOC CALTON LTD) and "Friends
+    Of Little Saigon Seattle Fls-S" (an IRS name) reached the review gate."""
+    assert _clean("AOC CALTON LTD") == "AOC Calton Ltd"
+    assert _clean("Aoc Calton Ltd") == "AOC Calton Ltd"
+    assert _clean("Friends Of Little Saigon Seattle Fls-S") == \
+        "Friends Of Little Saigon Seattle FLS-S"
+    # Words that start with two vowels, and hyphenated words, keep their case.
+    for name in ("Oak Grove Builders", "Out Of The Box LLC", "Aid To Families",
+                 "Ion Roofing", "Co-Op Partners", "Self-Help Credit Union",
+                 "Well-Being Center", "X-Ray Services", "Go-Jo Builders",
+                 "Bi-Bett Corporation", "Su-Kam Power", "D-Fi LLC"):
+        assert _clean(name) == name, name
+
+
+def test_a_name_missing_a_space_is_flagged_never_split():
+    from datetime import date
+
+    from system_b.clients.inventory import adapt_leadgen_lead, glued_word
+    from system_b.copy.email import _lead_line
+    from system_b.niches.cfo import CFO_PACK
+
+    assert glued_word("Rafcontracting Inc") == "Rafcontracting"
+    assert glued_word("Steelfactorconstruction LLC") == "Steelfactorconstruction"
+    for whole in ("Raf Contracting Inc", "Subcontracting Partners", "Reconstruction Co",
+                  "Nonprofit Services Group", "Biotechnologies Inc", "Dielectric Labs",
+                  "Contracting Solutions LLC", "Atlantic Shipbuilders",
+                  "Ace Waterproofing Inc"):
+        assert glued_word(whole) is None, whole
+
+    row = {"id": "uei:X", "name": "RAFCONTRACTING INC",
+           "signal_type": "construction_federal_award_davis_bacon", "city": "Miami",
+           "state": "FL", "industry": "construction",
+           "signals": [{"type": "construction_federal_award_davis_bacon",
+                        "event_date": "2026-09-01"}]}
+    lead = adapt_leadgen_lead(row, today=date(2026, 10, 25))
+    assert lead.company == "Rafcontracting Inc"          # never split by guesswork
+    _, flags = _lead_line(lead, date(2026, 10, 25), "state", pack=CFO_PACK)
+    assert any("missing a space" in f and "Rafcontracting" in f for f in flags)

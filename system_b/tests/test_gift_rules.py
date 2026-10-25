@@ -255,3 +255,38 @@ def test_a_city_matches_only_in_the_same_state():
     assert gift is None
     gift = build_gift(wa, SnapshotScraper([tx_lead, wa_lead], taxonomy={}))
     assert [ld.company for ld in gift.leads] == ["Arlington Wa Llc"] and gift.geo_level == "city"
+
+
+# --- 2026-10-25 review fixes -------------------------------------------------
+
+
+def test_a_follow_up_can_be_held_to_email_ones_kind_and_look_nationwide():
+    """A Houston firm's email 1 was nonprofits; its email 2 was a contractor
+    working in Arizona because ANY local lead could fill it."""
+    here_builder = lead("Here Builder", DB)
+    far_charity = lead("Far Charity", NP, city="Boston", state="MA", industry="nonprofit")
+    leads = [here_builder, far_charity]
+    assert names(geo(), leads, target=1) == ["Here Builder"]
+    assert names(geo(), leads, target=1, signal_types=frozenset({NP})) == []
+    assert names(geo(), leads, target=1, signal_types=frozenset({NP}),
+                 nationwide=True) == ["Far Charity"]
+
+
+def test_a_license_reaches_only_firms_in_the_state_that_issued_it():
+    """A Clovis, CA roofer's new FLORIDA license reached a California firm."""
+    fl = {"lookup": "https://www.myfloridalicense.com/x"}
+    ca_roofer = lead("Clovis Roofer", NL, city="Clovis", state="CA", payload=fl)
+    ca_award = lead("Clovis Award", DB, city="Clovis", state="CA")
+    ca_firm = Prospect(firm_name="Ledger Books", city="Clovis", state="CA")
+    assert names(ca_firm, [ca_roofer, ca_award], target=2) == ["Clovis Award"]
+    fl_roofer = lead("Miami Roofer", NL, city="Miami", state="FL", payload=fl)
+    fl_firm = Prospect(firm_name="Ledger Books", city="Miami", state="FL")
+    assert names(fl_firm, [fl_roofer], target=1) == ["Miami Roofer"]
+
+
+def test_a_newer_audit_is_picked_before_an_older_stronger_one():
+    old = lead("Old Audit", NP, industry="nonprofit", score=95,
+               payload={"fac_accepted_date": "2025-02-14", "fac_as_of": "2026-10-25"})
+    new = lead("New Audit", NP, industry="nonprofit", score=60,
+               payload={"fac_accepted_date": "2026-03-02", "fac_as_of": "2026-10-25"})
+    assert names(geo(), [old, new], target=2) == ["New Audit", "Old Audit"]

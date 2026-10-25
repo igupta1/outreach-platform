@@ -127,6 +127,33 @@ def _recency(lead: Lead) -> float:
         return float("-inf")
 
 
+# An audit filed more than this long before the inventory's as-of date is
+# "old": its corrective action plan was due when it was filed, so the copy
+# says "had to file a plan", not "now has to" (copy.email.record_opener), and
+# a newer audit of the same kind is picked first (`sort_key`). 2026-10-25: 10
+# of 80 leads in a batch were FY2024 audits accepted in early 2025.
+AUDIT_RECENT_DAYS = 365
+
+
+def audit_is_recent(lead: Lead) -> bool | None:
+    """True when a charity's newest federal audit was accepted within a year of
+    the record's own as-of date, False when longer ago, None when the record
+    does not say (or the lead is not an audit)."""
+    if lead.signal_type != "nonprofit_grant_no_finance_officer":
+        return None
+    for sig in lead.signals:
+        p = getattr(sig, "payload", None) or {}
+        filed = p.get("fac_accepted_date") or p.get("fac_first_submitted")
+        as_of = p.get("fac_as_of")
+        if filed and as_of:
+            try:
+                age = datetime.fromisoformat(str(as_of)[:10]) - datetime.fromisoformat(str(filed)[:10])
+            except ValueError:
+                return None
+            return age.days <= AUDIT_RECENT_DAYS
+    return None
+
+
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
              focus: str | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
@@ -153,6 +180,9 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         0 if focus is None or suits_focus(lead, focus) else 1,
         TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
         0 if lead.is_findable else 1,
+        # A newer audit before an old one of the same kind; every non-audit
+        # lead ties here.
+        1 if audit_is_recent(lead) is False else 0,
         # The magnet's own score, where it serves one. Every lead from a single
         # magnet shares one signal_type, so without this the first tiebreak
         # that does any work is RECENCY — which ordered 29,000 nonprofits by
@@ -235,11 +265,14 @@ def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dic
 def _find_priority_lead(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *,
     pack: NichePack, niche_only: bool = False,
+    signal_types: frozenset[str] | None = None,
 ) -> Lead | None:
     """3a: the pack's priority signal (CFO: cfo_wanted) via match_param, then
     city, then state (fresh). First query with a hit wins; its best (re-sorted)
     lead is returned. Packs with no priority signal (e.g. trucking) short-circuit."""
     if not pack.priority_signal:
+        return None
+    if signal_types is not None and pack.priority_signal not in signal_types:
         return None
     queries: list[dict[str, Any]] = []
     if prospect.classification == "niched" and prospect.match_param:
@@ -335,17 +368,54 @@ def _audited_by(lead: Lead, prospect: Prospect) -> bool:
     return a == f or (min(len(a), len(f)) >= 2 and (a <= f or f <= a))
 
 
+LICENSE_SIGNALS: frozenset[str] = frozenset({
+    "construction_new_licensed_business",
+    "construction_license_upgrade",
+})
+
+
+def licensing_state(lead: Lead) -> str | None:
+    """The state that issued a license (WA L&I, Florida DBPR), read off the
+    record's own lookup / source link, else its payload `state`."""
+    p: dict = {}
+    for sig in lead.signals:
+        data = getattr(sig, "payload", None)
+        if isinstance(data, dict) and data:
+            p = data
+            break
+    where = " ".join(str(x or "") for x in (p.get("lookup"), p.get("dataset"),
+                                             lead.primary_source_url))
+    if "lni.wa.gov" in where or "data.wa.gov" in where:
+        return "WA"
+    if "myfloridalicense" in where:
+        return "FL"
+    return p.get("state") or None
+
+
+def _licensed_elsewhere(lead: Lead, prospect: Prospect) -> bool:
+    """A license lead from a state other than the prospect's own. The lead is
+    matched by its ADDRESS, so a Clovis, CA roofer with a new Florida license
+    reached a California firm as "newly licensed in florida" (2026-10-25): true,
+    and beside the point for them. Unknown on either side is not "elsewhere"."""
+    if lead.signal_type not in LICENSE_SIGNALS:
+        return False
+    issuer = licensing_state(lead)
+    return bool(issuer and prospect.state) and norm_state(issuer) != norm_state(prospect.state)
+
+
 def _off_limits(lead: Lead, prospect: Prospect) -> bool:
-    """A lead this prospect must never see: its own audit client, or an
-    organization already handed to another firm in its region."""
+    """A lead this prospect must never see: its own audit client, an
+    organization already handed to another firm in its region, or a license
+    another state issued."""
     key = lead.allocation_key
-    return _audited_by(lead, prospect) or (
+    return _audited_by(lead, prospect) or _licensed_elsewhere(lead, prospect) or (
         key is not None and key in prospect.blocked_identities)
 
 
 def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
+    signal_types: frozenset[str] | None = None, nationwide: bool = False,
 ) -> None:
     """The two-round Level walk. Mutates `into` / `excluded` in place.
 
@@ -355,22 +425,30 @@ def _pick_leads(
     A new business is a registry filing with a NAICS code, which is too thin
     to claim a vertical on (the second review run passed a psychiatry practice
     and a notary as "law firms"), and a Connecticut filing means nothing to a
-    Seattle firm. The same freshness rounds, dedupe and off-limits rules apply."""
+    Seattle firm. The same freshness rounds, dedupe and off-limits rules apply.
+
+    `signal_types` keeps only leads of those kinds (email 2 follows email 1's
+    kind), and `nationwide` adds a last level with no place at all for a
+    prospect matched on geography (a niched one already has its niche-only
+    level 3)."""
     levels = _levels_for(prospect, niche_only=niche_only)
+    if nationwide and not (prospect.classification == "niched" and prospect.match_param):
+        levels.append((6, {}))
     _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
-          backup=False)
+          backup=False, signal_types=signal_types)
     if niche_only or not prospect.state:
         return
     own_state = [(lvl, kw) for lvl, kw in levels
                  if "state" in kw and set(kw) <= {"city", "state"}]
     _walk(prospect, scraper, excluded, own_state, target=target, into=into, rank=rank,
-          backup=True)
+          backup=True, signal_types=signal_types)
 
 
 def _walk(
     prospect: Prospect, scraper: _Scraper, excluded: set[str],
     levels: list[tuple[int, dict[str, Any]]], *, target: int, into: list[Lead],
     rank: dict[str, int], backup: bool,
+    signal_types: frozenset[str] | None = None,
 ) -> None:
     for freshness in ("fresh", "stale"):
         if len(into) >= target:
@@ -386,6 +464,7 @@ def _walk(
                 # prospect, only not for this one.
                 if lead.id not in excluded and not _off_limits(lead, prospect)
                 and is_backup(lead) == backup
+                and (signal_types is None or lead.signal_type in signal_types)
             ]
             leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus))
             for lead in leads:
@@ -405,24 +484,28 @@ def _walk(
 def build_gift(
     prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
     niche_only: bool = False, pack: NichePack | None = None,
+    signal_types: frozenset[str] | None = None, nationwide: bool = False,
 ) -> Gift | None:
     """Build the gift. `niche_only` (Change 2 / Gate B) restricts to on-niche
     leads (levels 1-3): the returned gift is all_niche or None, never padded
     with geo leads — so the tiering resolver can test a candidate niche.
 
     `pack` supplies the niche's priority signal and WHAT categorization;
-    defaults to the CFO pack so existing callers are unchanged."""
+    defaults to the CFO pack so existing callers are unchanged. `signal_types`
+    and `nationwide` narrow and widen the walk (see `_pick_leads`)."""
     pack = pack or default_pack()
     rank = dict(pack.signal_rank)
     gift: list[Lead] = []
     excluded: set[str] = set(prospect.sent_lead_ids)
 
-    lead = _find_priority_lead(prospect, scraper, excluded, pack=pack, niche_only=niche_only)
+    lead = _find_priority_lead(prospect, scraper, excluded, pack=pack, niche_only=niche_only,
+                               signal_types=signal_types)
     if lead is not None:
         gift.append(lead)
         excluded.add(lead.id)
 
-    _pick_leads(prospect, scraper, excluded, target=target, into=gift, rank=rank, niche_only=niche_only)
+    _pick_leads(prospect, scraper, excluded, target=target, into=gift, rank=rank,
+                niche_only=niche_only, signal_types=signal_types, nationwide=nationwide)
 
     if not gift:
         return None

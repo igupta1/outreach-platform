@@ -11,6 +11,7 @@ and carry NO recency date (Option A): they send days later, so a baked-in
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any
 
@@ -37,16 +38,24 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     extra_ids: list[str] = []
 
     prospect.sent_lead_ids = list(used)
-    # Keep a niched sequence on-theme: pull the follow-up from the SAME niche
-    # as Email #1 (build_gift excludes already-used leads via sent_lead_ids),
-    # falling back to a geo lead only when the niche well has run dry.
+    # Keep the sequence on-theme: email 2's lead is the same KIND as email 1's
+    # (a charity audit after charity audits), from the same niche when they
+    # have one, looking further out before giving up on the kind. Before
+    # 2026-10-25 a geo-matched firm's email 2 took any local lead, so Houston
+    # nonprofits were followed by a contractor working in Arizona.
+    # (build_gift excludes already-used leads via sent_lead_ids.)
+    kinds = frozenset(ld.signal_type for ld in gift.leads if ld.signal_type)
+    niched = prospect.classification == "niched"
+    attempts = []
+    if niched:
+        attempts += [dict(niche_only=True, signal_types=kinds), dict(niche_only=True)]
+    attempts += [dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
     g = None
-    if prospect.classification == "niched":
-        gn = build_gift(prospect, sc, target=1, niche_only=True, pack=pack)
-        if gn is not None and gn.all_niche:
-            g = gn
-    if g is None:
-        g = build_gift(prospect, sc, target=1, pack=pack)   # geo fallback
+    for opts in attempts:
+        g = build_gift(prospect, sc, target=1, pack=pack, **opts)
+        if g is not None and (g.all_niche or not opts.get("niche_only")):
+            break
+        g = None
     lead = g.leads[0] if g else None
     if lead is not None:
         extra_ids.append(lead.id)
@@ -117,10 +126,26 @@ APOLLO_LIST_PACKS = {
 }
 NEUTRAL_PACK = "finance"
 
+# The rung a firm's NAME claims. Substrings, not words: "3CFO Solutions" and
+# "AccountingRx" glue the word to something else. "cpa" alone needs word
+# edges, since it hides inside other words.
+_NAME_RUNGS = (
+    ("cfo", re.compile(r"cfo")),
+    ("bookkeeping", re.compile(r"bookkeep")),
+    ("accounting", re.compile(r"accounting|accountant|accountancy|\bcpas?\b")),
+)
+
+
+def name_rungs(firm_name: str | None) -> set[str]:
+    """Every rung the firm's own name claims: {"cfo"} for "Allegro CFO",
+    {"bookkeeping", "cfo"} for "Accountix | Bookkeeping + CFO Experts"."""
+    low = (firm_name or "").lower()
+    return {rung for rung, pat in _NAME_RUNGS if pat.search(low)}
+
 
 def choose_voice(
     rung: str | None, source: str | None, *, pack_key: str = "cfo",
-    force_pack: bool = False,
+    force_pack: bool = False, firm_name: str | None = None,
 ) -> tuple[str, str]:
     """(pack key, what chose it) for one prospect.
 
@@ -131,16 +156,26 @@ def choose_voice(
     accounting list may be either, and calling a CPA a bookkeeper (or a
     bookkeeper a CFO) reads as not having looked. Never a skip: every
     prospect is a finance firm, only its rung can be unknown.
+
+    The site's rung is a word count, and it loses when the firm says otherwise
+    ("disagrees"): a name that claims other rungs ("3CFO Solutions" counted
+    as bookkeeping, "Abrisma Accounting" as cfo), or Apollo lists that never
+    include it (a firm only on the Bookkeeping list counted as accounting).
+    Those get the neutral voice: "finance firms" is true of all three, and the
+    wrong rung in the one line about THEM is what the 2026-10-25 review caught
+    on 4 of 20 emails.
     """
     if force_pack:
         return pack_key, "forced"
-    if rung:
-        return rung, "site"
     lists = {part.strip().lower() for part in (source or "").split("+") if part.strip()}
-    if len(lists) == 1:
-        only = APOLLO_LIST_PACKS.get(next(iter(lists)))
-        if only:
-            return only, "apollo list"
+    list_rungs = {APOLLO_LIST_PACKS[x] for x in lists if x in APOLLO_LIST_PACKS}
+    if rung:
+        named = name_rungs(firm_name)
+        if (named and rung not in named) or (list_rungs and rung not in list_rungs):
+            return NEUTRAL_PACK, "disagrees"
+        return rung, "site"
+    if len(lists) == 1 and list_rungs:
+        return next(iter(list_rungs)), "apollo list"
     return NEUTRAL_PACK, "neutral"
 
 
@@ -170,7 +205,7 @@ def generate_sequence(
     research = research_prospect(row["website"], taxonomy)
     pack_key, voice_source = choose_voice(
         getattr(research, "rung", None), row.get("_source"),
-        pack_key=pack_key, force_pack=force_pack,
+        pack_key=pack_key, force_pack=force_pack, firm_name=row.get("firm_name"),
     )
     pack = pack_for(pack_key)
     prospect, gift = resolve_gift(research, row, sc, pack=pack)

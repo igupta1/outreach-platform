@@ -272,7 +272,7 @@ def test_every_pack_shares_the_one_left_field_line():
             # 2026-10-24: what makes the gift different and what it does for
             # them. Never "real time" (the inventory is refreshed by hand).
             assert line == ("i'm an engineer. i built a system that finds companies "
-                            f"like these, built for {pack.dm_audience}.")
+                            f"like these, for {pack.dm_audience}.")
             assert "real time" not in line
         assert pack.dm_audience in line
         # The old line claimed I had heard this pain "over and over" from
@@ -290,7 +290,7 @@ def test_every_pack_shares_the_one_left_field_line():
         if key in ("msp", "mssp", "cloud"):
             continue
         assert line.replace(pack_for(key).dm_audience, "X") == \
-            LEFT_FIELD.format(audience="X")
+            LEFT_FIELD.format(things="companies", audience="X")
 
 
 def test_greeting_lowercased_but_company_names_kept_cased():

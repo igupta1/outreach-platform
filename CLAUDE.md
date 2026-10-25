@@ -121,7 +121,11 @@ the review card as `voice` / `voice_source`), first match wins:
 
 1. `--force-pack`: `--pack` for every prospect ("forced").
 2. Their own site names the service they sell (`research.rung.detect_rung`):
-   that rung ("site").
+   that rung ("site"), UNLESS the firm says otherwise: its name claims other
+   rungs (`name_rungs`: "3CFO Solutions" counted as bookkeeping, "Abrisma
+   Accounting" as cfo) or its Apollo lists never include that rung. Then the
+   neutral pack ("disagrees"). The site count is a word tally; the 2026-10-25
+   review found it naming the wrong rung on 4 of 20 emails.
 3. Exactly ONE Apollo list in the prospect's `_source` column (FractionalCFO
    -> cfo, Accounting -> accounting, Bookkeeping -> bookkeeping): that pack
    ("apollo list").
@@ -162,7 +166,7 @@ and each line carries only what differs:
     2. Cathedral Towers
     3. Georgia Works (two years in a row)
 
-    i'm an engineer. i built a system that finds companies like these, built
+    i'm an engineer. i built a system that finds organizations like these,
     for fractional cfos.
 
     worth a look? happy to set it up for you either way :)
@@ -187,6 +191,24 @@ A site phrase made only of generic words ("organizations", "companies",
 "clients of all sizes") never borrows the model's industry guess
 (`gift.taxonomy._names_nothing`): AP CPA's "organizations" was sent "noticed you
 work with nonprofits" off the guess alone.
+
+The engineer line says "organizations" when every lead is a nonprofit, else
+"companies" (`left_field_for(pack, gift)`); until 2026-10-25 it said "built"
+twice and called charities companies.
+
+**"now" only for a recent audit.** The audit "why" says "so each now has to
+file a plan to fix it" only when EVERY audit in the email was accepted within
+a year of the record's as-of date (`gift.engine.audit_is_recent`,
+`AUDIT_RECENT_DAYS`); otherwise, or when the record has no dates, "so each had
+to file a plan to fix it". The walk also picks a recent audit before an old
+one of the same type (`sort_key`). 2026-10-25: 10 of 80 leads were FY2024
+audits accepted in early 2025, all under "now".
+
+**Email 2 follows email 1's kind** (`sequence.generate._followup_drafts`): a
+lead of the same signal type, from the niche when there is one, else nearby,
+else nationwide (`build_gift(signal_types=, nationwide=)`); only when no lead
+of that kind is left anywhere does any nearby lead fill it. A Houston firm's
+nonprofit email was followed by an Arizona contractor.
 
 Never "real time" in the engineer line: the inventory is refreshed by hand and
 audit filings are months old. "still tuning it." was cut from the ask in the
@@ -324,8 +346,16 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
 levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
 "arlington" TX. A prospect with no state gets no city level.
 
-One organization per firm per state (`gift/allocation.py`) and never a firm's
-own audit client (`_audited_by`) apply to every pass. Allocation keys on
+One organization per firm per state (`gift/allocation.py`), never a firm's
+own audit client (`_audited_by`) and never a license another state issued
+(`_licensed_elsewhere`: a Clovis, CA roofer's new FLORIDA license reached a
+California firm, 2026-10-25) apply to every pass.
+
+**Location-only firms are drafted last** (`run.py`, with `--target`): a firm
+whose email claims a place, not an industry (review `niche` empty), is held
+and used only when the export runs out of industry matches before the target.
+A held draft is not on the ledger (retried later) and is dropped if a lead in
+it went to another firm in its region meanwhile. Allocation keys on
 `Lead.allocation_key`: the identity, else the source record's own id (a
 Florida business with no license of its own has no identity, and the first
 review run gave three of them to two Fort Lauderdale firms).
@@ -398,6 +428,11 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   abbreviations with one reading expanded ("Comn" -> "Community", "Lndscpg" ->
   "Landscaping"). A word the SOURCE cut off ("Conservati") is never completed:
   `cut_off_word` sets `Lead.name_cut_off` and the lead line raises a review flag.
+  Since 2026-10-25 also: three-letter initials starting with a vowel pair no
+  English word starts with ("Aoc" -> "AOC"), and hyphen pieces of 3+ letters
+  ("Fls-S" -> "FLS-S"; "Go-Jo" keeps its case). A word glued to the one before
+  ("Rafcontracting") is never split: `glued_word` sets `Lead.name_glued` and
+  the lead line raises a review flag.
 - **No em dashes anywhere.** Templates are authored comma-only, and every
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent

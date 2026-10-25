@@ -23,7 +23,7 @@ from system_b.copy.lex import (
     state_display,
 )
 from system_b.copy.subject import build_subject, lead_noun, niche_claim
-from system_b.gift.engine import compute_match_level
+from system_b.gift.engine import audit_is_recent, compute_match_level, licensing_state
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import default_pack
@@ -77,9 +77,12 @@ CFO_PRIORITY_FLAG = (
 # Same day, shortened: "these aren't from a list" and "each one comes with a
 # reason to reach out" are both obvious once the reader has seen the list, so
 # "finds companies like these" carries them.
+#
+# 2026-10-25: "built ... built" said twice in one sentence, and "companies"
+# called a list of charities companies. The noun now follows the leads.
 LEFT_FIELD = (
-    "i'm an engineer. i built a system that finds companies like these, built "
-    "for {audience}."
+    "i'm an engineer. i built a system that finds {things} like these, for "
+    "{audience}."
 )
 # The IT packs (`--legacy-niche`) gift breaches and IT hires, not finance need,
 # so they keep the line that names no need.
@@ -90,12 +93,22 @@ _LEGACY_LEFT_FIELD = (
 _FINANCE_PACKS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
 
 
-def left_field_for(pack) -> str:
+def _org_noun(gift: Gift | None) -> str:
+    """"organizations" when every lead is a nonprofit, else "companies"."""
+    leads = gift.leads if gift is not None else []
+    if leads and all(ld.signal_type == NONPROFIT_SIGNAL or ld.industry == "nonprofit"
+                     for ld in leads):
+        return "organizations"
+    return "companies"
+
+
+def left_field_for(pack, gift: Gift | None = None) -> str:
     """The 5b line for a pack. `dm_audience` already names the buyer the way the
     copy says it aloud ("fractional cfos", "bookkeepers"), so the packs need no
     second field for it."""
-    tmpl = LEFT_FIELD if pack.key in _FINANCE_PACKS else _LEGACY_LEFT_FIELD
-    return tmpl.format(audience=pack.dm_audience)
+    if pack.key not in _FINANCE_PACKS:
+        return _LEGACY_LEFT_FIELD.format(audience=pack.dm_audience)
+    return LEFT_FIELD.format(things=_org_noun(gift), audience=pack.dm_audience)
 
 
 @dataclass
@@ -449,6 +462,11 @@ _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
 # Kinds absent here keep "here are 3 ... {clause}:" and get no why.
 _AUDIT_WHY = ("so each now has to file a plan to fix it",
               "so it now has to file a plan to fix it")
+# "now" only when every audit in the email was filed within a year
+# (`gift.engine.audit_is_recent`); an older plan was due when that audit was
+# filed, so the past tense is the true one.
+_AUDIT_WHY_PAST = ("so each had to file a plan to fix it",
+                   "so it had to file a plan to fix it")
 _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     "audit_controls": (("had weak financial controls flagged in their federal audits",
                         "had weak financial controls flagged in its federal audit"),
@@ -607,6 +625,8 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
     at = f"in {where}" if where else ""
     if kind in _RECORD_WHY:
         predicates, whys = _RECORD_WHY[kind]
+        if whys is _AUDIT_WHY and not all(audit_is_recent(ld) for ld in gift.leads):
+            whys = _AUDIT_WHY_PAST
         count = f"these {n}" if n != 1 else ("this" if noun else "this one")
         ask = " ".join(w for w in (count, noun, at, predicates[one]) if w) \
             + f", {whys[one]}:"
@@ -1009,16 +1029,8 @@ def davis_bacon_phrase(lead: Lead) -> str:
 
 
 def _licensing_state(lead: Lead) -> str | None:
-    """The state that issued the license (WA L&I, Florida DBPR), read off the
-    record's own lookup / source link, else its payload `state`."""
-    p = _payload(lead)
-    where = " ".join(str(x or "") for x in (p.get("lookup"), p.get("dataset"),
-                                             lead.primary_source_url))
-    if "lni.wa.gov" in where or "data.wa.gov" in where:
-        return "WA"
-    if "myfloridalicense" in where:
-        return "FL"
-    return p.get("state") or None
+    """The state that issued the license (`gift.engine.licensing_state`)."""
+    return licensing_state(lead)
 
 
 def _elsewhere(lead: Lead, issuer: str | None) -> str:
@@ -1164,6 +1176,11 @@ def _lead_line(
             f"name cut off by the source ({lead.company}: \"{lead.name_cut_off}\") — "
             "check the real name before sending"
         )
+    if lead.name_glued:
+        flags.append(
+            f"name may be missing a space ({lead.company}: \"{lead.name_glued}\") — "
+            "check the registered name before sending"
+        )
     if is_raise(lead, pack.raise_signals) and geo_level == "city":
         flags.append(
             f"funding lead ({lead.company}) drives a city claim — its city may be "
@@ -1204,7 +1221,7 @@ def build_email_1(
             line = record[1][i]
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
-    left_field = left_field_for(pack)
+    left_field = left_field_for(pack, gift)
     cta = pack.cta(gift, prospect)
     # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
     greeting = f"hey {(prospect.first_name or 'there').lower()},"

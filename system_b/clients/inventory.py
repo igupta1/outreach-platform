@@ -270,7 +270,7 @@ _TITLE_WORDS = frozenset({
     "of", "on", "to", "in", "up", "by", "at", "no", "go", "my", "we", "hi", "an",
     "as", "is", "or", "so", "do", "be", "he", "me", "am", "oh", "ox", "de", "la",
     "el", "le", "du", "da", "di", "st", "jr", "sr", "dr", "mr", "ms", "mt", "ft",
-    "co", "ed", "re", "ma", "mo", "yo", "us", "it", "ag",
+    "co", "ed", "re", "ma", "mo", "yo", "us", "it", "ag", "op",
     "ltd", "mrs", "hwy", "pkwy", "blvd", "mfg", "rd", "ln", "bros", "sri", "tsai",
 })
 _ROMAN_RE = re.compile(r"^(?=[ivx]{2,4}$)x{0,3}(ix|iv|v?i{0,3})$")   # "Ii", "Iii", "Iv"
@@ -282,11 +282,22 @@ _ONSETS = frozenset((
     "ng bj bh dh cz dj"
 ).split())
 _VOWELS = frozenset("aeiouy")
+# Two vowels an English word (or a common name) can start with: "Oak", "Aid",
+# "Out", "Iowa". A three-letter token starting with any other pair is initials:
+# "Aoc Calton" is AOC Calton (SAM.gov shouts it, `_fix_shouting` calms it).
+_VOWEL_STARTS = frozenset("ai au ea ee ei eu oa oi oo ou io ia".split())
 _TOKEN_RE = re.compile(r"^([^A-Za-z]*)([A-Za-z]+)([^A-Za-z]*)$")
 _TITLE_S_RE = re.compile(r"(?<=[a-z])'S\b")          # "Barrett'S" -> "Barrett's"
 
 
 def _fix_token(token: str) -> str:
+    if "-" in token.strip("-"):
+        # "Fls-S" -> "FLS-S": each piece of a hyphenated token on its own.
+        # Without this the whole token failed `_TOKEN_RE` and kept its case.
+        # Pieces under 3 letters are left alone: in a hyphenated brand they
+        # are syllables ("Go-Jo", "Bi-Bett", "D-Fi"), not initials.
+        return "-".join(_fix_token(part) if len(part) >= 3 else part
+                        for part in token.split("-"))
     m = _TOKEN_RE.match(token)
     if not m or "'" in token:
         return token                       # "Me 'Oe": a word, not initials
@@ -303,6 +314,8 @@ def _fix_token(token: str) -> str:
         return upper                       # "Llc", "Ahec", "Ii"
     if len(low) == 2 or not set(low) & _VOWELS:
         return upper                       # "Sc", "Nw", "Mds", "Pnw"
+    if len(low) == 3 and low[0] in "aeiou" and low[1] in "aeiou" and low[:2] not in _VOWEL_STARTS:
+        return upper                       # "Aoc", "Aeg"
     if (low[0] not in "aeiou" and low[1] not in _VOWELS and low[:2] not in _ONSETS
             and (len(low) <= 4 or sum(c in _VOWELS for c in low) <= 1)):
         return upper                       # "Wscadv", "Sro", "Sfa"
@@ -355,6 +368,41 @@ def cut_off_word(name: str) -> str | None:
             continue
         if any(w.startswith(low) for w in _LONG_WORDS):
             return word
+    return None
+
+
+# Words a source glues onto the one before ("RAFCONTRACTING INC"). A token that
+# ENDS in one, after a few more letters, is FLAGGED and never split: "Raf
+# Contracting" is likely, but the registered name may really be one word.
+_GLUED_WORDS = (
+    "contracting", "contractors", "construction", "builders", "services",
+    "solutions", "roofing", "plumbing", "electric", "electrical", "consulting",
+    "enterprises", "industries", "holdings", "properties", "management",
+    "development", "foundation", "ministries", "landscaping", "remodeling",
+    "engineering", "technologies", "group",
+)
+# Real prefixes: "Subcontracting", "Reconstruction", "Nonprofit...".
+_GLUE_PREFIXES = frozenset({"sub", "re", "pre", "non", "co", "inter", "de", "self",
+                            "home", "eco", "geo", "multi", "micro", "bio", "nano",
+                            "info", "agri", "enviro", "petro", "aero", "hydro", "di"})
+
+
+# Real single words that end in one of `_GLUED_WORDS`.
+_GLUED_WHOLE = frozenset({"shipbuilders", "waterproofing", "homebuilders",
+                          "boatbuilders", "subcontractors"})
+
+
+def glued_word(name: str) -> str | None:
+    """A token that looks like two words with the space lost ("Rafcontracting"),
+    or None."""
+    for word in re.findall(r"[A-Za-z]+", name or ""):
+        low = word.lower()
+        if low in _GLUED_WHOLE:
+            continue
+        for tail in _GLUED_WORDS:
+            head = low[: -len(tail)]
+            if low.endswith(tail) and len(head) >= 2 and head not in _GLUE_PREFIXES:
+                return word
     return None
 
 
@@ -561,6 +609,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         id=str(lead_id),
         entity_id=_entity_id(row),
         company=company,
+        name_glued=glued_word(company),
         name_cut_off=cut_off_word(company),
         domain=row.get("domain"),
         city=row.get("city"),

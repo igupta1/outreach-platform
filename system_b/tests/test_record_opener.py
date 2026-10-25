@@ -38,9 +38,12 @@ def gift(leads: list[Lead], *, all_niche: bool = False, geo: str = "city") -> Gi
                 what_category=_cfo_what_category(leads), best_lead_level=1)
 
 
-MW = {"fac_material_weakness": True}
-REPEAT = {"fac_material_weakness": True, "fac_repeat_material_weakness": True}
-GRANTS = {"fac_program_control_finding": True}
+# Audits accepted within a year of the record's as-of date: "now has to".
+NEW = {"fac_accepted_date": "2026-03-02", "fac_as_of": "2026-10-24"}
+OLD = {"fac_accepted_date": "2025-02-14", "fac_as_of": "2026-10-24"}
+MW = {"fac_material_weakness": True, **NEW}
+REPEAT = {"fac_material_weakness": True, "fac_repeat_material_weakness": True, **NEW}
+GRANTS = {"fac_program_control_finding": True, **NEW}
 
 TROY = Prospect(firm_name="Peach Cfo", city="Atlanta", state="GA", first_name="Troy",
                 classification="niched", match_param=("industry", "nonprofit"),
@@ -61,7 +64,7 @@ def test_the_users_example_renders_exactly():
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
-        "i'm an engineer. i built a system that finds companies like these, built "
+        "i'm an engineer. i built a system that finds organizations like these, "
         "for fractional cfos.\n\n"
         "worth a look? happy to set it up for you either way :)"
     )
@@ -137,3 +140,29 @@ def test_one_lead_reads_in_the_singular():
 def test_non_record_leads_keep_the_legacy_path():
     g = gift([lead("job_finance_lead", name="A")])
     assert record_opener(g, TROY) is None
+
+
+def test_an_old_audit_had_to_file_a_plan_not_now():
+    """2026-10-25: a FY2024 audit accepted in early 2025 read "each now has to
+    file a plan". One audit over a year old puts the whole sentence in the past."""
+    g = gift([lead(NP, MW, name="A"), lead(NP, {**MW, **OLD}, name="B")], all_niche=True)
+    framing, _ = record_opener(g, TROY)
+    assert framing.endswith("so each had to file a plan to fix it:")
+    one = gift([lead(NP, {"fac_material_weakness": True}, name="C")], all_niche=True)
+    # A record that does not say when it was filed never claims "now".
+    assert record_opener(one, TROY)[0].endswith("so it had to file a plan to fix it:")
+
+
+def test_the_engineer_line_names_organizations_only_for_nonprofits():
+    from system_b.copy.email import left_field_for
+    cfo = pack_for("cfo")
+    charities = gift([lead(NP, MW, name="A"), lead(NP, MW, name="B")])
+    builders = gift([lead(DB, {}, name="A", industry="construction"),
+                     lead(NP, MW, name="B")])
+    assert left_field_for(cfo, charities) == (
+        "i'm an engineer. i built a system that finds organizations like these, "
+        "for fractional cfos.")
+    assert left_field_for(cfo, builders) == (
+        "i'm an engineer. i built a system that finds companies like these, "
+        "for fractional cfos.")
+    assert left_field_for(pack_for("finance"), builders).endswith("for finance firms.")

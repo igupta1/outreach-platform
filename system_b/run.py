@@ -133,6 +133,12 @@ def _review_path(out_path: str) -> Path:
     return p.with_name(f"{stem}.review.json")
 
 
+def _location_only(res: dict) -> bool:
+    """A draft whose gift matched the firm on place alone, not industry."""
+    # `niche` is the industry the email claims; None when it claims a place.
+    return not (res.get("review") or {}).get("niche")
+
+
 def _check_ledger_header(path: Path) -> None:
     """Refuse a ledger whose columns are not this file's columns.
 
@@ -355,6 +361,13 @@ def main() -> None:
     allocations = Allocations.load(Path(args.allocations))
 
     results: list[dict] = []
+    # Firms matched only on location (their site names no industry we have
+    # leads for) are drafted LAST: held here and used only when the export
+    # runs out of industry matches before the target. Their gift is true but
+    # beside their work (a restaurant accountant shown charities), so 5 of 20
+    # such emails in one batch (2026-10-25) spent a fifth of the day on the
+    # weakest drafts. A held one is not on the ledger, so it is retried later.
+    location_only: list[tuple[dict, dict]] = []
     skipped: list[tuple[str, str]] = []
     backlog: list[dict] = []
     for p in prospects:
@@ -381,10 +394,29 @@ def main() -> None:
                 print(f"  · {firm:32} {res.get('status')}")
             skipped.append((firm, res.get("status", "?")))
             continue
+        if target is not None and _location_only(res):
+            location_only.append((p, res))
+            print(f"  · {firm:32} location-only match, drafted only if the target needs it")
+            continue
         results.append(res)
         allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, "
               f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
+
+    # Fill what the industry matches left. A held draft was built before later
+    # firms took their organizations, so one naming an organization now
+    # allocated in its region is dropped (one organization per region).
+    for p, res in location_only:
+        if target is not None and len(results) >= target:
+            break
+        firm = p.get("firm_name", "?")
+        taken = allocations.blocked(firm, p.get("state"))
+        if taken & set(res.get("lead_identities") or []):
+            print(f"  · {firm:32} location-only draft dropped: a lead went to another firm")
+            continue
+        results.append(res)
+        allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
+        print(f"  · {res['company']:32} ok, location-only ({res.get('gift_size')} in gift)")
 
     # A HEALTH SIGNAL, not a per-prospect fact. Every firm in this campaign is
     # supposed to sell one of the three finance services; a handful of

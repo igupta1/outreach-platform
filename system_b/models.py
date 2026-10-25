@@ -80,6 +80,9 @@ class Lead(BaseModel):
     # The fragment of a word the SOURCE cut off in the name ("Conservati"), or
     # None. Never completed by guesswork: the lead line raises a review flag.
     name_cut_off: str | None = None
+    # A token that looks like two words with the space lost ("Rafcontracting"),
+    # or None. Never split by guesswork: the lead line raises a review flag.
+    name_glued: str | None = None
 
     @property
     def identity(self) -> str | None:

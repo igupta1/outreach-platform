@@ -172,7 +172,7 @@ def test_generate_sequence_includes_review(monkeypatch):
                 best_lead_level=1)
     followup_leads = [lead2]
 
-    def fake_build_gift(p, sc, *, target=3, niche_only=False, pack=None):
+    def fake_build_gift(p, sc, *, target=3, niche_only=False, pack=None, **_):
         if followup_leads:
             ld = followup_leads.pop(0)
             return Gift(leads=[ld], best_lead=ld, gift_size=1, all_niche=False,

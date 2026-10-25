@@ -43,7 +43,7 @@ def _draft(monkeypatch, *, rung, source, pack_key="cfo", force_pack=False):
                 best_lead_level=1)
     spare = list(leads[3:])
 
-    def one_more(p, sc, *, target=3, niche_only=False, pack=None):
+    def one_more(p, sc, *, target=3, niche_only=False, pack=None, **_):
         if not spare:
             return None
         ld = spare.pop(0)
@@ -75,7 +75,7 @@ def test_one_apollo_list_picks_the_voice_when_the_site_is_silent(
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == pack and res["voice_source"] == "apollo list"
-    assert f"built for {audience}." in res["email_1"]
+    assert f"like these, for {audience}." in res["email_1"]
     assert f"built this one for {audience}." in res["li_dm_1"]
     card = res["review"]
     assert (card["voice"], card["voice_source"], card["apollo_lists"]) == \
@@ -91,17 +91,49 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == "finance" and res["voice_source"] == "neutral"
-    assert "built for finance firms." in res["email_1"]
+    assert "like these, for finance firms." in res["email_1"]
     assert "built this one for finance firms." in res["li_dm_1"]
     copy = _copy(res)
     assert not [w for w in RUNG_WORDS if w in copy], copy
     assert res["review"]["voice_source"] == "neutral"
 
 
-def test_the_site_still_wins_over_the_apollo_list(monkeypatch):
-    res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
+def test_the_site_wins_when_the_lists_include_it(monkeypatch):
+    res = _draft(monkeypatch, rung="bookkeeping", source="Accounting+Bookkeeping")
     assert (res["pack"], res["voice_source"]) == ("bookkeeping", "site")
-    assert "built for bookkeepers." in res["email_1"]
+    assert "like these, for bookkeepers." in res["email_1"]
+
+
+def test_a_site_the_apollo_list_contradicts_gets_the_neutral_voice(monkeypatch):
+    """A firm only on the Accounting list whose site counted as bookkeeping."""
+    res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
+    assert (res["pack"], res["voice_source"]) == ("finance", "disagrees")
+    assert "like these, for finance firms." in res["email_1"]
+    assert res["review"]["voice_source"] == "disagrees"
+
+
+@pytest.mark.parametrize("firm, rung, lists, expected", [
+    # The 2026-10-25 batch: four firms told the wrong rung.
+    ("3CFO Solutions LLC", "bookkeeping", "FractionalCFO", ("finance", "disagrees")),
+    ("Accountit\u2122, CPA", "bookkeeping", "FractionalCFO+Accounting+Bookkeeping",
+     ("finance", "disagrees")),
+    ("Abrisma Accounting LLC", "cfo", "Accounting", ("finance", "disagrees")),
+    ("Anne Napolitano Consulting, Inc.", "cfo", "Accounting+Bookkeeping",
+     ("finance", "disagrees")),
+    # Agreement keeps the site's rung.
+    ("Allegro CFO", "cfo", "FractionalCFO", ("cfo", "site")),
+    ("Accountix | Bookkeeping + CFO Experts", "bookkeeping", "Accounting+Bookkeeping",
+     ("bookkeeping", "site")),
+    ("AccountingRx", "accounting", "Accounting+Bookkeeping", ("accounting", "site")),
+    ("Alfred Moore CPA LLC", "accounting", "", ("accounting", "site")),
+])
+def test_the_firms_own_name_and_lists_can_overrule_the_site(firm, rung, lists, expected):
+    assert choose_voice(rung, lists, firm_name=firm) == expected
+
+
+def test_force_pack_still_beats_a_disagreement():
+    assert choose_voice("cfo", "Accounting", pack_key="bookkeeping", force_pack=True,
+                        firm_name="Abrisma Accounting") == ("bookkeeping", "forced")
 
 
 def test_force_pack_overrides_site_and_list(monkeypatch):

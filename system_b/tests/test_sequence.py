@@ -36,7 +36,7 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
 
     followup_leads = [lead2, lead3]
 
-    def fake_build_gift(p, sc, *, target=3, niche_only=False, pack=None):
+    def fake_build_gift(p, sc, *, target=3, niche_only=False, pack=None, **_):
         # follow-ups call target=1; hand out l2 then l3, then dry up.
         if followup_leads:
             ld = followup_leads.pop(0)
