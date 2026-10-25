@@ -298,19 +298,20 @@ def test_every_pack_shares_the_one_left_field_line():
             LEFT_FIELD.format(things="companies", help="X")
 
 
-def test_no_greeting_line_and_company_names_kept_cased():
-    # 2026-10-25: no "hey dora," at all -- the email starts at the signal.
+def test_greeting_lowercased_but_company_names_kept_cased():
+    # "hey dora," not "hey Dora," — lowercase prose, proper nouns intact. Kept
+    # after a day without it (2026-10-25): it read abrupt.
     p = P(first_name="Dora")
     lead = mk("a", "job_finance_lead", industry="healthcare", city="Denver", state="CO",
               date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, today=TODAY)
-    assert draft.body.startswith("saw on your site you work with healthcare companies")
-    assert not draft.body.startswith("hey ")
+    assert draft.body.startswith("hey dora,\n\nsaw on your site you work with healthcare companies")
+    assert "hey Dora," not in draft.body
     # ...but a lead company name (a proper noun, added by code) keeps its casing
     assert "Acme BioLabs, denver:" in draft.body
-    # a missing first name changes nothing: there is no greeting to fill
-    assert build_email_1(g, P(first_name=None), today=TODAY).body == draft.body
+    # missing first name still falls back to "there"
+    assert build_email_1(g, P(first_name=None), today=TODAY).body.startswith("hey there,")
 
 
 # --------------------------------------------------------------------------
@@ -476,7 +477,8 @@ def test_full_email_niched_example_1():
     draft = build_email_1(g, p, today=TODAY)
 
     assert draft.subject == "healthcare companies in denver hiring finance leadership right now"
-    assert draft.body.startswith("saw on your site you work with healthcare companies, so i pulled 3 more")
+    assert draft.body.startswith("hey dana,\n\n")
+    assert "saw on your site you work with healthcare companies, so i pulled 3 more" in draft.body
     # a finance-lead hire (rank 1) outranks the junior-finance leads (rank 2)
     # in the within-level re-sort, so the finance-lead line is #1.
     assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body

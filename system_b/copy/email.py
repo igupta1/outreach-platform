@@ -1227,14 +1227,16 @@ def build_email_1(
 
     left_field = left_field_for(pack, gift)
     cta = pack.cta(gift, prospect)
-    # No greeting line (2026-10-25, the user and the outbound guide: start at
-    # the signal). The first line a phone shows is now what we saw about them.
+    # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
+    # Kept on purpose (2026-10-25): the user tried the email without it and it
+    # read abrupt.
+    greeting = f"hey {(prospect.first_name or 'there').lower()},"
 
     # B4a: on the platform send path the signoff is owned by each Smartlead
     # mailbox's signature field ("best, mason" etc.), so the copy engine adds
     # NONE — otherwise the send gets a double signoff. include_signoff stays
     # True for the legacy Airtable-review flow (m4_walkthrough).
-    parts = [framing, "\n".join(lines), left_field, cta]
+    parts = [greeting, framing, "\n".join(lines), left_field, cta]
     if include_signoff:
         parts.append("best,\nishaan")
     body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere

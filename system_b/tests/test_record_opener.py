@@ -57,6 +57,7 @@ def test_the_users_example_renders_exactly():
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo"),
                          include_signoff=False).body
     assert body == (
+        "hey troy,\n\n"
         "saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial "
         "controls flagged in their federal audits, and each has to show it's fixed "
         "in its next audit:\n\n"

@@ -216,9 +216,10 @@ audit), so a weak late filing never jumps a strong old finding (a hard "newer
 first" rule did exactly that the day it shipped). `strongest_first` then lists
 the email's leads in that same order.
 
-**No greeting, short subjects** (2026-10-25, the user and the outbound guide's
-"start at the signal"). Email 1 opens on what we saw about them, with no "hey
-troy,". A finance pack's record gift gets `copy.subject.short_subject`: "{n}
+**Short subjects; the greeting stays** (2026-10-25). The outbound guide says
+start at the signal, and "hey troy," was dropped for one rebuild; the user put
+it back ("it feels a little abrupt without it"). Keep it. A finance pack's
+record gift gets `copy.subject.short_subject`: "{n}
 {place} {nonprofits | contractors | companies} {what the record shows}", e.g.
 "3 atlanta nonprofits with audit problems", short enough for a phone. A charity whose
 next audit is not on file reads, in email 2, "doesn't have its next federal
