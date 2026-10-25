@@ -348,3 +348,15 @@ def test_real_fund_managers_still_match():
                    "venture capital funds", "emerging fund managers"):
         got = map_industry_candidates(phrase, None, tax)
         assert any(mp[1] == "private_funds" for mp in got), (phrase, got)
+
+
+def test_a_generic_phrase_never_borrows_the_models_guess():
+    """AP CPA's site said "organizations"; the model guessed "nonprofit" and the
+    email claimed "noticed you work with nonprofits" (2026-10-24). A phrase made
+    only of words that name no industry maps to nothing, whatever the guess."""
+    for phrase in ("organizations", "Organizations", "small and medium businesses",
+                   "clients of all sizes", "companies"):
+        assert map_industry_candidates(phrase, "nonprofit", TAXONOMY) == [], phrase
+    # A phrase that names something still falls back to the guess.
+    assert map_industry_candidates("churches and ministries", "nonprofit", TAXONOMY) == [
+        ("industry", "nonprofit")]

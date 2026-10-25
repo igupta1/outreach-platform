@@ -10,20 +10,10 @@ serves the page. It is read-only and send-free — no CRM, no Airtable, no send.
 ## Why one page for every pack
 
 The packs are generated separately because each needs its own `--pack` voice,
-but the operator's day is not divided that way. Three pages meant three sorted
-lists and three separate answers to a question that has one: **who do I send a
-connection request to today?** LinkedIn's cap is one budget across everything
-running, so the top 20 has to be chosen across every pack at once — and the
-only place that decision can be made is where all three are on screen together.
-
-So the page groups by pack (each with its own header and its own email
-download, because each goes to a different campaign) while ranking the connect
-picks GLOBALLY. A bookkeeping prospect with named clients outranks a cfo
-prospect matched only on state, and now you can see that.
-
-The email CSVs stay separate — one per campaign. The LinkedIn CSV is COMBINED,
-because it all gets pasted into one history sheet that is searched by name
-weeks later, when someone finally accepts.
+but the operator reviews the whole day at once. The page groups by pack (each
+with its own email download) and the footer exports every pack as one file for
+a single campaign. The gate is email-only: LinkedIn is not used for these
+prospects (2026-10-24).
 
 The JSON files are re-read on every request, so you can regenerate (`run.py`)
 and just refresh the page.

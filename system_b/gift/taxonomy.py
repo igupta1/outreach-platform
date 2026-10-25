@@ -178,6 +178,29 @@ def map_prospect(
     return "generalist", None
 
 
+# Words that name no industry at all. When the verbatim phrase is made only of
+# these, the model's `guess` must not stand in for it: AP CPA's site said
+# "organizations", the model guessed "nonprofit", and the email told them
+# "noticed you work with nonprofits" off a word that says nothing of the kind
+# (2026-10-24). A guess may only map a phrase that names SOMETHING.
+_GENERIC_WORDS = frozenset({
+    "organization", "organizations", "org", "orgs", "company", "companies",
+    "business", "businesses", "client", "clients", "customer", "customers",
+    "firm", "firms", "entity", "entities", "group", "groups", "team", "teams",
+    "people", "individual", "individuals", "owner", "owners", "industry",
+    "industries", "sector", "sectors", "all", "any", "every", "other", "others",
+    "various", "many", "most", "size", "sizes", "type", "types", "kind", "kinds",
+    "small", "medium", "mid", "sized", "large", "local", "growing", "and", "or",
+    "of", "the", "a", "an", "for", "with", "in", "our", "your", "their",
+})
+
+
+def _names_nothing(phrase: str) -> bool:
+    """True when every word in the phrase is generic (or there are none)."""
+    words = _WORD_RE.findall((phrase or "").lower())
+    return all(w in _GENERIC_WORDS for w in words)
+
+
 def map_industry_candidates(
     phrase: str, guess: str | None, taxonomy: dict[str, list[str]]
 ) -> list[tuple[str, str]]:
@@ -187,11 +210,14 @@ def map_industry_candidates(
     real_estate] — all become candidates so the resolver can claim the
     best-supplied, fit-passing one instead of dropping a useful match. Children
     sort first (more specific). Falls back to the model's one-word `guess` only
-    when the phrase itself maps to nothing."""
+    when the phrase itself maps to nothing, and never when the phrase names
+    nothing ("organizations")."""
     found = _industry_map(phrase, taxonomy)
     out = [_mp_for(parent, child) for parent, child in found.items()]
     if out:
         out.sort(key=lambda mp: 0 if mp[0] == "niche" else 1)   # children first
         return out
+    if _names_nothing(phrase):
+        return []
     _cls, mp = map_prospect(guess or "", taxonomy)
     return [mp] if mp else []

@@ -75,7 +75,7 @@ def test_one_apollo_list_picks_the_voice_when_the_site_is_silent(
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == pack and res["voice_source"] == "apollo list"
-    assert f"this one is for {audience}." in res["email_1"]
+    assert f"built for {audience}." in res["email_1"]
     assert f"built this one for {audience}." in res["li_dm_1"]
     card = res["review"]
     assert (card["voice"], card["voice_source"], card["apollo_lists"]) == \
@@ -91,7 +91,7 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == "finance" and res["voice_source"] == "neutral"
-    assert "this one is for finance firms." in res["email_1"]
+    assert "built for finance firms." in res["email_1"]
     assert "built this one for finance firms." in res["li_dm_1"]
     copy = _copy(res)
     assert not [w for w in RUNG_WORDS if w in copy], copy
@@ -101,7 +101,7 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
 def test_the_site_still_wins_over_the_apollo_list(monkeypatch):
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
     assert (res["pack"], res["voice_source"]) == ("bookkeeping", "site")
-    assert "this one is for bookkeepers." in res["email_1"]
+    assert "built for bookkeepers." in res["email_1"]
 
 
 def test_force_pack_overrides_site_and_list(monkeypatch):

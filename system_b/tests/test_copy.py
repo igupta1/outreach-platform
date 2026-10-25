@@ -240,10 +240,7 @@ def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
     look?" is answerable from the email they are already reading. Still
     niche/geo-agnostic: the opener and the leads carried the personalization,
     and repeating it here made the close about the feed."""
-    expected = (
-        "still tuning it. worth a look? happy to set it up to run for you "
-        "either way :)"
-    )
+    expected = "worth a look? happy to set it up for you either way :)"
     p = P()
     for all_niche, geo in ((True, "city"), (False, "city"), (False, "state"), (False, "none")):
         assert _cta(G(all_niche=all_niche, geo=geo), p) == expected
@@ -265,10 +262,18 @@ def test_every_pack_shares_the_one_left_field_line():
     from system_b.niches.base import pack_for
 
     seen = {}
-    for key in ("cfo", "accounting", "bookkeeping", "msp", "mssp", "cloud"):
+    for key in ("cfo", "accounting", "bookkeeping", "finance", "msp", "mssp", "cloud"):
         pack = pack_for(key)
         line = left_field_for(pack)
-        assert line.startswith("i'm an engineer. i build these lead systems, and this one is for ")
+        if key in ("msp", "mssp", "cloud"):
+            # The legacy IT packs gift breaches, not finance need.
+            assert line.startswith("i'm an engineer. i build these lead systems, and this one is for ")
+        else:
+            # 2026-10-24: what makes the gift different and what it does for
+            # them. Never "real time" (the inventory is refreshed by hand).
+            assert line == ("i'm an engineer. i built a system that finds companies "
+                            f"like these, built for {pack.dm_audience}.")
+            assert "real time" not in line
         assert pack.dm_audience in line
         # The old line claimed I had heard this pain "over and over" from
         # their peers. The real total is 30 emails sent once, two replies and
@@ -279,9 +284,11 @@ def test_every_pack_shares_the_one_left_field_line():
         assert "hearing the same thing" not in line
         assert line == line.lower() and "—" not in line
         seen[key] = line
-    # every pack differs ONLY by the audience word
-    assert len(set(seen.values())) == 6
+    # within each family, packs differ ONLY by the audience word
+    assert len(set(seen.values())) == 7
     for key, line in seen.items():
+        if key in ("msp", "mssp", "cloud"):
+            continue
         assert line.replace(pack_for(key).dm_audience, "X") == \
             LEFT_FIELD.format(audience="X")
 

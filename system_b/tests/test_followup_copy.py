@@ -164,7 +164,10 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
     d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY)
     d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "worth a look?" in d2.body and "worth a look?" in d3.body
+    assert "worth a look?" in d2.body
+    # Email 3 ends on its own question (2026-10-24), not a second ask about the
+    # tool: "what's draining your week? ... worth a look?" did not fit together.
+    assert d3.body.endswith("if something else is draining your week, what is it?")
     assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body

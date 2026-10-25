@@ -168,17 +168,43 @@ def test_the_need_clause_names_the_record_event():
     assert need_for(_gift([lead(NB)]), default="X") == "newly registered with the state"
 
 
-def test_email_2_says_same_signal_only_when_it_is():
+def test_email_2_is_one_plain_sentence_in_email_1s_words():
+    """2026-10-24: no "showing the same signal" jargon and no "found" / "offer
+    still stands"; email 2 sits in email 1's thread."""
     pack = pack_for("cfo")
-    other = lead(NB, name="New Co Llc")
     same = build_followup_email(lead(DB, name="B Llc"), PROSPECT, step=2, today=TODAY,
                                 pack=pack, gift_signals={DB})
-    diff = build_followup_email(other, PROSPECT, step=2, today=TODAY, pack=pack,
-                                gift_signals={DB})
-    assert "showing the same signal" in same.body
-    assert "same signal" not in diff.body and "from public records" in diff.body
-    assert "just registered as a new company" in diff.body
-    assert "books" not in diff.body
+    diff = build_followup_email(lead(NB, name="New Co Llc"), PROSPECT, step=2,
+                                today=TODAY, pack=pack, gift_signals={DB})
+    tail = "\n\nworth a look? happy to set it up for you either way."
+    assert same.body == "one more in tampa: B won a federal construction job." + tail
+    assert diff.body == ("one more in tampa: New Co just registered as a new company."
+                         + tail)
+    for body in (same.body, diff.body):
+        assert "same signal" not in body and "offer still stands" not in body
+        assert "books" not in body
+
+
+def test_email_2_names_the_place_only_when_it_matches_the_prospect():
+    pack = pack_for("cfo")
+    np = "nonprofit_grant_no_finance_officer"
+    repeat = {"fac_material_weakness": True, "fac_repeat_material_weakness": True}
+    atl = Prospect(firm_name="Peach", city="Atlanta", state="GA", first_name="Troy")
+    here = build_followup_email(lead(np, repeat, name="Warrior Alliance", city="Atlanta",
+                                     state="GA"), atl, step=2, today=TODAY, pack=pack)
+    assert here.body.startswith(
+        "one more in atlanta: Warrior Alliance had weak financial controls flagged in "
+        "its federal audit, two years in a row.")
+    state = build_followup_email(lead(FG, name="Grant Co", city="Macon", state="GA"), atl,
+                                 step=2, today=TODAY, pack=pack)
+    assert state.body.startswith(
+        "one more in georgia: Grant Co in macon got its first federal grant in 3+ years.")
+    away = build_followup_email(lead(CR, {"pricing_kind": "labor-hour"}, name="Far Co",
+                                     city="Reno", state="NV"), atl, step=2, today=TODAY,
+                                pack=pack)
+    assert away.body.startswith(
+        "one more: Far Co in reno won an hourly federal contract where the hours can "
+        "be audited.")
 
 
 def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():

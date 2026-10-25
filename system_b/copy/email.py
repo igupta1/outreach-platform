@@ -67,17 +67,35 @@ CFO_PRIORITY_FLAG = (
 # The replacement keeps the three jobs that were honest (credibility, "this
 # one" implying others, purpose-built for their profession) and drops the one
 # that was invented. House style: all lowercase, no em dashes.
+#
+# 2026-10-24, the user's rewrite for the finance packs: say what makes the gift
+# different (not a bought list; each company comes with its reason) and what
+# it does for the reader (a reason to reach out). Deliberately NOT "in real
+# time" or "public records": the inventory is refreshed by hand and its audit
+# filings are months old, so "real time" is a claim a reader could catch.
+#
+# Same day, shortened: "these aren't from a list" and "each one comes with a
+# reason to reach out" are both obvious once the reader has seen the list, so
+# "finds companies like these" carries them.
 LEFT_FIELD = (
+    "i'm an engineer. i built a system that finds companies like these, built "
+    "for {audience}."
+)
+# The IT packs (`--legacy-niche`) gift breaches and IT hires, not finance need,
+# so they keep the line that names no need.
+_LEGACY_LEFT_FIELD = (
     "i'm an engineer. i build these lead systems, and this one is for "
     "{audience}."
 )
+_FINANCE_PACKS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
 
 
 def left_field_for(pack) -> str:
     """The 5b line for a pack. `dm_audience` already names the buyer the way the
     copy says it aloud ("fractional cfos", "bookkeepers"), so the packs need no
     second field for it."""
-    return LEFT_FIELD.format(audience=pack.dm_audience)
+    tmpl = LEFT_FIELD if pack.key in _FINANCE_PACKS else _LEGACY_LEFT_FIELD
+    return tmpl.format(audience=pack.dm_audience)
 
 
 @dataclass
@@ -377,6 +395,244 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     return f"i pulled {n} {companies} {need}:"
 
 
+# --- The record opener (2026-10-24) ------------------------------------------
+#
+# Every lead the finance packs gift is now an inventory RECORD (an audit, an
+# award, a license, a grant, a filing). When all of an email's leads share one
+# kind of record, the opener states that shared fact ONCE, with why it matters
+# in the same sentence, and the lines carry only what differs. Before,
+# "auditors flagged ..." was said three times and the opener promised a vague
+# "need".
+#
+#   saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial
+#   controls flagged in their federal audits, so each now has to file a plan
+#   to fix it:
+#
+#   1. Georgia Court Appointed Special Advocates (two years in a row)
+#   2. Cathedral Towers
+#   3. Georgia Works (two years in a row)
+#
+# Three rules keep it honest:
+#   - The "why it matters" clause is a rule that follows from the record itself
+#     (a federal audit finding needs a corrective action plan, 2 CFR 200.511;
+#     Davis-Bacon needs weekly certified payroll, FAR 22.406-6; a cost-type
+#     contract needs an adequate accounting system, FAR 16.301-3; a federal
+#     award carries the Uniform Guidance's tracking and reporting rules). A
+#     license or a new registration implies no such rule, so it gets none:
+#     "books not set up yet" was a guess and was removed on 2026-10-18.
+#   - A place is named only when EVERY lead is there (same city in the same
+#     state, else the same state). The old opener said "pulled 3 more", whose
+#     "more" read as a previous email.
+#   - A gift that mixes kinds has no shared fact, so each line keeps its full
+#     templated reason, exactly as before, and there is no "why".
+#
+# Anything outside the record family (the IT packs' breaches and job posts)
+# returns None and keeps the old `pack.framing` + `_lead_line` path.
+
+# kind -> (plural clause, singular clause) for the kinds with NO why. The
+# clause follows the noun: "here are 3 in tampa {clause}:".
+_RECORD_CLAUSE: dict[str, tuple[str, str]] = {
+    NEW_LICENSE_SIGNAL: ("with a new contractor license",
+                         "with a new contractor license"),
+    LICENSE_UPGRADE_SIGNAL: ("that moved up to a bigger contractor license",
+                             "that moved up to a bigger contractor license"),
+    NEW_BUSINESS_SIGNAL: ("that just registered as new companies",
+                          "that just registered as a new company"),
+    "mixed": ("that need finance help", "that needs finance help"),
+}
+
+# kind -> ((plural predicate, singular predicate), (plural why, singular why))
+# for the kinds where a rule follows from the record. These open as ONE
+# sentence, what happened and why it matters before the list (2026-10-24):
+#   "these 3 in atlanta had weak financial controls flagged in their federal
+#    audits, so each now has to file a plan to fix it:"
+# Kinds absent here keep "here are 3 ... {clause}:" and get no why.
+_AUDIT_WHY = ("so each now has to file a plan to fix it",
+              "so it now has to file a plan to fix it")
+_RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
+    "audit_controls": (("had weak financial controls flagged in their federal audits",
+                        "had weak financial controls flagged in its federal audit"),
+                       _AUDIT_WHY),
+    "audit_grants": (("had their grant handling flagged in their federal audits",
+                      "had its grant handling flagged in its federal audit"),
+                     _AUDIT_WHY),
+    "audit_mixed": (("had problems flagged in their federal audits",
+                     "had problems flagged in its federal audit"),
+                    _AUDIT_WHY),
+    DAVIS_BACON_SIGNAL: (("won federal construction jobs",
+                          "won a federal construction job"),
+                         ("so each now owes weekly certified payroll for every worker",
+                          "so it now owes weekly certified payroll for every worker")),
+    "cost_every": (("won federal contracts where every cost can be audited",
+                    "won a federal contract where every cost can be audited"),
+                   ("so each needs books that can pass a government audit",
+                    "so it needs books that can pass a government audit")),
+    COST_CONTRACT_SIGNAL: (("won federal contracts the government can audit",
+                            "won a federal contract the government can audit"),
+                           ("so each needs books that can pass a government audit",
+                            "so it needs books that can pass a government audit")),
+    FIRST_GRANT_SIGNAL: (("got their first federal grant in 3+ years",
+                          "got its first federal grant in 3+ years"),
+                         ("so each now has strict tracking and reporting rules to follow",
+                          "so it now has strict tracking and reporting rules to follow")),
+}
+
+
+def _audit_facts(lead: Lead) -> tuple[str, bool] | None:
+    """("controls" | "grants", repeat) for a nonprofit whose audit has a
+    finding, read off the same `nonprofit_phrase` the full line uses so the two
+    can never disagree; None for a late or missing audit (no finding)."""
+    phrase = nonprofit_phrase(lead)
+    repeat = phrase.endswith("two years running")
+    if phrase.startswith("auditors flagged their"):
+        return "controls", repeat
+    if phrase.startswith("auditors flagged how they handle grants"):
+        return "grants", repeat
+    return None
+
+
+def _record_kind(gift: Gift) -> str | None:
+    """The fact every lead shares, "mixed" when they share none, or None when a
+    lead is outside the record family (legacy path)."""
+    leads = gift.leads
+    if not leads or any(ld.signal_type not in _RECORD_FAMILY for ld in leads):
+        return None
+    kinds = {ld.signal_type for ld in leads}
+    if len(kinds) > 1:
+        return "mixed"
+    kind = next(iter(kinds))
+    if kind == NONPROFIT_SIGNAL:
+        facts = [_audit_facts(ld) for ld in leads]
+        if any(f is None for f in facts):
+            return "mixed"
+        found = {f[0] for f in facts}
+        return {"controls": "audit_controls", "grants": "audit_grants"}.get(
+            next(iter(found)), "audit_mixed") if len(found) == 1 else "audit_mixed"
+    if kind == COST_CONTRACT_SIGNAL and all(
+            _payload(ld).get("pricing_kind") == "cost-reimbursement" for ld in leads):
+        return "cost_every"
+    return kind
+
+
+def _record_detail(lead: Lead, kind: str) -> str:
+    """Only what differs between leads that share `kind`; "" for nothing."""
+    p = _payload(lead)
+    if kind.startswith("audit_"):
+        what, repeat = _audit_facts(lead) or ("", False)
+        bits = []
+        if kind == "audit_mixed":
+            bits.append("financial controls" if what == "controls" else "grant handling")
+        if repeat:
+            bits.append("two years in a row")
+        return ", ".join(bits)
+    if kind == DAVIS_BACON_SIGNAL:
+        if p.get("first_contract_on_record"):
+            return "first on record"
+        n = p.get("awards_in_window")
+        return "more than one" if isinstance(n, int) and n > 1 else ""
+    if kind == COST_CONTRACT_SIGNAL:
+        return "hourly" if p.get("pricing_kind") in ("time-and-materials", "labor-hour") else ""
+    if kind == NEW_LICENSE_SIGNAL:
+        bits = ["new company"] if p.get("formed_class") == "new_company" else []
+        where = _elsewhere(lead, _licensing_state(lead))
+        if where:
+            bits.append("licensed" + where)
+        return ", ".join(bits)
+    if kind == LICENSE_UPGRADE_SIGNAL:
+        cls = _LICENSE_CLASS.get(str(p.get("license_class") or "").upper())
+        issuer = _elsewhere(lead, _licensing_state(lead) or "FL").removeprefix(" in ")
+        return " ".join(w for w in (issuer, cls, "contractor" if cls else "") if w)
+    if kind == NEW_BUSINESS_SIGNAL:
+        where = _elsewhere(lead, p.get("state"))
+        return "registered" + where if where else ""
+    return ""
+
+
+def _shared_place(gift: Gift) -> tuple[str, str]:
+    """("city" | "state" | "", display) for where EVERY lead is. A city counts
+    only within one state: arlington WA is not arlington TX."""
+    leads = gift.leads
+    cities = {(city_display(ld.city), state_display(ld.state)) for ld in leads}
+    if len(cities) == 1:
+        city, state = next(iter(cities))
+        if city and state:
+            return "city", city
+    states = {state_display(ld.state) for ld in leads}
+    if len(states) == 1:
+        state = next(iter(states))
+        if state:
+            return "state", state
+    return "", ""
+
+
+def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str]) -> str:
+    """The first sentence: what we saw about THEM. Same evidence and the same
+    soft verbs as `_framing`; empty when we can honestly say nothing."""
+    niche = niche_claim(gift, prospect)
+    if prospect.client_revenue and prospect.niche_source != "client_list":
+        rev = revenue_display(prospect.client_revenue)
+        return f"saw you work with {rev} {niche_noun(niche) if niche else 'companies'}."
+    if niche:
+        if prospect.niche_source == "client_list":
+            named = _client_names_phrase(prospect)
+            if named:
+                return f"noticed you've worked with {niche_noun(niche)} like {named}."
+            return f"noticed you've worked with {niche_noun(niche)}."
+        if prospect.niche_exclusivity == "one_of_several":
+            return f"noticed you work with {niche_noun(niche)}."
+        return f"saw on your site you work with {niche_noun(niche)}."
+    # Geography is claimed about them only when the leads really are there.
+    city = city_display(prospect.city)
+    state = state_display(prospect.state)
+    level, where = place
+    if level == "city" and city == where and state_display(prospect.state):
+        return f"saw you're based in {city}."
+    if level == "state" and state == where:
+        return f"saw you're based in {city or state}." if city else f"saw you're based in {state}."
+    return ""
+
+
+def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | None:
+    """(framing, lead lines without numbers) for a record gift, or None to keep
+    the legacy path."""
+    kind = _record_kind(gift)
+    if kind is None:
+        return None
+    n = gift.gift_size
+    place = _shared_place(gift)
+    level, where = place
+    niche = niche_claim(gift, prospect)
+    one = 0 if n != 1 else 1
+    noun = "" if niche else lead_noun(gift, n)
+    at = f"in {where}" if where else ""
+    if kind in _RECORD_WHY:
+        predicates, whys = _RECORD_WHY[kind]
+        count = f"these {n}" if n != 1 else ("this" if noun else "this one")
+        ask = " ".join(w for w in (count, noun, at, predicates[one]) if w) \
+            + f", {whys[one]}:"
+    else:
+        clause = _RECORD_CLAUSE[kind][one]
+        count = "here are " + str(n) if n != 1 else "here's one"
+        if noun and n == 1:
+            count = "here's a" + ("n" if noun[0] in "aeiou" else "")
+        ask = " ".join(w for w in (count, noun, at, clause) if w) + ":"
+    read = _record_read(gift, prospect, place)
+    framing = f"{read} {ask}" if read else ask
+
+    lines = []
+    for lead in gift.leads:
+        said = spoken_name(lead.company)
+        # The city is already in the opener when every lead shares it.
+        loc = "" if level == "city" else (city_display(lead.city) or state_display(lead.state))
+        name = f"{said}, {loc}" if loc else said
+        if kind == "mixed":
+            lines.append(f"{name}: {magnet_phrase(lead)}")
+        else:
+            detail = _record_detail(lead, kind)
+            lines.append(f"{name} ({detail})" if detail else name)
+    return framing, lines
+
+
 # The ask. One goal per email: book 15 minutes.
 #
 # The previous CTA ("want me to keep an eye out for atlanta ones?") optimized
@@ -403,10 +659,11 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
 # good; "worth a look?" asks for a yes or a no, which is a decision they can
 # make from the email they are already reading. The offer to run it either way
 # stays, because it is the part that costs them nothing.
-_CTA_LINE = (
-    "still tuning it. worth a look? happy to set it up to run for you either "
-    "way :)"
-)
+#
+# 2026-10-24: "still tuning it." cut in the user's shortening pass (the body
+# went from ~80 words to ~55). The trade-off was put to them: it made the ask
+# read as research rather than sales.
+_CTA_LINE = "worth a look? happy to set it up for you either way :)"
 
 
 def _cta(gift: Gift, prospect: Prospect) -> str:
@@ -933,13 +1190,18 @@ def build_email_1(
     pack = pack or default_pack()
     flags: list[str] = []
     subject = build_subject(gift, prospect, pack=pack)
-    framing = pack.framing(gift, prospect)
+    record = record_opener(gift, prospect)
+    framing = record[0] if record else pack.framing(gift, prospect)
 
     lines: list[str] = []
     numbered = gift.gift_size >= 2                     # 5d: 1 lead folds in, no numbers
     for i, lead in enumerate(gift.leads):
+        # `_lead_line` still runs for a record gift: its flags (unfindable,
+        # cut-off name) hold whichever text the line ends up printing.
         line, lf = _lead_line(lead, today, gift.geo_level, pack=pack)
         flags.extend(lf)
+        if record:
+            line = record[1][i]
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
     left_field = left_field_for(pack)
@@ -1013,12 +1275,89 @@ def _followup_qualifier(lead: Lead, prospect: Prospect) -> str:
 # keeps the sequence's single ask intact — every step points at the same call.
 #
 # It takes no lead, so `_followup_drafts` consumes none for this step.
+#
+# 2026-10-24: it ended "...i'd be curious what it is. worth a look?", a
+# question about a bottleneck followed by an ask about a tool. It now ends on
+# the question itself.
 _FINAL_PIVOT = (
     "last one from me.\n\n"
     "no worries if leads aren't what you're short on. i build custom tools, so "
-    "if something else is draining your week i'd be curious what it is. "
-    "worth a look?"
+    "if something else is draining your week, what is it?"
 )
+
+
+# Email 2 for an inventory record (2026-10-24): one plain sentence in email 1's
+# own words, no "showing the same signal" jargon. It arrives in email 1's
+# thread, so "found" and "offer still stands" were saying nothing.
+#
+#   one more in atlanta: Warrior Alliance had weak financial controls flagged
+#   in its federal audit, two years in a row.
+#
+#   worth a look? happy to set it up for you either way.
+_FOLLOWUP_TAIL = "worth a look? happy to set it up for you either way."
+
+
+def _record_predicate(lead: Lead) -> str | None:
+    """What one record lead did, as a predicate ("had ... flagged ..."), or
+    None when it has no sentence form (the caller keeps the colon line)."""
+    t = lead.signal_type
+    p = _payload(lead)
+    if t == NONPROFIT_SIGNAL:
+        facts = _audit_facts(lead)
+        if facts is None:
+            phrase = nonprofit_phrase(lead)
+            if phrase.startswith("filed their federal audit"):
+                return phrase.replace("their", "its", 1)
+            return None
+        what, repeat = facts
+        said = ("had weak financial controls flagged in its federal audit"
+                if what == "controls" else "had its grant handling flagged in its federal audit")
+        return said + (", two years in a row" if repeat else "")
+    if t == DAVIS_BACON_SIGNAL:
+        n = p.get("awards_in_window")
+        several = isinstance(n, int) and n > 1
+        if p.get("first_contract_on_record"):
+            return ("won its first federal construction jobs on record" if several
+                    else "won its first federal construction job on record")
+        return "won federal construction jobs" if several else "won a federal construction job"
+    if t == COST_CONTRACT_SIGNAL:
+        kind = p.get("pricing_kind")
+        if kind in ("time-and-materials", "labor-hour"):
+            return "won an hourly federal contract where the hours can be audited"
+        if kind == "cost-reimbursement":
+            return "won a federal contract where every cost can be audited"
+        return "won a federal contract the government can audit"
+    if t == FIRST_GRANT_SIGNAL:
+        return "got its first federal grant in 3+ years"
+    if t == NEW_LICENSE_SIGNAL:
+        where = _elsewhere(lead, _licensing_state(lead))
+        if p.get("formed_class") == "new_company":
+            return f"is a new contracting company, just licensed{where}"
+        return f"just got a contractor license{where}"
+    if t == LICENSE_UPGRADE_SIGNAL:
+        return license_upgrade_phrase(lead)
+    if t == NEW_BUSINESS_SIGNAL:
+        return new_business_phrase(lead)
+    return None
+
+
+def _record_followup(lead: Lead, prospect: Prospect) -> str | None:
+    """Email 2's core for a record lead, or None to keep the old shape."""
+    said = _record_predicate(lead)
+    if said is None:
+        return None
+    name = spoken_name(lead.company)
+    city, state = city_display(prospect.city), state_display(prospect.state)
+    lead_city, lead_state = city_display(lead.city), state_display(lead.state)
+    if city and lead_city == city and lead_state and lead_state == state:
+        first = f"one more in {city}: {name} {said}."
+    elif state and lead_state == state:
+        at = f" in {lead_city}" if lead_city else ""
+        first = f"one more in {state}: {name}{at} {said}."
+    else:
+        at = f" in {lead_city or lead_state}" if (lead_city or lead_state) else ""
+        first = f"one more: {name}{at} {said}."
+    return f"{first}\n\n{_FOLLOWUP_TAIL}"
 
 
 def build_followup_email(
@@ -1057,6 +1396,10 @@ def build_followup_email(
 
     if final:
         core = _FINAL_PIVOT
+    elif lead is not None and (record := _record_followup(lead, prospect)) is not None:
+        # `_lead_line` still runs for its flags (unfindable, cut-off name).
+        flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
+        core = record
     elif lead is not None:
         line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
         flags.extend(lf)

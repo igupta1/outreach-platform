@@ -25,9 +25,7 @@ linkedin_url, subject, email_1, email_2, email_3, li_dm_1, li_dm_1_evergreen,
 li_dm_2`. In Smartlead, build a 3-step sequence whose bodies are `{{email_1}}`,
 `{{email_2}}`, `{{email_3}}`, and add your signature + the CAN-SPAM footer ONCE
 in the sequence editor. Follow-ups have a blank subject so they thread off
-email 1. Rows are ordered most-personalized first — the operator works the file
-down and stops at LinkedIn's daily connection cap, so row order decides who gets
-the second channel.
+email 1. Rows are ordered most-personalized first.
 
 Set the history sheet up once with `python -m system_b.run --init-history`
 (header only, and it refuses to overwrite a populated file).
@@ -43,18 +41,20 @@ N valid sequences so a 200-row export is not paid for in full.
 The ledger stores NO status. Who accepted and who replied lives in the
 hand-maintained history sheet, so no tool can race the human editing it.
 
-## The review gate exports TWO files
+## The review gate is email-only (2026-10-24)
 
-They have different lifetimes. **Download email CSV** goes to the sequencer today
-and is never read again — the copy lives in the campaign after that. **Download
-LinkedIn CSV** goes into the history sheet and is read WEEKS later, when someone
-finally accepts a connection request and you need the message written for them.
-`HISTORY_COLUMNS` mirrors the second, so a paste lands exactly under the header.
+LinkedIn is no longer a channel for these prospects: it goes to school alumni
+and warm connections instead. The gate has no connect link, no connect cap and
+no LinkedIn export. `run.py` still renders the DMs into `sequences.csv` (cheap,
+templated, harmless), and `HISTORY_COLUMNS` / `--init-history` still exist, but
+nothing on the gate feeds them. **Download email CSV** (per pack, or the
+footer's combined **all emails** file for one campaign) goes to the sequencer
+and is never read again.
 
 The card shows only what VARIES per prospect: subject, email 1's head, email 2.
 Email 1's closing is dimmed and read-only beneath it (the export re-joins head
-and tail into the original body); email 3 and the DMs are byte-identical on every
-card and appear once in a collapsed panel at the top. They are authored constants
+and tail into the original body); email 3 is byte-identical on every card and
+appears once in a collapsed panel at the top. They are authored constants
 in code, so read-only is the honest treatment — change them where the reasoning
 for each line is written down.
 
@@ -94,11 +94,9 @@ led by a FRACTIONAL controller posting) · `cfo` (fractional CFO). Each is a
 different sale to a different buyer, and leadgen keeps the inventories separate
 — only 1.7% of companies carry both a junior and a controller-level signal.
 
-**One voice, one line.** Every pack renders the SAME left-field line with only
-the audience word swapped (`copy.email.left_field_for`, keyed on `dm_audience`):
-"i'm an engineer. built this one for {bookkeepers|accountants|fractional cfos|finance firms}
-after hearing the same thing over and over, referrals dried up and nothing
-replaced them." The engineer reveal is what stops a machine-built gift reading
+**One voice, one line.** Every finance pack renders the SAME left-field line
+with only the audience word swapped (`copy.email.left_field_for`, keyed on
+`dm_audience`); see "The record opener and the engineer line" below. The engineer reveal is what stops a machine-built gift reading
 as spray-and-pray, and nothing about it is CFO-specific. What legitimately
 differs per pack is the LEADS and the need clause that describes them
 ("looking for bookkeeping help" / "building out their finance function" /
@@ -149,6 +147,51 @@ fractional-controller nor a fractional-CFO pool is deep enough to gift from
 alone — but each LEADS with its own in-market signal, so the gifts differ even
 where the pool is shared. `bookkeeping` has no lead-first signal and cannot get
 one: outsourced bookkeeping is not a role a company advertises for.
+
+## The record opener and the engineer line (2026-10-24)
+
+`copy.email.record_opener`: when every lead in an email is an inventory record
+and they share one kind, ONE sentence says what happened and why it matters,
+and each line carries only what differs:
+
+    saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial
+    controls flagged in their federal audits, so each now has to file a plan
+    to fix it:
+
+    1. Georgia Court Appointed Special Advocates (two years in a row)
+    2. Cathedral Towers
+    3. Georgia Works (two years in a row)
+
+    i'm an engineer. i built a system that finds companies like these, built
+    for fractional cfos.
+
+    worth a look? happy to set it up for you either way :)
+
+The "why" appears only where a rule follows from the record (audit finding ->
+corrective action plan; Davis-Bacon -> weekly certified payroll; cost-type
+contract -> auditable books; federal grant -> tracking and reporting rules).
+Licenses and new registrations get none ("here are 3 ... with a new contractor
+license:"): it would be a guess. A place is named only when every lead is
+there. A gift mixing kinds keeps each full line ("here are 3 ... that need
+finance help:"). Non-record leads (IT packs) keep `pack.framing`. "pulled 3
+more" is gone: its "more" read as a previous email.
+
+Email 2 for a record lead is one plain sentence in email 1's words
+(`copy.email._record_followup`): "one more in atlanta: Warrior Alliance had
+weak financial controls flagged in its federal audit, two years in a row." then
+"worth a look? happy to set it up for you either way." No "showing the same
+signal". Email 3 ends on its own question: "...if something else is draining
+your week, what is it?"
+
+A site phrase made only of generic words ("organizations", "companies",
+"clients of all sizes") never borrows the model's industry guess
+(`gift.taxonomy._names_nothing`): AP CPA's "organizations" was sent "noticed you
+work with nonprofits" off the guess alone.
+
+Never "real time" in the engineer line: the inventory is refreshed by hand and
+audit filings are months old. "still tuning it." was cut from the ask in the
+same pass (it made the ask read as research, not sales; the user chose brevity).
+Tests: `tests/test_record_opener.py`.
 
 ## The second channel (`copy/linkedin.py`)
 
@@ -202,23 +245,10 @@ system_b/.venv/bin/python -m system_b.review.serve \
     --review cfo.review.json acct.review.json book.review.json
 ```
 
-Three rules make one page work, and each answers a question three pages
-answered badly:
-
-- **Grouped by pack, with a sticky divider.** Each pack's cards sit under a bar
-  naming it, because the whole risk of one page is pasting cfo copy into the
-  bookkeeping campaign.
-- **Email CSVs stay SEPARATE**, one button per pack in its own divider — each
-  goes to a different Smartlead campaign.
-- **The LinkedIn CSV is COMBINED**, one button for the whole page. It all gets
-  pasted into a single history sheet that is searched by name weeks later, when
-  someone finally accepts; three files would be three places to look.
-- **Connect picks are ranked GLOBALLY.** LinkedIn's daily cap is one budget
-  across everything running, not one per campaign, so the top `CONNECT_CAP`
-  is chosen across every pack at once and badged `connect #N` on the card. A
-  bookkeeping prospect with named clients outranks a cfo prospect matched only
-  on state, and grouping by pack must not hide that. Removing a card recomputes
-  the picks immediately, so the 21st is promoted the moment you × the 3rd.
+- **Grouped by pack, with a sticky divider**, each with its own email
+  download, for a campaign per pack.
+- **One combined email download** in the footer, for ONE campaign: every step
+  body is a `{{email_N}}` merge field, so a single campaign serves every pack.
 
 ## Layout (`system_b/`)
 

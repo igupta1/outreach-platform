@@ -130,13 +130,6 @@ def _page_columns(name: str) -> list[str]:
     return re.findall(r'"([^"]+)"', m.group(1))
 
 
-def test_page_linkedin_export_matches_the_history_schema():
-    """A drift here misaligns every future paste into the sheet."""
-    from system_b.run import LINKEDIN_COLUMNS
-
-    assert _page_columns("LINKEDIN_COLUMNS") == LINKEDIN_COLUMNS
-
-
 def test_page_email_export_is_run_columns_minus_the_linkedin_ones():
     """The email CSV must stay a faithful subset of what run.py writes, or the
     file uploaded to the sequencer stops matching the run that produced it."""

@@ -208,23 +208,12 @@ def test_review_path_helper():
     assert _review_path("noext").name == "noext.review.json"
 
 
-def test_card_carries_the_linkedin_url_for_connecting_in_the_same_pass():
-    """The connection request goes out while reviewing, so the URL has to be on
-    the card. It is already in the payload; this pins the page to using it."""
+def test_page_is_email_only():
+    """LinkedIn goes to alumni and warm connections, not these prospects
+    (2026-10-24): no connect link, connect cap or LinkedIn export on the gate."""
     page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
-    assert "p.linkedin" in page
-    assert 'class:"connect"' in page
-    # and a row with no URL says so rather than rendering a dead link
-    assert "no linkedin" in page
-
-
-def test_page_marks_rows_past_the_daily_connection_cap():
-    """LinkedIn caps connection requests, so the gate has to show where to stop.
-    Recomputed from LIVE cards, not row numbers, or removing a card leaves the
-    line in the wrong place."""
-    page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
-    assert re.search(r"const CONNECT_CAP = \d+;", page)
-    assert 'toggle("past-cap"' in page
+    for gone in ('class:"connect"', "CONNECT_CAP", "LINKEDIN_COLUMNS", "li_dm_", "linkedin.csv"):
+        assert gone not in page
 
 
 def _review_file(tmp_path, name, pack, prospects, skipped=()):
@@ -267,18 +256,12 @@ def test_one_unreadable_file_does_not_cost_the_review(tmp_path):
     assert len(data["errors"]) == 1 and "bad.json" in data["errors"][0]
 
 
-def test_page_ranks_connect_picks_across_packs_and_splits_the_downloads(tmp_path):
-    """The two rules that make one page work: email CSVs stay per-pack (each
-    goes to a different campaign), the LinkedIn CSV is combined (it all lands in
-    one history sheet), and the connect cap is chosen across every pack because
-    LinkedIn's cap is one budget for the day."""
+def test_page_exports_per_pack_and_one_combined_email_csv(tmp_path):
+    """Each pack keeps its own email download (a campaign per pack), and the
+    footer exports every pack at once (one campaign for the whole day)."""
     page = (Path(__file__).resolve().parent.parent / "review" / "page.html").read_text()
-    # per-pack email export, whole-page linkedin export
     assert 'download(pk.pack + "-emails.csv", EMAIL_COLUMNS, pi)' in page
-    assert 'download("linkedin.csv", LINKEDIN_COLUMNS, null)' in page
-    # the cap is applied to a globally-sorted list, not per section
-    assert "const ranked = live" in page
-    assert "i < CONNECT_CAP" in page
+    assert 'download("all-emails.csv", EMAIL_COLUMNS, null)' in page
 
 
 # --- personalization tiers: the review gate's sort, and the CSV's row order ---
