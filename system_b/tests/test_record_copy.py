@@ -159,7 +159,10 @@ def test_a_mixed_record_gift_says_only_that_records_show_a_need():
         "showing they need finance help"
     subject = build_email_1(_gift(mixed), PROSPECT, today=TODAY,
                             pack=pack_for("bookkeeping")).subject
-    assert "nobody" not in subject and "public records" in subject
+    # The short subject (2026-10-25): a count, a place, what they are, and the
+    # need the records show. Never "nobody".
+    assert "nobody" not in subject and subject.endswith("that need finance help")
+    assert len(subject) <= 45, subject
 
 
 def test_the_need_clause_names_the_record_event():
@@ -219,13 +222,13 @@ def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():
     assert _cfo_what_category(mixed) == "public_record"
     for pack_key in ("cfo", "accounting", "bookkeeping"):
         subject, _e1, _e2, dm, evergreen = _sequence_text(_gift(findings), pack_key)
-        assert "whose auditors flagged problems" in subject
+        assert subject.endswith("with audit problems"), subject
         assert "whose auditors flagged problems" in evergreen
         for gift in (_gift(findings), _gift(mixed), _gift([mixed[-1]])):
             for text in _sequence_text(gift, pack_key):
                 assert "finance officer" not in text and "990" not in text, text
         subject = _sequence_text(_gift(mixed), pack_key)[0]
-        assert "public records" in subject, subject
+        assert subject.endswith("that need finance help"), subject
 
 
 NPS = "nonprofit_grant_no_finance_officer"
@@ -276,3 +279,25 @@ def test_the_evergreen_dm_names_the_gifts_own_place_and_noun():
     dm = build_dm_1_evergreen(_gift(charities, geo="state"), bolton, pack=pack_for("cfo"))
     assert "flags connecticut nonprofits whose auditors flagged problems" in dm
     assert "bolton companies" not in dm
+
+
+def test_short_subjects_fit_a_phone():
+    """"nonprofits in florida that need finance help, from public records" was
+    cut off on a phone. Record gifts in a finance pack get a short subject."""
+    from system_b.copy.subject import short_subject
+    from system_b.gift.models import Prospect as P
+
+    np = "nonprofit_grant_no_finance_officer"
+    atl = P(firm_name="X", city="Atlanta", state="GA")
+    charities = [lead(np, {"fac_material_weakness": True}, name=n) for n in "ABC"]
+    for ld in charities:
+        ld.industry, ld.city, ld.state = "nonprofit", "Atlanta", "GA"
+    g = _gift(charities)
+    g.geo_level = "city"
+    assert short_subject(g, atl) == "3 atlanta nonprofits with audit problems"
+    builders = _gift([lead("construction_federal_award_davis_bacon", name=n) for n in "AB"])
+    builders.geo_level = "none"
+    assert short_subject(builders, atl) == "2 contractors on federal jobs"
+    one = _gift([charities[0]])
+    one.geo_level = "state"
+    assert short_subject(one, atl) == "a georgia nonprofit with audit problems"

@@ -57,10 +57,9 @@ def test_the_users_example_renders_exactly():
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo"),
                          include_signoff=False).body
     assert body == (
-        "hey troy,\n\n"
         "saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial "
-        "controls flagged in their federal audits, so each now has to file a plan "
-        "to fix it:\n\n"
+        "controls flagged in their federal audits, and each has to show it's fixed "
+        "in its next audit:\n\n"
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
@@ -74,7 +73,7 @@ def test_mixed_audit_findings_say_problems_and_name_each():
     g = gift([lead(NP, MW, name="A"), lead(NP, GRANTS, name="B")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("these 2 in atlanta had problems flagged in their federal "
-                            "audits, so each now has to file a plan to fix it:")
+                            "audits, and each has to show it's fixed in its next audit:")
     assert lines == ["A (financial controls)", "B (grant handling)"]
 
 
@@ -132,7 +131,7 @@ def test_one_lead_reads_in_the_singular():
     g = gift([lead(NP, REPEAT, name="Georgia Works")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("this one in atlanta had weak financial controls flagged in "
-                            "its federal audit, so it now has to file a plan to fix it:")
+                            "its federal audit, and it has to show it's fixed in its next audit:")
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo")).body
     assert "\n\nGeorgia Works (two years in a row)\n\n" in body   # unnumbered
 
@@ -142,15 +141,14 @@ def test_non_record_leads_keep_the_legacy_path():
     assert record_opener(g, TROY) is None
 
 
-def test_an_old_audit_had_to_file_a_plan_not_now():
-    """2026-10-25: a FY2024 audit accepted in early 2025 read "each now has to
-    file a plan". One audit over a year old puts the whole sentence in the past."""
+def test_the_audit_why_is_true_of_an_audit_of_any_age():
+    """The plan is filed WITH the audit, so "now has to file a plan" was false
+    of any audit on file. What holds until it is fixed: the next audit has to
+    report it fixed (2 CFR 200.511(b)). Same words, old audit or new."""
     g = gift([lead(NP, MW, name="A"), lead(NP, {**MW, **OLD}, name="B")], all_niche=True)
     framing, _ = record_opener(g, TROY)
-    assert framing.endswith("so each had to file a plan to fix it:")
-    one = gift([lead(NP, {"fac_material_weakness": True}, name="C")], all_niche=True)
-    # A record that does not say when it was filed never claims "now".
-    assert record_opener(one, TROY)[0].endswith("so it had to file a plan to fix it:")
+    assert framing.endswith("and each has to show it's fixed in its next audit:")
+    assert "file a plan" not in framing and "now" not in framing
 
 
 def test_the_engineer_line_names_organizations_only_for_nonprofits():

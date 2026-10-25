@@ -23,7 +23,7 @@ from system_b.copy.lex import (
     state_display,
 )
 from system_b.copy.subject import build_subject, lead_noun, niche_claim
-from system_b.gift.engine import audit_is_recent, compute_match_level, licensing_state
+from system_b.gift.engine import compute_match_level, licensing_state
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import default_pack
@@ -466,13 +466,13 @@ _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
 #   "these 3 in atlanta had weak financial controls flagged in their federal
 #    audits, so each now has to file a plan to fix it:"
 # Kinds absent here keep "here are 3 ... {clause}:" and get no why.
-_AUDIT_WHY = ("so each now has to file a plan to fix it",
-              "so it now has to file a plan to fix it")
-# "now" only when every audit in the email was filed within a year
-# (`gift.engine.audit_is_recent`); an older plan was due when that audit was
-# filed, so the past tense is the true one.
-_AUDIT_WHY_PAST = ("so each had to file a plan to fix it",
-                   "so it had to file a plan to fix it")
+# 2026-10-25: was "so each now has to file a plan to fix it". The corrective
+# action plan is filed WITH the audit (2 CFR 200.511(c)), so for an audit on
+# file it already exists and "has to file" is false. What stays true until the
+# finding is resolved: the next audit's summary schedule of prior findings has
+# to report it fixed (200.511(b)). Present tense, any audit age, and a deadline.
+_AUDIT_WHY = ("and each has to show it's fixed in its next audit",
+              "and it has to show it's fixed in its next audit")
 _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     "audit_controls": (("had weak financial controls flagged in their federal audits",
                         "had weak financial controls flagged in its federal audit"),
@@ -631,8 +631,6 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
     at = f"in {where}" if where else ""
     if kind in _RECORD_WHY:
         predicates, whys = _RECORD_WHY[kind]
-        if whys is _AUDIT_WHY and not all(audit_is_recent(ld) for ld in gift.leads):
-            whys = _AUDIT_WHY_PAST
         count = f"these {n}" if n != 1 else ("this" if noun else "this one")
         ask = " ".join(w for w in (count, noun, at, predicates[one]) if w) \
             + f", {whys[one]}:"
@@ -1229,14 +1227,14 @@ def build_email_1(
 
     left_field = left_field_for(pack, gift)
     cta = pack.cta(gift, prospect)
-    # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
-    greeting = f"hey {(prospect.first_name or 'there').lower()},"
+    # No greeting line (2026-10-25, the user and the outbound guide: start at
+    # the signal). The first line a phone shows is now what we saw about them.
 
     # B4a: on the platform send path the signoff is owned by each Smartlead
     # mailbox's signature field ("best, mason" etc.), so the copy engine adds
     # NONE — otherwise the send gets a double signoff. include_signoff stays
     # True for the legacy Airtable-review flow (m4_walkthrough).
-    parts = [greeting, framing, "\n".join(lines), left_field, cta]
+    parts = [framing, "\n".join(lines), left_field, cta]
     if include_signoff:
         parts.append("best,\nishaan")
     body = strip_em_dashes("\n\n".join(parts))     # house style: no em dashes anywhere

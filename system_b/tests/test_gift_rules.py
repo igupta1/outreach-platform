@@ -306,3 +306,21 @@ def test_a_flagged_name_fills_a_place_only_when_nothing_else_can():
     assert names(geo(), [cut, whole], target=1) == ["Whole Name"]
     assert names(geo(), [cut, whole], target=2) == ["Whole Name",
                                                    "Golden Triangle Resource Conservati"]
+
+
+def test_this_years_findings_come_first_and_a_late_filing_never_jumps_an_old_finding():
+    from system_b.gift.engine import strongest_first
+
+    new_mw = lead("New Finding", NP, industry="nonprofit", score=40,
+                  payload={"fac_material_weakness": True, **NEW})
+    old_mw = lead("Old Finding", NP, industry="nonprofit", score=95,
+                  payload={"fac_material_weakness": True, **OLD})
+    late = lead("Late Filer", NP, industry="nonprofit", score=45,
+                payload={"fac_late": True, "fac_days_late": 99, **NEW})
+    assert names(geo(), [late, old_mw, new_mw], target=3) == \
+        ["New Finding", "Old Finding", "Late Filer"]
+    # The email lists them in the same order, whatever order the walk found them.
+    g = build_gift(geo(), SnapshotScraper([late, old_mw, new_mw], taxonomy={}), target=3)
+    g.leads.reverse()
+    strongest_first(g)
+    assert [ld.company for ld in g.leads] == ["New Finding", "Old Finding", "Late Filer"]

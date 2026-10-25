@@ -58,7 +58,7 @@ def test_generate_sequence_builds_full_sequence(monkeypatch):
     assert res["email"] == "d@acme.com" and res["first_name"] == "dana"
     assert res["company"] == "Acme"
     assert res["subject"]                                   # email #1 has a subject
-    assert res["email_1"].startswith("hey dana,")
+    assert not res["email_1"].startswith("hey")              # no greeting line
     assert res["email_2"] and res["email_3"]                # #2/#3 pulled l2, l3
     # every line is code-templated now — no model call anywhere in the sequence
 

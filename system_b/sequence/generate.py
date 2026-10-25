@@ -18,7 +18,7 @@ from typing import Any
 from system_b.clients.inventory import MAGNET_INDUSTRY
 from system_b.copy.email import build_email_1, build_followup_email
 from system_b.copy.linkedin import build_dm_1, build_dm_1_evergreen, build_dm_2
-from system_b.gift.engine import build_gift
+from system_b.gift.engine import build_gift, strongest_first
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
 from system_b.research.service import research_prospect
@@ -221,6 +221,7 @@ def generate_sequence(
             "status": "no_gift",
             "backlog": _backlog_row(row, research, prospect),
         }
+    strongest_first(gift)          # the email reads its strongest lead first
     email1 = build_email_1(
         gift, prospect, today=today, pack=pack, include_signoff=False
     )

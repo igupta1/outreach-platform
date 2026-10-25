@@ -184,8 +184,72 @@ def build_who_what(
     return f"{_plural_who(gift, prospect)} {plural_what}".strip().lower()
 
 
+# --- the short subject (2026-10-25) ------------------------------------------
+#
+# "nonprofits in florida that need finance help, from public records" is cut
+# off on a phone. A finance pack whose gift is all inventory records now gets
+# "{n} {place} {what they are} {what the record shows}", under ~45 characters:
+#
+#   3 atlanta nonprofits with audit problems
+#   3 california contractors on federal jobs
+#
+# The noun says what the LEADS are ("contractors", not the prospect's niche
+# label), so it is no claim about whom the prospect serves.
+_SHORT_WHAT: dict[str, str] = {
+    "nonprofit_audit": "with audit problems",
+    "davis_bacon": "on federal jobs",
+    "auditable_contract": "with auditable federal contracts",
+    "first_grant": "with new federal grants",
+    "new_license": "with new contractor licenses",
+    "license_upgrade": "moving up a contractor license",
+    "new_business": "that just registered",
+    "public_record": "that need finance help",
+}
+_SHORT_WHAT_ONE: dict[str, str] = {
+    "nonprofit_audit": "with audit problems",
+    "davis_bacon": "on a federal job",
+    "auditable_contract": "with an auditable federal contract",
+    "first_grant": "with a new federal grant",
+    "new_license": "with a new contractor license",
+    "license_upgrade": "moving up a contractor license",
+    "new_business": "that just registered",
+    "public_record": "that needs finance help",
+}
+_CONTRACTOR_KINDS = frozenset({"davis_bacon", "auditable_contract", "new_license",
+                               "license_upgrade"})
+_FINANCE_PACK_KEYS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
+
+
+def short_subject(gift: Gift, prospect: Prospect) -> str | None:
+    """The phone-length subject for a record gift, or None (keep the pack's)."""
+    from system_b.copy.email import _RECORD_FAMILY
+
+    if not gift.leads or any(ld.signal_type not in _RECORD_FAMILY for ld in gift.leads):
+        return None
+    kind = gift.what_category
+    if kind not in _SHORT_WHAT:
+        kind = "public_record"
+    n = gift.gift_size
+    if kind in _CONTRACTOR_KINDS:
+        noun = "contractor" if n == 1 else "contractors"
+    else:
+        noun = lead_noun(gift, n)
+    place = (city_display(prospect.city) if gift.geo_level == "city"
+             else state_display(prospect.state) if gift.geo_level == "state" else "")
+    what = (_SHORT_WHAT_ONE if n == 1 else _SHORT_WHAT)[kind]
+    head = " ".join(w for w in (place, noun) if w)
+    count = apply_article(f"a {head}") if n == 1 else f"{n} {head}"
+    return f"{count} {what}".lower()
+
+
 def build_subject(gift: Gift, prospect: Prospect, *, pack: object | None = None) -> str:
-    """Dispatch to the niche pack's subject builder (defaults to CFO)."""
+    """Dispatch to the niche pack's subject builder (defaults to CFO); a finance
+    pack's record gift gets the short subject."""
     from system_b.niches.base import default_pack
 
-    return (pack or default_pack()).subject(gift, prospect)
+    pack = pack or default_pack()
+    if getattr(pack, "key", None) in _FINANCE_PACK_KEYS:
+        short = short_subject(gift, prospect)
+        if short:
+            return short
+    return pack.subject(gift, prospect)

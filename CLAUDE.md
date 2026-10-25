@@ -158,13 +158,15 @@ one: outsourced bookkeeping is not a role a company advertises for.
 and they share one kind, ONE sentence says what happened and why it matters,
 and each line carries only what differs:
 
-    saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial
-    controls flagged in their federal audits, so each now has to file a plan
-    to fix it:
+    subject: 3 atlanta nonprofits with audit problems
 
-    1. Georgia Court Appointed Special Advocates (two years in a row)
-    2. Cathedral Towers
-    3. Georgia Works (two years in a row)
+    saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial
+    controls flagged in their federal audits, and each has to show it's fixed
+    in its next audit:
+
+    1. Warrior Alliance (two years in a row)
+    2. Georgia Court Appointed Special Advocates (two years in a row)
+    3. Cathedral Towers
 
     i'm an engineer. i built a system that finds organizations showing signs
     they need finance help.
@@ -199,15 +201,26 @@ companies} showing signs they need {finance | accounting | bookkeeping} help."
 the help word is the pack's trade (`_HELP_WORD`: cfo and neutral say
 "finance"). Before, it said "built" twice and called charities companies.
 
-**"now" only for a recent audit.** The audit "why" says "so each now has to
-file a plan to fix it" only when EVERY audit in the email was accepted within
-a year of the record's as-of date (`gift.engine.audit_is_recent`,
-`AUDIT_RECENT_DAYS`); otherwise, or when the record has no dates, "so each had
-to file a plan to fix it". In the walk an old audit's score drops by
-`OLD_AUDIT_PENALTY` (20), so a newer audit wins only when the two are close: a
-hard "newer first" rule put two late filings (scores 45, 21) ahead of three
-FY2024 findings (95, 91, 90) the day it shipped. 2026-10-25: 10 of 80 leads
-were FY2024 audits accepted in early 2025, all under "now". A charity whose
+**The audit "why" is true of an audit of any age** (2026-10-25): "and each has
+to show it's fixed in its next audit". It used to say "so each now has to file
+a plan to fix it", but the corrective action plan is filed WITH the audit (2
+CFR 200.511(c)), so for any audit on file the plan already exists; what stays
+true until the finding is resolved is that the next audit must report it fixed
+(200.511(b)). Do not go back to "has to file a plan".
+
+**Which audits, in what order.** This year's findings (accepted within a year
+of the record's as-of date, `gift.engine.audit_is_recent`) come before every
+other charity lead in the walk; below them old findings and late filings
+compete on `strength` (score, minus `OLD_AUDIT_PENALTY` = 20 for an old
+audit), so a weak late filing never jumps a strong old finding (a hard "newer
+first" rule did exactly that the day it shipped). `strongest_first` then lists
+the email's leads in that same order.
+
+**No greeting, short subjects** (2026-10-25, the user and the outbound guide's
+"start at the signal"). Email 1 opens on what we saw about them, with no "hey
+troy,". A finance pack's record gift gets `copy.subject.short_subject`: "{n}
+{place} {nonprofits | contractors | companies} {what the record shows}", e.g.
+"3 atlanta nonprofits with audit problems", short enough for a phone. A charity whose
 next audit is not on file reads, in email 2, "doesn't have its next federal
 audit on file yet" (never "missed": an agency can grant an extension).
 

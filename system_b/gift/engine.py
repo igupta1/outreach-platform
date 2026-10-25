@@ -159,6 +159,27 @@ def audit_is_recent(lead: Lead) -> bool | None:
     return None
 
 
+def _recent_finding(lead: Lead) -> bool:
+    """A charity whose auditor flagged a problem in an audit filed this year."""
+    if audit_is_recent(lead) is not True:
+        return False
+    return any(any((getattr(sig, "payload", None) or {}).get(k) for k in _NONPROFIT_FINDINGS)
+               for sig in lead.signals)
+
+
+def strength(lead: Lead) -> float:
+    """The lead's score with the old-audit penalty: the order the walk uses
+    within a type, and the order an email lists its leads in."""
+    return (lead.score or 0.0) - (OLD_AUDIT_PENALTY if audit_is_recent(lead) is False else 0)
+
+
+def strongest_first(gift: Gift) -> None:
+    """List the gift's strongest lead first (2026-10-25): this year's findings,
+    then by `strength`. In place; the walk's level order already decided WHICH
+    leads are in the gift, this only decides the order they are read in."""
+    gift.leads.sort(key=lambda ld: (0 if _recent_finding(ld) else 1, -strength(ld)))
+
+
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
              focus: str | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
@@ -188,6 +209,12 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         # A name the source cut off or glued together reaches the email only
         # when nothing else can fill the place: the review flags it either way.
         1 if (lead.name_cut_off or lead.name_glued) else 0,
+        # This year's audit findings before every other charity lead (the
+        # user, 2026-10-25). Below them, old findings and late filings compete
+        # on score with the old-audit penalty, so a weak late filing never jumps
+        # a strong old finding. Every non-charity lead ties here.
+        0 if _recent_finding(lead) or lead.signal_type != "nonprofit_grant_no_finance_officer"
+        else 1,
         # The magnet's own score, where it serves one. Every lead from a single
         # magnet shares one signal_type, so without this the first tiebreak
         # that does any work is RECENCY — which ordered 29,000 nonprofits by
@@ -195,7 +222,7 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         # material-weakness finding, the strongest evidence in the inventory.
         # Job-post leads carry no score and are unaffected.
         # An audit filed over a year ago scores OLD_AUDIT_PENALTY less.
-        -((lead.score or 0.0) - (OLD_AUDIT_PENALTY if audit_is_recent(lead) is False else 0)),
+        -strength(lead),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )
