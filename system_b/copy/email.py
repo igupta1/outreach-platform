@@ -80,10 +80,17 @@ CFO_PRIORITY_FLAG = (
 #
 # 2026-10-25: "built ... built" said twice in one sentence, and "companies"
 # called a list of charities companies. The noun now follows the leads.
+#
+# Same day, the user's rewrite: say what the system looks for (signs of need),
+# not who it was built for. The pack names the help in the reader's own trade:
+# accounting firms read "accounting help", bookkeepers "bookkeeping help", and
+# cfo and neutral firms "finance help" ("cfo help" is not a phrase anyone says).
 LEFT_FIELD = (
-    "i'm an engineer. i built a system that finds {things} like these, for "
-    "{audience}."
+    "i'm an engineer. i built a system that finds {things} showing signs they "
+    "need {help} help."
 )
+_HELP_WORD = {"cfo": "finance", "finance": "finance", "accounting": "accounting",
+              "bookkeeping": "bookkeeping"}
 # The IT packs (`--legacy-niche`) gift breaches and IT hires, not finance need,
 # so they keep the line that names no need.
 _LEGACY_LEFT_FIELD = (
@@ -103,12 +110,11 @@ def _org_noun(gift: Gift | None) -> str:
 
 
 def left_field_for(pack, gift: Gift | None = None) -> str:
-    """The 5b line for a pack. `dm_audience` already names the buyer the way the
-    copy says it aloud ("fractional cfos", "bookkeepers"), so the packs need no
-    second field for it."""
+    """The 5b line for a pack: the finance packs name the help in their own
+    trade (`_HELP_WORD`); the IT packs keep naming their buyer (`dm_audience`)."""
     if pack.key not in _FINANCE_PACKS:
         return _LEGACY_LEFT_FIELD.format(audience=pack.dm_audience)
-    return LEFT_FIELD.format(things=_org_noun(gift), audience=pack.dm_audience)
+    return LEFT_FIELD.format(things=_org_noun(gift), help=_HELP_WORD[pack.key])
 
 
 @dataclass

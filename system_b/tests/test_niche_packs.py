@@ -83,13 +83,13 @@ def test_the_three_finance_packs_never_borrow_each_others_word():
     assert bk.dm_audience == "bookkeepers"
     assert acc.dm_audience == "accountants"
     assert cfo.dm_audience == "fractional cfos"
-    # the shared left-field line names the audience and nothing else, so the
-    # word can no longer drift between packs
+    # the shared left-field line names the help in the pack's own trade and
+    # nothing else, so the word can no longer drift between packs
     from system_b.copy.email import left_field_for
 
-    assert "bookkeepers" in left_field_for(bk) and "accountant" not in left_field_for(bk)
-    assert "accountants" in left_field_for(acc) and "bookkeep" not in left_field_for(acc)
-    assert "fractional cfos" in left_field_for(cfo) and "bookkeep" not in left_field_for(cfo)
+    assert "bookkeeping help" in left_field_for(bk) and "account" not in left_field_for(bk)
+    assert "accounting help" in left_field_for(acc) and "bookkeep" not in left_field_for(acc)
+    assert "finance help" in left_field_for(cfo) and "bookkeep" not in left_field_for(cfo)
 
 
 # --------------------------------------------------------------------------

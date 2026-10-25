@@ -166,8 +166,8 @@ and each line carries only what differs:
     2. Cathedral Towers
     3. Georgia Works (two years in a row)
 
-    i'm an engineer. i built a system that finds organizations like these,
-    for fractional cfos.
+    i'm an engineer. i built a system that finds organizations showing signs
+    they need finance help.
 
     worth a look? happy to set it up for you either way :)
 
@@ -192,9 +192,12 @@ A site phrase made only of generic words ("organizations", "companies",
 (`gift.taxonomy._names_nothing`): AP CPA's "organizations" was sent "noticed you
 work with nonprofits" off the guess alone.
 
-The engineer line says "organizations" when every lead is a nonprofit, else
-"companies" (`left_field_for(pack, gift)`); until 2026-10-25 it said "built"
-twice and called charities companies.
+The engineer line (the user's wording, 2026-10-25) says what the system looks
+for, not who it was built for: "i built a system that finds {organizations |
+companies} showing signs they need {finance | accounting | bookkeeping} help."
+"organizations" when every lead is a nonprofit (`left_field_for(pack, gift)`);
+the help word is the pack's trade (`_HELP_WORD`: cfo and neutral say
+"finance"). Before, it said "built" twice and called charities companies.
 
 **"now" only for a recent audit.** The audit "why" says "so each now has to
 file a plan to fix it" only when EVERY audit in the email was accepted within

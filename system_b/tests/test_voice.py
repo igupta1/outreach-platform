@@ -65,17 +65,17 @@ def _copy(res) -> str:
                                      "li_dm_1", "li_dm_1_evergreen", "li_dm_2")).lower()
 
 
-@pytest.mark.parametrize("source, pack, audience", [
-    ("FractionalCFO", "cfo", "fractional cfos"),
-    ("Accounting", "accounting", "accountants"),
-    ("Bookkeeping", "bookkeeping", "bookkeepers"),
+@pytest.mark.parametrize("source, pack, audience, help_word", [
+    ("FractionalCFO", "cfo", "fractional cfos", "finance"),
+    ("Accounting", "accounting", "accountants", "accounting"),
+    ("Bookkeeping", "bookkeeping", "bookkeepers", "bookkeeping"),
 ])
 def test_one_apollo_list_picks_the_voice_when_the_site_is_silent(
-        monkeypatch, source, pack, audience):
+        monkeypatch, source, pack, audience, help_word):
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == pack and res["voice_source"] == "apollo list"
-    assert f"like these, for {audience}." in res["email_1"]
+    assert f"showing signs they need {help_word} help." in res["email_1"]
     assert f"built this one for {audience}." in res["li_dm_1"]
     card = res["review"]
     assert (card["voice"], card["voice_source"], card["apollo_lists"]) == \
@@ -91,7 +91,7 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == "finance" and res["voice_source"] == "neutral"
-    assert "like these, for finance firms." in res["email_1"]
+    assert "showing signs they need finance help." in res["email_1"]
     assert "built this one for finance firms." in res["li_dm_1"]
     copy = _copy(res)
     assert not [w for w in RUNG_WORDS if w in copy], copy
@@ -101,14 +101,14 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
 def test_the_site_wins_when_the_lists_include_it(monkeypatch):
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting+Bookkeeping")
     assert (res["pack"], res["voice_source"]) == ("bookkeeping", "site")
-    assert "like these, for bookkeepers." in res["email_1"]
+    assert "showing signs they need bookkeeping help." in res["email_1"]
 
 
 def test_a_site_the_apollo_list_contradicts_gets_the_neutral_voice(monkeypatch):
     """A firm only on the Accounting list whose site counted as bookkeeping."""
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
     assert (res["pack"], res["voice_source"]) == ("finance", "disagrees")
-    assert "like these, for finance firms." in res["email_1"]
+    assert "showing signs they need finance help." in res["email_1"]
     assert res["review"]["voice_source"] == "disagrees"
 
 

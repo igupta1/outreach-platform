@@ -64,8 +64,8 @@ def test_the_users_example_renders_exactly():
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
-        "i'm an engineer. i built a system that finds organizations like these, "
-        "for fractional cfos.\n\n"
+        "i'm an engineer. i built a system that finds organizations showing signs "
+        "they need finance help.\n\n"
         "worth a look? happy to set it up for you either way :)"
     )
 
@@ -160,12 +160,13 @@ def test_the_engineer_line_names_organizations_only_for_nonprofits():
     builders = gift([lead(DB, {}, name="A", industry="construction"),
                      lead(NP, MW, name="B")])
     assert left_field_for(cfo, charities) == (
-        "i'm an engineer. i built a system that finds organizations like these, "
-        "for fractional cfos.")
+        "i'm an engineer. i built a system that finds organizations showing signs "
+        "they need finance help.")
     assert left_field_for(cfo, builders) == (
-        "i'm an engineer. i built a system that finds companies like these, "
-        "for fractional cfos.")
-    assert left_field_for(pack_for("finance"), builders).endswith("for finance firms.")
+        "i'm an engineer. i built a system that finds companies showing signs "
+        "they need finance help.")
+    assert left_field_for(pack_for("accounting"), builders).endswith("need accounting help.")
+    assert left_field_for(pack_for("bookkeeping"), builders).endswith("need bookkeeping help.")
 
 
 def test_email_two_for_an_audit_not_yet_on_file_is_one_plain_sentence():
