@@ -198,7 +198,7 @@ def build_who_what(
 _SHORT_WHAT: dict[str, str] = {
     "nonprofit_audit": "with audit problems",
     "davis_bacon": "on federal jobs",
-    "auditable_contract": "with auditable federal contracts",
+    "auditable_contract": "with auditable contracts",
     "first_grant": "with new federal grants",
     "new_license": "with new contractor licenses",
     "license_upgrade": "moving up a contractor license",
@@ -208,7 +208,7 @@ _SHORT_WHAT: dict[str, str] = {
 _SHORT_WHAT_ONE: dict[str, str] = {
     "nonprofit_audit": "with audit problems",
     "davis_bacon": "on a federal job",
-    "auditable_contract": "with an auditable federal contract",
+    "auditable_contract": "with an auditable contract",
     "first_grant": "with a new federal grant",
     "new_license": "with a new contractor license",
     "license_upgrade": "moving up a contractor license",
