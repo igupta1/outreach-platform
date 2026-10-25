@@ -200,9 +200,13 @@ twice and called charities companies.
 file a plan to fix it" only when EVERY audit in the email was accepted within
 a year of the record's as-of date (`gift.engine.audit_is_recent`,
 `AUDIT_RECENT_DAYS`); otherwise, or when the record has no dates, "so each had
-to file a plan to fix it". The walk also picks a recent audit before an old
-one of the same type (`sort_key`). 2026-10-25: 10 of 80 leads were FY2024
-audits accepted in early 2025, all under "now".
+to file a plan to fix it". In the walk an old audit's score drops by
+`OLD_AUDIT_PENALTY` (20), so a newer audit wins only when the two are close: a
+hard "newer first" rule put two late filings (scores 45, 21) ahead of three
+FY2024 findings (95, 91, 90) the day it shipped. 2026-10-25: 10 of 80 leads
+were FY2024 audits accepted in early 2025, all under "now". A charity whose
+next audit is not on file reads, in email 2, "doesn't have its next federal
+audit on file yet" (never "missed": an agency can grant an extension).
 
 **Email 2 follows email 1's kind** (`sequence.generate._followup_drafts`): a
 lead of the same signal type, from the niche when there is one, else nearby,
@@ -432,7 +436,10 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   English word starts with ("Aoc" -> "AOC"), and hyphen pieces of 3+ letters
   ("Fls-S" -> "FLS-S"; "Go-Jo" keeps its case). A word glued to the one before
   ("Rafcontracting") is never split: `glued_word` sets `Lead.name_glued` and
-  the lead line raises a review flag.
+  the lead line raises a review flag. A flagged lead (cut off or glued) ranks
+  last at its level (`sort_key`), so it reaches an email only when nothing
+  else can fill the place. An alias that repeats the name is dropped
+  ("Ioos Association, Inc. A/K/A Ioos Association").
 - **No em dashes anywhere.** Templates are authored comma-only, and every
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent

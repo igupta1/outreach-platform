@@ -133,6 +133,11 @@ def _recency(lead: Lead) -> float:
 # a newer audit of the same kind is picked first (`sort_key`). 2026-10-25: 10
 # of 80 leads in a batch were FY2024 audits accepted in early 2025.
 AUDIT_RECENT_DAYS = 365
+# How much an old audit's score drops in the walk. A hard "newer first" rule
+# put two late filings (scores 45, 21) ahead of three FY2024 findings (95, 91,
+# 90) on the same day it shipped; a penalty prefers a newer audit only when
+# the two are close. Old findings score a median 47, recent late filings 23.
+OLD_AUDIT_PENALTY = 20
 
 
 def audit_is_recent(lead: Lead) -> bool | None:
@@ -180,16 +185,17 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         0 if focus is None or suits_focus(lead, focus) else 1,
         TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
         0 if lead.is_findable else 1,
-        # A newer audit before an old one of the same kind; every non-audit
-        # lead ties here.
-        1 if audit_is_recent(lead) is False else 0,
+        # A name the source cut off or glued together reaches the email only
+        # when nothing else can fill the place: the review flags it either way.
+        1 if (lead.name_cut_off or lead.name_glued) else 0,
         # The magnet's own score, where it serves one. Every lead from a single
         # magnet shares one signal_type, so without this the first tiebreak
         # that does any work is RECENCY — which ordered 29,000 nonprofits by
         # fiscal-year end and buried the 160 whose auditor filed a repeat
         # material-weakness finding, the strongest evidence in the inventory.
         # Job-post leads carry no score and are unaffected.
-        -(lead.score or 0.0),
+        # An audit filed over a year ago scores OLD_AUDIT_PENALTY less.
+        -((lead.score or 0.0) - (OLD_AUDIT_PENALTY if audit_is_recent(lead) is False else 0)),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )

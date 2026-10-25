@@ -1325,6 +1325,10 @@ def _record_predicate(lead: Lead) -> str | None:
             phrase = nonprofit_phrase(lead)
             if phrase.startswith("filed their federal audit"):
                 return phrase.replace("their", "its", 1)
+            if phrase == "their next federal audit isn't on file":
+                # Absence on the clearinghouse only: an agency can grant an
+                # extension, so never "missed" or "late".
+                return "doesn't have its next federal audit on file yet"
             return None
         what, repeat = facts
         said = ("had weak financial controls flagged in its federal audit"

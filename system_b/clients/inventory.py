@@ -191,6 +191,7 @@ def _primary_signal(row: dict[str, Any]) -> dict[str, Any]:
 
 _REG_ARTIFACT_RE = re.compile(r"\s*/\s*[A-Za-z]{2}\s*/\s*$")   # "Intermezzo Inc. / DE /"
 _MULTISPACE_RE = re.compile(r"\s{2,}")
+_AKA_RE = re.compile(r"\s+(?:a/k/a|aka|f/k/a|fka)\s+", re.IGNORECASE)
 
 
 # Tokens that stay uppercase when a SHOUTING name is calmed down. Legal forms
@@ -413,6 +414,9 @@ def _clean_company_name(name: str) -> str:
     "WSCADV") and one-reading registry abbreviations ("Comn" -> "Community").
     Never guesses at a truncated name: `cut_off_word` flags it instead."""
     name = _REG_ARTIFACT_RE.sub("", name)
+    # "Ioos Association, Inc. A/K/A Ioos Association": the alias repeats the
+    # name, and a slash-acronym in an email reads as a filing.
+    name = _AKA_RE.split(name, maxsplit=1)[0].rstrip(" ,")
     name = name.replace(" / ", " ").strip(" /|-")
     name = _MULTISPACE_RE.sub(" ", name).strip()
     return _fix_title_tokens(_fix_shouting(name))

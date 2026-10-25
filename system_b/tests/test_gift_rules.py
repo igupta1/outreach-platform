@@ -284,9 +284,25 @@ def test_a_license_reaches_only_firms_in_the_state_that_issued_it():
     assert names(fl_firm, [fl_roofer], target=1) == ["Miami Roofer"]
 
 
-def test_a_newer_audit_is_picked_before_an_older_stronger_one():
-    old = lead("Old Audit", NP, industry="nonprofit", score=95,
-               payload={"fac_accepted_date": "2025-02-14", "fac_as_of": "2026-10-25"})
-    new = lead("New Audit", NP, industry="nonprofit", score=60,
-               payload={"fac_accepted_date": "2026-03-02", "fac_as_of": "2026-10-25"})
+OLD = {"fac_accepted_date": "2025-02-14", "fac_as_of": "2026-10-25"}
+NEW = {"fac_accepted_date": "2026-03-02", "fac_as_of": "2026-10-25"}
+
+
+def test_a_newer_audit_wins_when_close_and_a_much_stronger_old_one_still_wins():
+    """A hard "newer first" put late filings (45, 21) ahead of FY2024 findings
+    (95, 91, 90): old audits lose OLD_AUDIT_PENALTY points, nothing more."""
+    old = lead("Old Audit", NP, industry="nonprofit", score=70, payload=OLD)
+    new = lead("New Audit", NP, industry="nonprofit", score=60, payload=NEW)
     assert names(geo(), [old, new], target=2) == ["New Audit", "Old Audit"]
+    strong_old = lead("Strong Old", NP, industry="nonprofit", score=95, payload=OLD)
+    late = lead("Late Filer", NP, industry="nonprofit", score=45, payload=NEW)
+    assert names(geo(), [late, strong_old], target=1) == ["Strong Old"]
+
+
+def test_a_flagged_name_fills_a_place_only_when_nothing_else_can():
+    cut = lead("Golden Triangle Resource Conservati", NP, industry="nonprofit", score=90)
+    cut = cut.model_copy(update={"name_cut_off": "Conservati"})
+    whole = lead("Whole Name", NP, industry="nonprofit", score=40)
+    assert names(geo(), [cut, whole], target=1) == ["Whole Name"]
+    assert names(geo(), [cut, whole], target=2) == ["Whole Name",
+                                                   "Golden Triangle Resource Conservati"]

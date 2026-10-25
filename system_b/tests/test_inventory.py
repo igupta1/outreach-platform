@@ -858,3 +858,9 @@ def test_a_name_missing_a_space_is_flagged_never_split():
     assert lead.company == "Rafcontracting Inc"          # never split by guesswork
     _, flags = _lead_line(lead, date(2026, 10, 25), "state", pack=CFO_PACK)
     assert any("missing a space" in f and "Rafcontracting" in f for f in flags)
+
+
+def test_an_alias_that_repeats_the_name_is_dropped():
+    assert _clean("Ioos Association, Inc. A/K/A Ioos Association") == "Ioos Association, Inc."
+    assert _clean("Acme Builders LLC f/k/a Acme Roofing") == "Acme Builders LLC"
+    assert _clean("Kakao Bakery") == "Kakao Bakery"

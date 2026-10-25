@@ -166,3 +166,12 @@ def test_the_engineer_line_names_organizations_only_for_nonprofits():
         "i'm an engineer. i built a system that finds companies like these, "
         "for fractional cfos.")
     assert left_field_for(pack_for("finance"), builders).endswith("for finance firms.")
+
+
+def test_email_two_for_an_audit_not_yet_on_file_is_one_plain_sentence():
+    """It fell back to "found one more nonprofit showing the same signal:"."""
+    from system_b.copy.email import build_followup_email
+    overdue = lead(NP, {"fac_overdue": True}, name="Solitas House")
+    body = build_followup_email(overdue, TROY, step=2, today=TODAY, pack=pack_for("cfo")).body
+    assert body.startswith("one more in atlanta: Solitas House doesn't have its next "
+                           "federal audit on file yet.")
