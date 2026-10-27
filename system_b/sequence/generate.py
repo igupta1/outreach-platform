@@ -25,7 +25,8 @@ from system_b.research.service import research_prospect
 from system_b.review.payload import build_review
 
 
-def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
+def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
+                     name_fixer: Any | None = None):
     """Build Email #2 and #3 up front. Returns (drafts, extra_ids, leads) where
     `leads` is aligned to steps 2 and 3 — the review gate surfaces those leads'
     evidence too.
@@ -59,6 +60,8 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date):
     lead = g.leads[0] if g else None
     if lead is not None:
         extra_ids.append(lead.id)
+        if name_fixer is not None:
+            name_fixer.tidy([lead])
 
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,
@@ -182,7 +185,7 @@ def choose_voice(
 def generate_sequence(
     row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
     *, pack_key: str = "cfo", force_pack: bool = False,
-    naturalness: Any | None = None,
+    naturalness: Any | None = None, name_fixer: Any | None = None,
 ) -> dict[str, Any]:
     """Research + gift + the full 3-email sequence for ONE prospect.
 
@@ -222,10 +225,16 @@ def generate_sequence(
             "backlog": _backlog_row(row, research, prospect),
         }
     strongest_first(gift)          # the email reads its strongest lead first
+    # Names as a person would write them (`copy.names`): renamed in place before
+    # any copy is written, each change noted on the review card.
+    name_notes = name_fixer.tidy(gift.leads) if name_fixer is not None else []
     email1 = build_email_1(
         gift, prospect, today=today, pack=pack, include_signoff=False
     )
-    followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today)
+    followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today,
+                                                    name_fixer)
+    if name_fixer is not None:
+        name_notes += [n for n in name_fixer.tidy(followup_leads) if n not in name_notes]
     # The LinkedIn half of the sequence, rendered now so the operator pastes
     # rather than assembles. Both DM #1 shapes ship on every row: which one is
     # correct depends on how long the connection request sat before it was
@@ -272,8 +281,16 @@ def generate_sequence(
         **dms,
         # Full evidence + copy for the review gate (run.py dumps this to the
         # companion review JSON; the CSV writer ignores it).
-        "review": build_review(
+        "review": _with_notes(build_review(
             prospect, gift, research, email1, followups, followup_leads, row, dms,
             sounds_off, voice=(pack.key, voice_source),
-        ),
+        ), name_notes),
     }
+
+
+def _with_notes(review: dict[str, Any], notes: list[str]) -> dict[str, Any]:
+    """The name fixer's notes join the card's flags, so the end-of-batch review
+    sees every name the model changed."""
+    if notes:
+        review["flags"] = list(review.get("flags") or []) + notes
+    return review

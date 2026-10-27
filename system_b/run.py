@@ -52,6 +52,7 @@ from system_b.clients.inventory import (
     snapshot_all_magnets,
     snapshot_for_niche,
 )
+from system_b.copy.names import NameFixer
 from system_b.copy.naturalness import check_naturalness
 from system_b.gift.allocation import DEFAULT_PATH as ALLOCATIONS_PATH
 from system_b.gift.allocation import Allocations
@@ -279,6 +280,8 @@ def main() -> None:
     ap.add_argument("--allocations", default=str(ALLOCATIONS_PATH),
                     help="a log of which firm got which organization; since "
                          "2026-10-25 it no longer blocks a lead from other firms")
+    ap.add_argument("--skip-name-fixer", action="store_true",
+                    help="print lead names as the registry wrote them (no model)")
     ap.add_argument("--skip-naturalness", action="store_true",
                     help="skip the advisory read that flags phrases which do not "
                          "sound like a person wrote them. One extra model call per "
@@ -353,6 +356,8 @@ def main() -> None:
         print(f"[run] target {target} valid sequence(s) — stopping as soon as they land")
 
     naturalness = None if args.skip_naturalness else check_naturalness
+    # A model tidies lead names behind a code guard (copy/names.py).
+    name_fixer = None if args.skip_name_fixer else NameFixer()
     if naturalness is None:
         print("[run] --skip-naturalness: no advisory copy read")
 
@@ -380,7 +385,7 @@ def main() -> None:
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
                                     force_pack=args.force_pack,
-                                    naturalness=naturalness)
+                                    naturalness=naturalness, name_fixer=name_fixer)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))

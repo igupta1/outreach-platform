@@ -317,7 +317,10 @@ system_b/.venv/bin/python -m system_b.review.serve \
 - Conventions: ALL copy is deterministic code. Every lead line is templated
   (hiring, breach), so no model writes any part of a sent email — `copy/llm.py`
   was deleted (2026-08-04). The LLM only proposes site classification and the
-  lead-fit check, and code re-verifies. Honesty is enforced in code.
+  lead-fit check, and code re-verifies. Honesty is enforced in code. ONE
+  exception, the user's call (2026-10-25): a model tidies how lead NAMES are
+  written (`copy/names.py`, below), behind a code guard, with every change on
+  the review card. It never writes a sentence.
 - A job lead older than `config.MAX_JOB_LEAD_AGE_DAYS` (21) never enters a
   gift: the copy says a company "is looking for" a role in the present tense,
   and a closed posting makes that false with no way for the recipient to tell.
@@ -457,6 +460,19 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   last at its level (`sort_key`), so it reaches an email only when nothing
   else can fill the place. An alias that repeats the name is dropped
   ("Ioos Association, Inc. A/K/A Ioos Association").
+- **Then a model tidies them, behind a guard** (`copy/names.py`, 2026-10-25,
+  the user's call after a 200-email batch had ~20 messy names in ~40 emails).
+  gpt-4o rewrites capitals, spacing, registry abbreviations and legal filler
+  ("Vip Structures" -> "VIP Structures", "...A New Jersey Nonprofit Co" ->
+  dropped, "Thecarolinas" -> "the Carolinas"). Code keeps a fix only when
+  `same_name` holds: the same letters, or the same words in order with each
+  kept word unchanged or spelled out from its abbreviation, losing only
+  filler, a legal tail or one cut-off letter. A refused proposal leaves the
+  registry's name and says so on the card; every applied fix is listed there
+  too. Answers are cached by name in `data/name-fixes.json` (gitignored).
+  Leads are renamed before any copy is written. `--skip-name-fixer` turns it
+  off. The user reviews the finished gate (asking Claude to check it) as the
+  safety net.
 - **No em dashes anywhere.** Templates are authored comma-only, and every
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent
