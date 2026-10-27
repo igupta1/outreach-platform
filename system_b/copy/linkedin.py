@@ -215,3 +215,79 @@ def build_dm_1_evergreen(
 def build_dm_2() -> str:
     """DM #2 — constant, so it is the same paste for every prospect."""
     return strip_em_dashes(DM_2)
+
+
+# --- The connection note (2026-10-25) -----------------------------------------
+#
+# LinkedIn came back for lukewarm contacts with the gift IN the connection
+# request, so the note does email 1's job in LinkedIn's 300 characters: the
+# same record opener (`copy.email.record_opener`, so the claim and its gates
+# are the email's own), the leads' names, the engineer line, the ask. A note
+# goes out the day it is generated, so naming a lead here does not decay the
+# way a stored DM #1 does.
+#
+# Too long, it gives up words in this order: the "either way" half of the
+# ask, then the engineer line's audience, then its noun, then a lead (fewest
+# leads last).
+# Never a cut-off word: a note that cannot fit even one lead is None, and the
+# caller says so instead of pasting half a sentence.
+CONNECT_NOTE_MAX = 300
+_SHORT_LEFT_FIELD = "i'm an engineer. i built a system that finds {things} like these."
+# (several leads, one lead)
+_SHORTEST_LEFT_FIELD = ("i'm an engineer and built a system that finds these.",
+                        "i'm an engineer and built a system that finds more like it.")
+
+
+def _subgift(gift: Gift, prospect: Prospect, n: int) -> Gift:
+    """The gift's first `n` leads, its honesty re-read for that subset."""
+    from dataclasses import replace
+
+    from system_b.gift.engine import _honesty
+
+    leads = gift.leads[:n]
+    all_niche, geo = _honesty(leads, prospect)
+    best = gift.best_lead if gift.best_lead in leads else leads[0]
+    return replace(gift, leads=leads, best_lead=best, gift_size=n,
+                   all_niche=all_niche, geo_level=geo,
+                   subject_shape="singular" if n == 1 else gift.subject_shape)
+
+
+def _note_body(gift: Gift, prospect: Prospect) -> str | None:
+    """`saw you work with nonprofits. these 2 in atlanta had ...: A; B.` or
+    None when the leads are outside the record family."""
+    from system_b.copy.email import record_opener
+
+    record = record_opener(gift, prospect)
+    if record is None:
+        return None
+    framing, lines = record
+    return f"{framing} {'; '.join(lines)}."
+
+
+def build_connect_note(
+    gift: Gift, prospect: Prospect, *, pack: NichePack | None = None,
+) -> str | None:
+    """The connection request, gift included, at most CONNECT_NOTE_MAX
+    characters. None when not even one lead fits (or the gift is not one the
+    record opener can describe)."""
+    from system_b.copy.email import _CTA_LINE, _org_noun, left_field_for
+
+    pack = pack or default_pack()
+    for n in range(gift.gift_size, 0, -1):
+        sub = _subgift(gift, prospect, n)
+        body = _note_body(sub, prospect)
+        if body is None:
+            return None
+        tails = (
+            f"{left_field_for(pack, sub)} {_CTA_LINE}",
+            f"{left_field_for(pack, sub)} worth a look?",
+            f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} worth a look?",
+            f"{_SHORTEST_LEFT_FIELD[n == 1]} worth a look?",
+        )
+        for tail in tails:
+            if n == 1:
+                tail = tail.replace(" like these", " like this one")
+            note = strip_em_dashes(f"{_greeting(prospect)} {body}\n\n{tail}")
+            if len(note) <= CONNECT_NOTE_MAX:
+                return note
+    return None

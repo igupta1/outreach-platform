@@ -25,6 +25,7 @@ system_b/data/seen-prospects.csv
 system_b/data/lead-allocations.csv
 system_b/data/name-fixes.json
 system_b/data/outreach-history.csv
+system_b/data/linkedin-log.csv
 *.review.json
 *.dump.txt
 sequences*.json

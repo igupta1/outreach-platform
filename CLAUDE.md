@@ -43,9 +43,10 @@ hand-maintained history sheet, so no tool can race the human editing it.
 
 ## The review gate is email-only (2026-10-24)
 
-LinkedIn is no longer a channel for these prospects: it goes to school alumni
-and warm connections instead. The gate has no connect link, no connect cap and
-no LinkedIn export. `run.py` still renders the DMs into `sequences.csv` (cheap,
+The batch's prospects get email only. LinkedIn is a separate, on-demand
+channel since 2026-10-25 (lukewarm contacts, one at a time: `system_b.dm`,
+below), so the gate still has no connect link, no connect cap and no LinkedIn
+export. `run.py` still renders the DMs into `sequences.csv` (cheap,
 templated, harmless), and `HISTORY_COLUMNS` / `--init-history` still exist, but
 nothing on the gate feeds them. **Download email CSV** (per pack, or the
 footer's combined **all emails** file for one campaign) goes to the sequencer
@@ -235,6 +236,31 @@ Never "real time" in the engineer line: the inventory is refreshed by hand and
 audit filings are months old. "still tuning it." was cut from the ask in the
 same pass (it made the ask read as research, not sales; the user chose brevity).
 Tests: `tests/test_record_opener.py`.
+
+## LinkedIn on demand (`system_b/dm.py`, 2026-10-25)
+
+For lukewarm LinkedIn contacts, one at a time, when you come across them:
+
+```bash
+system_b/.venv/bin/python -m system_b.dm --website acmecpa.com \
+    --first-name Jane --last-name Doe --company "Acme CPA" --city Denver --state CO
+pbpaste | system_b/.venv/bin/python -m system_b.dm --paste --website acmecpa.com
+```
+
+It runs `generate_sequence` for that one firm (research, voice, Gates A/B,
+allocation: nothing forked) and prints the connection note WITH the gift
+(`copy.linkedin.build_connect_note`, <= 300 characters), the leads it names
+with their source links, then email 2's text (after they accept) and email
+3's (last touch). The note is email 1's record opener and engineer line;
+too long, it shortens the ask, then the engineer line, then drops a lead,
+never a word, and is None when not even one lead fits. `--paste` lets a model
+EXTRACT name/firm/place from copied profile text, never write copy; no
+LinkedIn page is ever fetched. It warns (never blocks) when the firm is
+already in the email ledger, the history sheet, the allocations or the
+LinkedIn log. Unless `--dry-run` it records the organizations in
+lead-allocations.csv and the run in `system_b/data/linkedin-log.csv`
+(gitignored); it never touches the email ledger. Tests:
+`tests/test_connect_note.py`.
 
 ## The second channel (`copy/linkedin.py`)
 

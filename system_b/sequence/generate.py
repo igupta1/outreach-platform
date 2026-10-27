@@ -17,7 +17,12 @@ from typing import Any
 
 from system_b.clients.inventory import MAGNET_INDUSTRY
 from system_b.copy.email import build_email_1, build_followup_email
-from system_b.copy.linkedin import build_dm_1, build_dm_1_evergreen, build_dm_2
+from system_b.copy.linkedin import (
+    build_connect_note,
+    build_dm_1,
+    build_dm_1_evergreen,
+    build_dm_2,
+)
 from system_b.gift.engine import build_gift, strongest_first
 from system_b.gift.tiering import resolve_gift
 from system_b.niches.base import pack_for
@@ -279,6 +284,10 @@ def generate_sequence(
         "email_2": followups[0].body if followups else "",
         "email_3": followups[1].body if len(followups) > 1 else "",
         **dms,
+        # The on-demand LinkedIn note (system_b.dm), gift included. Not a CSV
+        # column: the batch is email-only and the gate rebuilds its CSV
+        # byte-for-byte from COLUMNS.
+        "li_connect_note": build_connect_note(gift, prospect, pack=pack),
         # Full evidence + copy for the review gate (run.py dumps this to the
         # companion review JSON; the CSV writer ignores it).
         "review": _with_notes(build_review(
