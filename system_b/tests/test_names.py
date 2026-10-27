@@ -132,3 +132,25 @@ def test_dropping_only_a_legal_form_is_not_noted(tmp_path):
                       cache_path=tmp_path / "n.json")
     lead = _lead("Warrior Alliance Inc")
     assert fixer.tidy([lead]) == [] and lead.company == "Warrior Alliance"
+
+
+def test_new_instructions_reask_names_the_old_ones_left_alone(tmp_path):
+    import json
+
+    from system_b.copy import names as names_mod
+
+    path = tmp_path / "n.json"
+    path.write_text(json.dumps({
+        "Rac Construction & Engineering": {"out": "Rac Construction & Engineering",
+                                           "status": "unchanged"},
+        "Vip Structures": {"out": "VIP Structures", "status": "fixed"}}))
+    asked: list[list[str]] = []
+
+    def fake(names):
+        asked.append(names)
+        return {"Rac Construction & Engineering": "RAC Construction & Engineering"}
+    fixer = NameFixer(fake, cache_path=path)
+    assert names_mod.PROMPT_VERSION >= 2
+    assert fixer("Rac Construction & Engineering") == "RAC Construction & Engineering"
+    assert fixer("Vip Structures") == "VIP Structures"     # a kept fix is not re-asked
+    assert asked == [["Rac Construction & Engineering"]]

@@ -71,3 +71,36 @@ def classify_site(site: dict[str, str], *, model: str = "gpt-4o-mini") -> dict[s
         messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
     )
     return json.loads(resp.choices[0].message.content or "{}")
+
+
+_CLIENT_FIT = (
+    "You are given organization names found on a finance firm's website and one "
+    "industry. Return ONLY the names that, from the name alone, clearly belong to "
+    "that industry ('Sciame Homes' and 'Need A Plumber Inc' are construction; "
+    "'Bass Underwriters' and 'Recording Facility' are not). A supplier TO an "
+    "industry is not in it. When unsure, leave the name out. Copy each name "
+    'exactly as given. Return JSON {"names": [...]}.'
+)
+
+
+def client_names_fit(names: list[str], industry: str, *, model: str = "gpt-4o") -> list[str]:
+    """The client names a model judges clearly in `industry`. The caller keeps
+    only names it gave (a model may judge, never add)."""
+    import json as _json
+
+    from openai import OpenAI
+
+    from system_b import config
+
+    config.require("OPENAI_API_KEY")
+    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    resp = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[{"role": "system", "content": _CLIENT_FIT},
+                  {"role": "user", "content": _json.dumps({"industry": industry,
+                                                           "names": names})}],
+    )
+    data = _json.loads(resp.choices[0].message.content or "{}")
+    return [str(n) for n in data.get("names") or []]

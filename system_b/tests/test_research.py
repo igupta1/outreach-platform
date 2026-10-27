@@ -356,3 +356,40 @@ def test_no_client_page_means_nothing_is_nameable():
     assert res.classification == "niched"
     assert res.nameable_clients == []
     assert any("presence-only" in f for f in res.flags)
+
+
+def test_a_client_list_must_show_the_industry_in_two_names():
+    """2026-10-25: "Construction Supplier, Custom Woodworking, Recording
+    Facility" became "noticed you've worked with construction companies". A
+    second judge sees the names alone; fewer than 2 fitting means no claim."""
+    site = {"https://a.com/clients":
+            f"clients: Construction Supplier, Custom Woodworking, Recording Facility. {_PAD}"}
+    raw = {"classification": "niched", "path": "client_list", "niche_guess": "construction",
+           "clients": ["Construction Supplier", "Custom Woodworking", "Recording Facility"]}
+    thin = classify(site, TAXONOMY, llm=llm_const(raw),
+                    client_fit=lambda names, industry: ["Custom Woodworking"])
+    assert thin.classification == "generalist"
+    assert any("does not clearly show construction (1 of 3" in f for f in thin.flags)
+
+    dental = {"https://d.com/clients":
+              f"our clients include Bright Smile Dental, Cedar Dental Group, Acme Bank. {_PAD}"}
+    raw = {"classification": "niched", "path": "client_list", "niche_guess": "dental",
+           "clients": ["Bright Smile Dental", "Cedar Dental Group", "Acme Bank"]}
+    # A judge may only narrow the list: a name it invents is ignored.
+    r = classify(dental, TAXONOMY, llm=llm_const(raw),
+                 client_fit=lambda names, industry: ["Bright Smile Dental",
+                                                     "Cedar Dental Group", "Made Up Dental"])
+    assert r.classification == "niched" and r.match_param == ("niche", "dental")
+    assert [e.text for e in r.evidence] == ["Bright Smile Dental", "Cedar Dental Group"]
+
+
+def test_a_failed_client_judge_makes_no_industry_claim():
+    site = {"https://d.com/clients":
+            f"clients: Bright Smile Dental, Cedar Dental Group. {_PAD}"}
+    raw = {"classification": "niched", "path": "client_list", "niche_guess": "dental",
+           "clients": ["Bright Smile Dental", "Cedar Dental Group"]}
+
+    def broken(names, industry):
+        raise RuntimeError("api down")
+    assert classify(site, TAXONOMY, llm=llm_const(raw),
+                    client_fit=broken).classification == "generalist"

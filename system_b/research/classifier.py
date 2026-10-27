@@ -57,6 +57,9 @@ _WS_RE = re.compile(r"\s+")
 #    "niche_phrase": "...", "niche_guess": "healthcare",
 #    "clients": [{"name": "..."}]}
 LlmFn = Callable[[dict[str, str]], dict[str, Any]]
+# (client names, industry) -> the names clearly in that industry. Injectable;
+# None skips the check (tests with a fake classifier stay offline).
+ClientFitFn = Callable[[list[str], str], list[str]]
 
 
 def _norm(s: str) -> str:
@@ -161,6 +164,7 @@ def classify(
     taxonomy: dict[str, list[str]],
     *,
     llm: LlmFn,
+    client_fit: ClientFitFn | None = None,
 ) -> ResearchResult:
     """Classify a fetched site. `site` is {url: visible_text}; `llm` proposes,
     code verifies. Deterministic given the same `site` and `llm` output.
@@ -172,7 +176,7 @@ def classify(
     EVERY return path — thin site, no taxonomy match, generalist and niched
     alike. A rung that only arrived on the happy path would silently default
     a whole class of prospects to the wrong voice."""
-    result = _classify(site, taxonomy, llm=llm)
+    result = _classify(site, taxonomy, llm=llm, client_fit=client_fit)
     result.rung, result.rung_evidence = detect_rung(site)
     result.rung_focus = clear_focus(site)
     return result
@@ -183,18 +187,20 @@ def _classify(
     taxonomy: dict[str, list[str]],
     *,
     llm: LlmFn,
+    client_fit: ClientFitFn | None = None,
 ) -> ResearchResult:
     total = sum(len(t) for t in site.values())
     if total < THIN_MIN_CHARS:
         return _generalist(["thin website — generalist fallback"])
     raw = llm(site) or {}
-    result = _classify_niche(raw, site, taxonomy)
+    result = _classify_niche(raw, site, taxonomy, client_fit)
     _attach_revenue(result, raw, site)
     return result
 
 
 def _classify_niche(
-    raw: dict[str, Any], site: dict[str, str], taxonomy: dict[str, list[str]]
+    raw: dict[str, Any], site: dict[str, str], taxonomy: dict[str, list[str]],
+    client_fit: ClientFitFn | None = None,
 ) -> ResearchResult:
     """The niche half of classification (Gate A). Split out so the revenue lever
     can be attached to whichever result this returns, on every path."""
@@ -224,6 +230,25 @@ def _classify_niche(
                 f"< {MIN_CLIENTS}) — generalist"
             )
             return _generalist(flags)
+        # The names must also SHOW the industry (2026-10-25): AccountAbility's
+        # "Construction Supplier, Custom Woodworking, Recording Facility" became
+        # "noticed you've worked with construction companies". A second model
+        # judges each name alone; code keeps only names it was given, and fewer
+        # than MIN_CLIENTS in the industry means no industry claim at all.
+        guess = str(raw.get("niche_guess", "")).strip()
+        if client_fit is not None and guess:
+            given = {e.text for e in verified}
+            try:
+                fitting = {n for n in client_fit(sorted(given), guess) if n in given}
+            except Exception:  # noqa: BLE001 — no judgment, no claim
+                fitting = set()
+            if len(fitting) < MIN_CLIENTS:
+                flags.append(
+                    f"client list does not clearly show {guess} ({len(fitting)} of "
+                    f"{len(given)} names fit) — generalist"
+                )
+                return _generalist(flags)
+            verified = [e for e in verified if e.text in fitting]
         # Presence-only: names are verbatim on the page, but we do NOT confirm
         # they're shown AS clients (vs logos/partners/competitors) or are SMBs.
         # So a client-list niche ALWAYS gets a mandatory human review flag before
@@ -236,7 +261,6 @@ def _classify_niche(
         # in copy. Everything else still supports the taxonomy claim (which is
         # softer and human-flagged); it just never gets named.
         nameable = [e.text for e in verified if _is_client_page(e.url)]
-        guess = str(raw.get("niche_guess", "")).strip()
         result = _map_or_save(guess, taxonomy, "client_list", verified, flags)
         result.nameable_clients = nameable
         return result

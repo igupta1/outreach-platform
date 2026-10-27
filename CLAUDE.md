@@ -473,6 +473,17 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   Leads are renamed before any copy is written. `--skip-name-fixer` turns it
   off. The user reviews the finished gate (asking Claude to check it) as the
   safety net.
+  Its instructions also cover short non-words as initials ("Rac" -> "RAC"),
+  abbreviated states ("For Tex" -> "for Texas") and an obviously cut-off last
+  word ("Center Pro" -> "Center Program"); `PROMPT_VERSION` re-asks names an
+  older prompt left unchanged.
+- **A client list must SHOW the industry** (`research.classifier`, 2026-10-25):
+  besides being verbatim on the site, at least `MIN_CLIENTS` (2) names must be
+  judged clearly in the claimed industry by `research.llm.client_names_fit`,
+  from the name alone. Fewer, or a failed call, means no industry claim: the
+  firm is matched on place instead. AccountAbility's "Construction Supplier,
+  Custom Woodworking, Recording Facility" had become "noticed you've worked
+  with construction companies".
 - **No em dashes anywhere.** Templates are authored comma-only, and every
   rendered subject + body is run through `copy.honesty.strip_em_dashes` so a
   dash from lead source data (`insight`/`evidence_text`) can't reach a sent

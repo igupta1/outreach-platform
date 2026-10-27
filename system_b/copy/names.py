@@ -40,6 +40,9 @@ log = logging.getLogger("system_b.names")
 
 DEFAULT_CACHE = Path(__file__).resolve().parent.parent / "data" / "name-fixes.json"
 MODEL = "gpt-4o"
+# Bumped when the instructions change: names the old prompt left unchanged are
+# asked again (fixes it made are kept).
+PROMPT_VERSION = 2
 _CHUNK = 40
 
 # Words a name may lose without becoming another name.
@@ -57,11 +60,16 @@ _SYSTEM = (
     "with legal filler.\n\n"
     "For each name return how a person would write it in an email:\n"
     "- fix capitalization: acronyms in capitals ('Vip Structures' -> 'VIP "
-    "Structures', 'Kla Roofing' -> 'KLA Roofing'), normal words in title case\n"
+    "Structures', 'Kla Roofing' -> 'KLA Roofing'), normal words in title case. "
+    "A 2-4 letter word that is not an English word or a common first name is "
+    "almost always initials: 'Rac Construction' -> 'RAC Construction', 'Gwo, "
+    "Inc.' -> 'GWO'\n"
     "- fix spacing: split words run together ('Thecarolinas' -> 'The "
     "Carolinas'), join spaced-out initials ('N B C-U S A' -> 'NBC-USA')\n"
     "- spell out registry abbreviations ('Gen CNTRCTNG' -> 'General "
-    "Contracting')\n"
+    "Contracting') and abbreviated US states ('For Tex' -> 'for Texas')\n"
+    "- finish a last word the registry cut off when the completion is "
+    "obvious ('Neighborhood Center Pro' -> 'Neighborhood Center Program')\n"
     "- drop legal filler at the end ('A New Jersey Nonprofit Co', 'Limited "
     "Liability Company', 'Inc', 'LLC') and a single cut-off letter at the end\n"
     "- move a trailing ', The' to the front\n\n"
@@ -161,7 +169,11 @@ class NameFixer:
 
     def prime(self, names: Iterable[str]) -> None:
         """Ask the model about every name not yet cached, in chunks."""
-        todo = list(dict.fromkeys(n for n in names if n and n not in self._cache))
+        def stale(n: str) -> bool:
+            e = self._cache.get(n)
+            return e is None or (e.get("status") == "unchanged"
+                                 and e.get("v", 1) < PROMPT_VERSION)
+        todo = list(dict.fromkeys(n for n in names if n and stale(n)))
         if not todo or self._fix is None:
             return
         for start in range(0, len(todo), _CHUNK):
@@ -175,10 +187,12 @@ class NameFixer:
             for name in chunk:
                 out = (answers.get(name) or "").strip()
                 if not out or out == name:
-                    self._cache[name] = {"out": name, "status": "unchanged"}
+                    self._cache[name] = {"out": name, "status": "unchanged",
+                                         "v": PROMPT_VERSION}
                 elif same_name(name, out):
                     self._cache[name] = {"out": out, "status": "fixed"}
-                    self._cache.setdefault(out, {"out": out, "status": "unchanged"})
+                    self._cache.setdefault(out, {"out": out, "status": "unchanged",
+                                                 "v": PROMPT_VERSION})
                     self._origin[out] = name
                 else:
                     self._cache[name] = {"out": name, "status": "rejected", "proposed": out}
