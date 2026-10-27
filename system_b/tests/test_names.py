@@ -24,6 +24,11 @@ def test_same_name_accepts_what_the_first_200_batch_needed():
         ("Community Link Programs Of Traveler Aid Society Of Central Carolinas I",
          "Community Link Programs of Traveler Aid Society of Central Carolinas"),
         ("Marketumbrella Org", "Marketumbrella"),
+        # The three the first run refused, all correct.
+        ("12Angels Construction LLC", "12 Angels Construction"),
+        ("Mansa LLP", "Mansa"),
+        ("Refugee Support Services Of Thecarolinas Inc",
+         "Refugee Support Services Of The Carolinas"),
     ]:
         assert same_name(original, fixed), (original, fixed)
 
@@ -120,3 +125,10 @@ def test_a_tidied_name_is_what_the_email_prints(monkeypatch, tmp_path):
     assert "VIP Structures" in res["email_1"] and "KLA Roofing" in res["email_1"]
     assert "Vip" not in res["email_1"] and "AVM Contractors" in res["email_2"]
     assert any('"Avm Contractors" -> "AVM Contractors"' in f for f in res["review"]["flags"])
+
+
+def test_dropping_only_a_legal_form_is_not_noted(tmp_path):
+    fixer = NameFixer(lambda names: {"Warrior Alliance Inc": "Warrior Alliance"},
+                      cache_path=tmp_path / "n.json")
+    lead = _lead("Warrior Alliance Inc")
+    assert fixer.tidy([lead]) == [] and lead.company == "Warrior Alliance"

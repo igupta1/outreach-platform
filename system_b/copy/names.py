@@ -45,10 +45,11 @@ _CHUNK = 40
 # Words a name may lose without becoming another name.
 _FILLER = frozenset({"the", "a", "an", "of", "and", "inc", "incorporated", "llc", "l",
                      "c", "co", "corp", "corporation", "company", "ltd", "limited",
-                     "pllc", "pc", "org"})
+                     "pllc", "pc", "org", "llp", "lp", "pa", "plc"})
 # A trailing run of words is a legal tail when it holds one of these.
 _LEGAL = frozenset({"inc", "incorporated", "llc", "co", "corp", "corporation", "company",
-                    "ltd", "limited", "liability", "nonprofit", "org", "pllc", "pc"})
+                    "ltd", "limited", "liability", "nonprofit", "org", "pllc", "pc",
+                    "llp", "lp", "pa", "plc"})
 
 _SYSTEM = (
     "You tidy organization names for a cold email. Each name is a real "
@@ -92,7 +93,14 @@ def same_name(original: str, fixed: str) -> bool:
     """True when `fixed` is `original` written better, not another name."""
     if not fixed or not fixed.strip():
         return False
-    if "".join(_words(original)) == "".join(_words(fixed)):
+    # A legal form may be dropped, never invented ("Inc" -> "LLC").
+    if {w for w in _words(fixed) if w in _LEGAL} - set(_words(original)):
+        return False
+    # The same letters, once legal forms are set aside: "12Angels Construction
+    # LLC" -> "12 Angels Construction", "Of Thecarolinas Inc" -> "of the Carolinas".
+    def letters(name: str) -> str:
+        return "".join(w for w in _words(name) if w not in _LEGAL)
+    if letters(original) == letters(fixed):
         return True
     orig = [w for w in _words(original) if w != "the"]
     new = [w for w in _words(fixed) if w != "the"]
@@ -143,6 +151,10 @@ class NameFixer:
                 self._cache = json.loads(cache_path.read_text())
             except (OSError, ValueError):
                 log.warning("name cache unreadable — starting empty")
+        # A proposal refused under an older guard is judged again by this one.
+        for name, entry in self._cache.items():
+            if entry.get("status") == "rejected" and same_name(name, entry.get("proposed", "")):
+                self._cache[name] = {"out": entry["proposed"], "status": "fixed"}
         # tidied name -> the registry's, so a lead already renamed for one firm
         # still carries its note on the next firm's card.
         self._origin = {e["out"]: n for n, e in self._cache.items() if e.get("status") == "fixed"}
@@ -192,7 +204,13 @@ class NameFixer:
 
     def note(self, name: str) -> str | None:
         """The review-card line for a name the fixer touched, or None."""
+        from system_b.copy.email import spoken_name
+
         entry = self._cache.get(name) or {}
+        # Dropping "Inc" or "LLC" changes nothing an email prints (`spoken_name`
+        # drops them already), so it is not worth a line on the card.
+        if entry.get("status") == "fixed" and spoken_name(name) == spoken_name(entry["out"]):
+            return None
         if entry.get("status") == "fixed":
             return f"name tidied by the model: \"{name}\" -> \"{entry['out']}\""
         if entry.get("status") == "rejected":
