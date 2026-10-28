@@ -113,7 +113,7 @@ def check_naturalness(text: str, *, model: str = "gpt-4o-mini") -> list[dict[str
         from system_b import config
 
         config.require("OPENAI_API_KEY")
-        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
         resp = client.chat.completions.create(
             model=model,
             temperature=0,

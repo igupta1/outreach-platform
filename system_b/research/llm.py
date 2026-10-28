@@ -53,7 +53,7 @@ def classify_site(site: dict[str, str], *, model: str = "gpt-4o-mini") -> dict[s
     from system_b import config
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
 
     pages = "\n\n".join(f"URL: {url}\n{text[:6000]}" for url, text in site.items())
     user = (
@@ -93,7 +93,7 @@ def client_names_fit(names: list[str], industry: str, *, model: str = "gpt-4o") 
     from system_b import config
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
     resp = client.chat.completions.create(
         model=model,
         temperature=0,

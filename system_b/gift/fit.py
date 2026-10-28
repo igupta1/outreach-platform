@@ -39,7 +39,7 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o-mini"
     from system_b import config
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
 
     items = [
         {"id": lead.id, "company": lead.company, "description": lead.value_prop or ""}
