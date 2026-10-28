@@ -7,7 +7,6 @@ Run:  system_b/.venv/bin/python -m pytest system_b/tests/test_review.py -q
 from __future__ import annotations
 
 import json
-import re
 from datetime import date
 from pathlib import Path
 

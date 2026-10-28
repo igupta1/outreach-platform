@@ -7,7 +7,6 @@ loudly."""
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 from typing import ClassVar
 
 from system_b.clients.inventory import _entity_id, _is_expired_job_lead, adapt_leadgen_lead
@@ -404,23 +403,24 @@ class _Research:
 
 
 class _Prospect:
-    # Healthcare: no magnet serves it. (Construction was the example until the
-    # construction magnet arrived, 2026-10-18.)
-    match_param = ("industry", "healthcare")
-    niche_phrase = "we serve healthcare practices"
+    # Software: no magnet serves it. (Construction was the example until the
+    # construction magnet arrived, 2026-10-18; healthcare until the duty
+    # families, 2026-10-27.)
+    match_param = ("industry", "software_saas")
+    niche_phrase = "we serve saas companies"
 
 
 def test_a_firm_we_have_no_magnet_for_is_held_not_discarded():
-    """A healthcare-focused firm is a perfectly good prospect; there is just
-    no healthcare magnet yet. Throwing it away loses both the prospect and
+    """A software-focused firm is a perfectly good prospect; there is just
+    no software magnet yet. Throwing it away loses both the prospect and
     the evidence for what to build next."""
     from system_b.sequence.generate import _backlog_row
     row = {"firm_name": "Acme CFO", "email": "a@b.co", "website": "https://b.co",
            "city": "Denver", "state": "CO"}
     got = _backlog_row(row, _Research(), _Prospect())
     assert got["reason"] == "no_magnet"
-    assert got["stated_vertical"] == "healthcare"
-    assert got["stated_phrase"] == "we serve healthcare practices"
+    assert got["stated_vertical"] == "software_saas"
+    assert got["stated_phrase"] == "we serve saas companies"
     assert got["email"] == "a@b.co"
 
 

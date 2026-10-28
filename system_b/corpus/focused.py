@@ -150,14 +150,15 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 78)
     out_rows = []
     for f in focused:
-        labs = [l for l in labels_of(f)
-                if strong(f, l) and has_distinctive(f, l)]
+        labs = [lab for lab in labels_of(f)
+                if strong(f, lab) and has_distinctive(f, lab)]
         sc = scale_of(f)
         if not labs or not sc:
             continue
-        d_hit = sorted({(d.get("phrase") or "") for l in labs
+        d_hit = sorted({(d.get("phrase") or "") for lab in labs
                         for d in f["ex"]["operational_descriptors"]
-                        if (d.get("phrase") or "").strip().lower() in (distinctive.get(l) or set())})
+                        if (d.get("phrase") or "").strip().lower()
+                        in (distinctive.get(lab) or set())})
         out_rows.append({
             "company": f["company"], "website": f["website"],
             "source_lists": f["source_lists"],
@@ -176,11 +177,11 @@ def main(argv: list[str] | None = None) -> int:
 
     by_spec = Counter()
     for r in out_rows:
-        for l in r["specialties"].split("; "):
-            by_spec[l] += 1
+        for lab in r["specialties"].split("; "):
+            by_spec[lab] += 1
     print("\n  by specialty:")
-    for l, c in by_spec.most_common():
-        print(f"    {l[:34]:34} {c:4}")
+    for lab, c in by_spec.most_common():
+        print(f"    {lab[:34]:34} {c:4}")
     by_list = Counter()
     for r in out_rows:
         for b in (r["source_lists"] or "").split(","):

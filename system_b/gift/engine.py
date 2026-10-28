@@ -60,24 +60,67 @@ _US_STATES = {
 }
 
 
-# Strength order ACROSS the magnets' signal types (lower = stronger), applied
+# Strength order ACROSS the magnets' signal types (strongest first), applied
 # after the pack's own `signal_rank` (job types) and before the lead's score,
 # which orders leads WITHIN a type (each source scores on its own scale, and
 # the inventory's 0-100 strength is a percentile within the type). An audit
 # finding a CPA signed is the strongest public evidence of a finance problem;
 # a fresh registration says the least. Types not listed sit just above the
 # new-business rows.
-TYPE_ORDER: dict[str, int] = {
-    "nonprofit_grant_no_finance_officer": 0,        # charity audit problems
-    "construction_federal_award_davis_bacon": 1,    # federal construction award
-    "federal_cost_reimbursement_contract": 2,       # cost-type federal contract
-    "federal_first_time_grant": 3,
-    "construction_license_upgrade": 4,
-    "construction_new_licensed_business": 5,
-    "new_business_formed": 7,
-    "new_business_expanding": 8,
-}
-_OTHER_TYPE = 6
+#
+# 2026-10-27: the legal-duty types (`copy.duty`) slot in by how strong a
+# duty their record proves, keeping the original six in their order:
+#   1. an auditor or a regulator flagged a problem that has to be fixed;
+#   2. Davis-Bacon and cost-type awards (the original strong pair);
+#   3. a duty just switched on, with a deadline (first plan audit, first
+#      cost report, excise returns, a yearly audit for a new program);
+#   4. a required report late or missing on the record;
+#   5. a tax debt or a plan problem the filer itself reported;
+#   6. the original grant / license rows, then everything else, then Row 8.
+# Each type keeps its own rank, so a gift fills from one kind first and the
+# record opener can say it once.
+_TYPE_STRENGTH: tuple[str, ...] = (
+    "nonprofit_grant_no_finance_officer",           # charity audit problems
+    # 1. flagged by an auditor or a regulator
+    "nonprofit_questioned_costs", "nonprofit_going_concern",
+    "nonprofit_single_audit_not_done", "bd_material_weakness", "restatement_nonreliance",
+    "plan_audit_opinion_modified", "college_heightened_cash_monitoring",
+    "ny_omig_final_audit", "nonprofit_asset_diversion", "plan_fraud_loss",
+    "ca_dre_trust_fund_discipline", "nc_rec_trust_account_discipline",
+    "ca_dre_audit_discipline", "union_funds_shortage",
+    # 2. the original strong pair
+    "construction_federal_award_davis_bacon",       # federal construction award
+    "federal_cost_reimbursement_contract",          # cost-type federal contract
+    # 3. a duty just switched on
+    "plan_audit_first_due", "welfare_plan_audit_threshold", "medicare_new_part_a_provider",
+    "snf_change_of_ownership", "hospital_change_of_ownership", "hrsa_new_health_center",
+    "cu_over_500m_no_fs_audit", "cu_stale_audit", "wi_choice_school_new",
+    "construction_first_prevailing_wage_intent", "hud_new_owner",
+    "ttb_new_distillery_permit", "ttb_new_winery_permit",
+    "nv_casino_new_nonrestricted_license", "film_ca_credit_allocated",
+    "film_nj_credit_approved", "ae_caltrans_first_icr_acceptance",
+    "fl_condo_new_association", "plan_audit_first_filed",
+    # 4. a required report late or missing
+    "nonprofit_single_audit_late", "local_gov_single_audit_late", "late_filing_notice",
+    "nasdaq_late_filing_deficiency", "rega_tier2_1k_missing", "bd_annual_audit_late",
+    "charter_audit_missing", "water_ca_annual_report_missing", "union_lm_report_late",
+    "local_gov_financial_report_late", "ae_txdot_overhead_approval_lapsed",
+    "proprietary_90_10_near_limit", "auditor_change", "cu_approaching_fs_audit",
+    # 5. tax debts and self-reported plan or 990 problems
+    "federal_tax_lien", "state_tax_lien", "unemployment_tax_lien", "top_tax_delinquent",
+    "construction_fl_stop_work_order", "pension_unpaid_min_contribution",
+    "plan_prohibited_transaction", "nonprofit_ubi_no_990t", "nonprofit_excess_benefit",
+    "nonprofit_exemption_revoked", "nonprofit_state_audit_line_no_audit",
+    "plan_late_contributions", "plan_termination_pending",
+    # 6. the original weaker rows
+    "federal_first_time_grant", "govcon_first_sbir_phase2", "tcac_placed_in_service",
+    "construction_license_upgrade", "construction_nv_license_limit",
+    "construction_new_licensed_business",
+)
+TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
+_OTHER_TYPE = len(_TYPE_STRENGTH)
+TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
+                   "new_business_expanding": _OTHER_TYPE + 2})
 
 # Row 8 is a BACKUP: a gift is built from every other lead type first, and a
 # new business only fills a place nothing else could (see `_pick_leads`).
@@ -392,7 +435,12 @@ def _audited_by(lead: Lead, prospect: Prospect) -> bool:
     swap from a deep inventory, a missed one costs the prospect."""
     auditor = None
     for sig in lead.signals:
-        auditor = (getattr(sig, "payload", None) or {}).get("fac_auditor_firm")
+        p = getattr(sig, "payload", None) or {}
+        # The firm that signed this lead's audit, whichever record names it:
+        # a Single Audit (FAC), a plan audit (Form 5500), a broker-dealer's
+        # annual audit (X-17A-5), a local government's FAC audit.
+        auditor = (p.get("fac_auditor_firm") or p.get("auditor_firm")
+                   or p.get("current_auditor") or p.get("current_provider"))
         if auditor:
             break
     a, f = _firm_key(auditor), _firm_key(prospect.firm_name)
@@ -405,6 +453,33 @@ LICENSE_SIGNALS: frozenset[str] = frozenset({
     "construction_new_licensed_business",
     "construction_license_upgrade",
 })
+
+# Records one STATE issued, whatever address the lead prints (2026-10-27): a
+# Washington public-works filing by a Saint Paul contractor, a Nevada license
+# held by a California crane company, a California tax-credit project owned
+# from New York. Like a license, true and beside the point for a firm in
+# another state (`_licensed_elsewhere`). The issuer is fixed by the program;
+# None means "read the record's own state" (`licensing_state`).
+ISSUED_BY: dict[str, str | None] = {
+    "construction_first_prevailing_wage_intent": "WA",
+    "construction_nv_license_limit": "NV",
+    "construction_fl_stop_work_order": "FL",
+    "top_tax_delinquent": "CA",
+    "tcac_placed_in_service": "CA",
+    "ca_dre_trust_fund_discipline": "CA",
+    "ca_dre_audit_discipline": "CA",
+    "nc_rec_trust_account_discipline": "NC",
+    "fl_condo_new_association": "FL",
+    "ny_omig_final_audit": "NY",
+    "wi_choice_school_new": "WI",
+    "charter_audit_missing": "FL",
+    "water_ca_annual_report_missing": "CA",
+    "nv_casino_new_nonrestricted_license": "NV",
+    "film_ca_credit_allocated": "CA",
+    "film_nj_credit_approved": "NJ",
+    "ae_txdot_overhead_approval_lapsed": "TX",
+    "ae_caltrans_first_icr_acceptance": "CA",
+}
 
 
 def licensing_state(lead: Lead) -> str | None:
@@ -430,6 +505,10 @@ def _licensed_elsewhere(lead: Lead, prospect: Prospect) -> bool:
     matched by its ADDRESS, so a Clovis, CA roofer with a new Florida license
     reached a California firm as "newly licensed in florida" (2026-10-25): true,
     and beside the point for them. Unknown on either side is not "elsewhere"."""
+    if lead.signal_type in ISSUED_BY:
+        issuer = ISSUED_BY[lead.signal_type] or licensing_state(lead)
+        return bool(issuer and prospect.state) and \
+            norm_state(issuer) != norm_state(prospect.state)
     if lead.signal_type not in LICENSE_SIGNALS:
         return False
     issuer = licensing_state(lead)
@@ -636,7 +715,7 @@ RECORD_SIGNALS: frozenset[str] = frozenset({
     "federal_cost_reimbursement_contract",
     "federal_first_time_grant",
     "new_business_formed",
-})
+}) | (frozenset(_TYPE_STRENGTH) - {"nonprofit_grant_no_finance_officer"})   # + duty types
 MAGNET_SIGNALS: frozenset[str] = ABSENCE_SIGNALS | RECORD_SIGNALS
 
 # signal type -> subject WHAT category. Each names only what its own filter
@@ -655,6 +734,9 @@ _MAGNET_WHAT: dict[str, str] = {
     "federal_first_time_grant": "first_grant",
     "new_business_formed": "new_business",
 }
+# Each legal-duty type is its own category, named by its signal type
+# (`copy.subject.RECORD_PLURAL_WHAT` carries their words).
+_MAGNET_WHAT.update({t: t for t in RECORD_SIGNALS if t not in _MAGNET_WHAT})
 
 
 # What a charity's federal audit shows (`nonprofit_phrase` reads the same

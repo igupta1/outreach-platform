@@ -386,9 +386,17 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    practice and a notary as "law firms" off a NAICS code), never from another
    state (a Seattle firm got Connecticut filings), and `_honesty` never counts
    one as on-niche.
-4. **Strength order** (`TYPE_ORDER`): charity audit problems, Davis-Bacon
-   award, cost-type contract, first-time grant, license upgrade, new license,
-   (anything else), new business. Within a type, the lead's `score` (the
+4. **Strength order** (`TYPE_ORDER`, from `gift.engine._TYPE_STRENGTH`):
+   charity audit problems; then the legal-duty types an auditor or regulator
+   flagged (questioned costs, going concern, material weakness, restatement,
+   heightened cash monitoring, Medicaid audit, trust-account discipline...);
+   Davis-Bacon award, cost-type contract; a duty just switched on (first plan
+   audit, first Medicare cost report, new permit, new choice school...); a
+   required report late or missing; tax debts and self-reported plan / 990
+   problems; first-time grant, first SBIR Phase II, tax-credit housing,
+   license upgrade, Nevada license, new license; (anything else); new
+   business. Every type has its own rank, so a gift fills from one kind first
+   and the record opener says it once. Within a type, the lead's `score` (the
    inventory's 0-100 strength). `_best_lead` (the subject's lead) follows the
    same order.
 
@@ -396,9 +404,13 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
 levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
 "arlington" TX. A prospect with no state gets no city level.
 
-Never a firm's own audit client (`_audited_by`) and never a license another
-state issued (`_licensed_elsewhere`: a Clovis, CA roofer's new FLORIDA license
-reached a California firm, 2026-10-25) apply to every pass. **Any firm may get
+Never a firm's own audit client (`_audited_by`: the FAC auditor, a plan's
+Form 5500 auditor, a broker-dealer's or local government's auditor) and never
+a license or state program record another state issued (`_licensed_elsewhere`:
+a Clovis, CA roofer's new FLORIDA license reached a California firm,
+2026-10-25; since 2026-10-27 also `ISSUED_BY`, e.g. a Saint Paul contractor's
+Washington prevailing-wage filing, New York's Medicaid audits, California's
+tax-credit and top-500 lists) apply to every pass. **Any firm may get
 any lead** (the user, 2026-10-25: "we are not big enough where prospects will
 compare notes"): the old one-organization-per-state rule is gone from `run.py`,
 and `lead-allocations.csv` is now only a log of who got what. A firm's own
@@ -553,6 +565,7 @@ every strong ID in the signal payload.
 | govcon | govcon-leads.json | Row 5: cost-type federal contracts | UEI | `government_contracting` |
 | grant | grant-leads.json | Row 6: first federal grant in 3+ years | UEI / EIN | `nonprofit` or none |
 | newbusiness | new-business-leads.json | Row 8: CO + CT new LLCs / corporations | state ID | per lead (NAICS) |
+| nonprofitduty, benefits, taxtrouble, healthcare, property, securities, publicsector, specialty, constructionduty, govconduty | `<family>-leads.json` | the approved legal-duty types (below) | EIN, NPI, CIK, NCUA, OLMS, program / record numbers | `_taxonomy_tags` |
 
 Funds (Form ADV) and Ecommerce are switched off upstream (free sources only),
 so they are out of `MAGNETS`; their adapters, phrases and tests stay. A
@@ -647,6 +660,51 @@ the same signal" only when its lead's type is one email 1 used; otherwise
 never served one, so the field sat permanently None and `sort_key` had nothing
 to order by inside a signal type — which buried the 160 nonprofits carrying a
 repeat material-weakness finding under 29,000 ordered by fiscal-year end.
+
+## The legal-duty record signals (2026-10-27)
+
+63 more record types from the inventory's batches 1-8b (Inventory
+`sources.APPROVED_SIGNALS`; 38 others stay held there, reasons in its
+CLAUDE.md). ALL their words live in ONE table, `copy/duty.py` (`DUTIES`):
+per type the opener predicate (plural / singular, the singular is also email
+2's sentence), a "why" only where a rule follows from the record (a plan past
+120 account holders owes its first plan audit; a new Medicare provider its
+first cost report; a new winery permit federal excise returns; HCM means
+paying student aid from its own cash first), the per-lead detail ("7 months
+late", "hospice", "10-k, not on edgar yet"), the <= 8-word mixed-gift line,
+the short subject, the DM words and the leads' noun ("providers", "unions",
+"credit unions", "local governments" / "schools"). `email`, `subject`,
+`linkedin` and `engine` read it; a test pins `DUTIES` to the engine's
+`RECORD_SIGNALS` and to the inventory's approved list.
+
+    saw you're based in columbus. these 3 companies in columbus have
+    retirement plans past 120 account holders on their latest form 5500,
+    so each needs its first plan audit:
+
+Wording rules kept: the record's own verb ("reported ... on its latest form
+5500": a Yes can carry over; "doesn't have ... on edgar yet", never
+"delinquent"; "were listed by their state as late"; "filed ... months after
+year end" for broker-dealers, never "late"); a state program says "the
+state's" (the place is already in the opener); no figure, no date beyond a
+form's year. A lead with no city prints no state on its line when the opener
+names the state. Each duty family is its own magnet file with its own age
+limit (its source's weekly or monthly cadence plus one missed run; specialty
+14 days because TTB's permit file covers 7). Only the original five stop the
+morning run when empty (`CORE_MAGNETS`). A duty source's industry words map
+onto the taxonomy in `clients.inventory._taxonomy_tags` (hospice / home
+health / nursing -> senior care, colleges -> higher_ed, schools -> k12,
+A/E firms -> architecture & engineering, wineries -> cpg; SEC filers, local
+governments and unions are geography-only). `_ID_FIELDS` adds the strong
+kinds the inventory writes into a duty row's payload (NPI, CIK, NCUA charter,
+OLMS file, OPEID, NCES...), then program IDs naming one organization (HUD
+owner, DRE / TTB licence, FL condo entity, TBPELS firm), then the public
+record's own number (NY warrant, recorded lien, OMIG audit) so a lead with
+no entity ID is still findable and allocatable. A person's name is never a
+lead: a duty lead whose name reads as a person (`clients/people.py`, the
+TaxTrouble rule narrowed: an initial, a professional title or "LAST, FIRST"
+on two to four plain words; a Form 5500 sponsor can be "S Sato" or "Carol K.
+Lee, MD") is dropped at load (`person_name`). Tests:
+`tests/test_duty_copy.py`.
 
 ## Forbidden without explicit instruction
 

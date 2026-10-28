@@ -36,6 +36,7 @@ from typing import Any
 import httpx
 
 from system_b import config
+from system_b.clients.people import looks_like_person
 from system_b.clients.scraper_client import SnapshotScraper
 from system_b.models import Lead, Signal
 
@@ -99,6 +100,22 @@ MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "govcon": 45,
     "grant": 45,
     "newbusiness": 45,
+    # The legal-duty families (2026-10-27). The inventory refreshes every
+    # source weekly (Inventory ops/refresh.sh, Wednesdays), so each limit is
+    # its source's own cadence plus one missed run: a weekly list goes stale
+    # after three weeks, DOL's monthly Form 5500 snapshot and the 990 scan
+    # after 45 days, and TTB's new-permit file (7 days, then overwritten)
+    # after two weeks.
+    "nonprofitduty": 45,
+    "benefits": 45,
+    "taxtrouble": 21,
+    "healthcare": 30,
+    "property": 30,
+    "securities": 21,
+    "publicsector": 30,
+    "specialty": 14,
+    "constructionduty": 21,
+    "govconduty": 30,
     "funds": 75,          # SEC publishes monthly (off upstream)
     "ecommerce": 180,     # refreshed when a new Apollo export is bought (off upstream)
 }
@@ -506,6 +523,25 @@ def _fractional_evidence(row: dict[str, Any]) -> tuple[str | None, bool]:
 _ID_FIELDS: tuple[tuple[str, str], ...] = (
     ("ein", "ein"), ("crd", "crd"), ("uei", "uei"),
     ("fl_license", "fl_license"), ("wa_license", "wa_license"), ("state_id", "state_id"),
+    # The legal-duty families (2026-10-27): the inventory's other strong kinds
+    # (`Inventory store.ID_ORDER`, written into a duty row's payload by
+    # publish), then the program IDs a source keeps in its payload that name
+    # one organization (a HUD owner, a DRE or TTB licensee, a Florida condo's
+    # managing entity, a Texas engineering firm). Last, the number of the
+    # public record itself (a tax warrant, a recorded lien, a Medicaid audit, a
+    # gaming case, a tax-credit project) for a lead with no entity ID: it is
+    # what a recipient types into the agency's search to see the record, which
+    # is what "findable" means, and it keys the allocation log.
+    ("cik", "cik"), ("ncua_charter", "ncua_charter"), ("npi", "npi"),
+    ("state_license", "state_license"), ("tx_taxpayer", "tx_taxpayer"),
+    ("mn_tax_id", "mn_tax_id"), ("opeid", "opeid"), ("nces_id", "nces_id"),
+    ("cds_code", "cds_code"), ("olms_file_number", "olms_file_number"),
+    ("ny_municode", "ny_municode"), ("hud_owner_participant_id", "hud_owner"),
+    ("dre_license_number", "dre_license"), ("dbpr_managing_entity_number", "fl_condo_entity"),
+    ("ttb_permit", "ttb_permit"), ("tbpels_firm", "tbpels_firm"),
+    ("warrant_ids", "ny_warrant"), ("lien_filing_number", "lien"),
+    ("document_id", "acris_doc"), ("audit_number", "omig_audit"), ("ngc_case", "ngc_case"),
+    ("ctcac_application_number", "tcac_project"), ("njeda_product_id", "njeda_project"),
 )
 
 _EIN_DIGITS_RE = re.compile(r"\D")
@@ -515,6 +551,8 @@ def _id_value(key: str, raw: Any) -> str:
     """One spelling per ID. An EIN arrives as "41-1386089" from the 990 and as
     "411386089" from the IRS BMF (the grant magnet); both are the same charity,
     so a 9-digit EIN is written in the IRS's dashed form."""
+    if isinstance(raw, (list, tuple)):        # NY: one lead, several warrant numbers
+        raw = raw[0] if raw else ""
     value = str(raw).strip()
     if key == "ein":
         digits = _EIN_DIGITS_RE.sub("", value)
@@ -528,7 +566,7 @@ def _entity_id(row: dict[str, Any]) -> str | None:
     for key, prefix in _ID_FIELDS:
         for signal in (row.get("signals") or []):
             raw = (signal.get("payload") or {}).get(key)
-            if raw is not None and str(raw).strip():
+            if raw not in (None, "", [], ()) and str(raw).strip():
                 return f"{prefix}:{_id_value(key, raw)}"
     domain = (row.get("domain") or "").strip().lower()
     return f"domain:{domain}" if domain else None
@@ -554,7 +592,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
                               source_url=s.get("source_url"))
     """
     company = _clean_company_name(row.get("name") or "")
-    niche = row.get("niche")
+    industry, niche = _taxonomy_tags(row.get("industry"), row.get("niche"))
 
     primary = _primary_signal(row)
     freshness = _freshness(primary.get("event_date"), today)
@@ -618,7 +656,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         domain=row.get("domain"),
         city=row.get("city"),
         state=row.get("state"),
-        industry=row.get("industry"),
+        industry=industry,
         niche=niche,
         value_prop=row.get("insight"),
         headcount=row.get("headcount"),
@@ -844,10 +882,27 @@ def _foreign_hirer(row: dict[str, Any], company: str) -> str | None:
     return None
 
 
+# Form 5500 plan sponsors: individuals file under their plain names.
+_SPONSOR_TYPES = frozenset({
+    "plan_audit_first_due", "plan_audit_first_filed", "plan_late_contributions",
+    "plan_termination_pending", "plan_prohibited_transaction",
+    "pension_unpaid_min_contribution", "welfare_plan_audit_threshold", "plan_fraud_loss",
+    "plan_audit_opinion_modified"})
+
+
+def _duty_types() -> frozenset[str]:
+    from system_b.copy.duty import DUTY_SIGNALS   # lazy: copy imports gift, not clients
+    return DUTY_SIGNALS
+
+
 def _unusable_reason(row: dict[str, Any], lead: Lead) -> str | None:
     """Why this lead can never make an honest gift line, or None when it can."""
     if _has_id_suffix(lead.company):
         return "id_suffixed_name"
+    # The raw registry name: "S SATO LLC" prints as "S Sato".
+    if lead.signal_type in _duty_types() and looks_like_person(
+            row.get("name") or lead.company, strict=lead.signal_type in _SPONSOR_TYPES):
+        return "person_name"
     # A domainless lead is NOT dropped here. `gift.engine.sort_key` already
     # ranks it below every resolvable company, which keeps it out of gifts that
     # have better options while still leaving it available when a narrow
@@ -933,7 +988,23 @@ MAGNETS: dict[str, str] = {
     "govcon": "govcon-leads.json",                # Row 5: cost-type federal contracts
     "grant": "grant-leads.json",                  # Row 6: first federal grant in 3+ years
     "newbusiness": "new-business-leads.json",     # Row 8: CO + CT new LLCs / corporations
+    # The legal-duty families (2026-10-27): only their approved types
+    # (Inventory sources.APPROVED_SIGNALS); wording in copy/duty.py.
+    "nonprofitduty": "nonprofit-duty-leads.json",       # 990 lines, FAC late / questioned
+    "benefits": "benefits-leads.json",                  # Form 5500 plan duties
+    "taxtrouble": "tax-trouble-leads.json",             # tax liens, warrants, CA top 500
+    "healthcare": "healthcare-leads.json",              # Medicare enrollments, CHOWs, OMIG, HRSA
+    "property": "property-leads.json",                  # HUD owners, TCAC, DRE/NC discipline
+    "securities": "securities-leads.json",              # SEC 8-K / NT / X-17A-5, NCUA
+    "publicsector": "public-sector-leads.json",         # HCM, 90/10, schools, local gov, unions
+    "specialty": "specialty-leads.json",                # TTB, A/E rates, CPUC, NV gaming, film
+    "constructionduty": "construction-duty-leads.json",  # WA prevailing wage, NV, FL stop-work
+    "govconduty": "govcon-duty-leads.json",             # first SBIR Phase II
 }
+# The original five: a run that finds one of THESE empty stops (morning);
+# a duty family may legitimately publish nothing for a week.
+CORE_MAGNETS: frozenset[str] = frozenset(
+    {"nonprofit", "construction", "govcon", "grant", "newbusiness"})
 
 # magnet key -> the taxonomy PARENT its leads carry, or None when the
 # industry differs lead by lead. Kept here as the one place that has to agree
@@ -948,7 +1019,67 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "grant": None,
     # From the NAICS code each registry filing states, when it states one.
     "newbusiness": None,
+    "nonprofitduty": "nonprofit",
+    "benefits": None,             # the employer's NAICS on its Form 5500
+    "taxtrouble": None,           # no industry on a lien
+    "healthcare": "healthcare",
+    "property": "real_estate",
+    "securities": None,           # SIC divisions: not taxonomy words (_taxonomy_tags)
+    "publicsector": None,         # schools -> education; governments, unions none
+    "specialty": None,            # per program (_taxonomy_tags)
+    "constructionduty": "construction",
+    "govconduty": "government_contracting",
 }
+
+# A duty source's own (industry, niche) words, by niche, mapped onto the
+# vendored taxonomy (data/taxonomy.json is the contract; a lead tagged outside
+# it can never match a prospect, and Gate B would judge it for nothing).
+# None = no vertical: the lead is a city/state (generalist) gift only.
+_SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
+    # Healthcare
+    "hospital": ("healthcare", None), "healthcare": ("healthcare", None),
+    "health_center": ("healthcare", "medical_practice"),
+    "rural_health_clinic": ("healthcare", "medical_practice"),
+    "clinic": ("healthcare", "medical_practice"),
+    "home_health": ("healthcare", "senior_care"), "hospice": ("healthcare", "senior_care"),
+    "skilled_nursing": ("healthcare", "senior_care"),
+    # Property
+    "real_estate_brokerage": ("real_estate", "brokerage"),
+    "condo_association": ("real_estate", "property_management"),
+    "hoa": ("real_estate", "property_management"),
+    "hud_multifamily": ("real_estate", "real_estate_investment"),
+    "lihtc": ("real_estate", "real_estate_investment"),
+    # Public sector
+    "higher_education": ("education", "higher_ed"),
+    "charter_school": ("education", "k12_school"),
+    "k12_private_choice": ("education", "k12_school"),
+    "school_district": ("education", "k12_school"),
+    "local_government": (None, None), "special_district": (None, None),
+    "labor_union": (None, None),
+    # Securities (SIC divisions are not verticals, and these leads carry no
+    # insight for Gate B to judge): geography only.
+    "public_company": (None, None), "broker_dealer": (None, None),
+    "credit_union": (None, None), "reg_a_issuer": (None, None),
+    "crowdfunding_issuer": (None, None),
+    # Specialty
+    "engineering": ("professional_services", "architecture_engineering"),
+    "film_tv_production": ("media_entertainment", "production_studio"),
+    "casino_gaming": ("hospitality_food", None),
+    "winery": ("ecommerce_retail", "cpg_food_beverage"),
+    "distillery": ("ecommerce_retail", "cpg_food_beverage"),
+    "water_utility": ("energy", "utilities"), "sewer_utility": ("energy", "utilities"),
+    # Federal duty
+    "8a": ("government_contracting", None), "sbir_sttr": ("government_contracting", None),
+}
+
+
+def _taxonomy_tags(industry: str | None, niche: str | None) -> tuple[str | None, str | None]:
+    """(industry, niche) in the taxonomy's own words. A duty source's niche word
+    maps through `_SOURCE_NICHES`; anything else passes through unchanged (the
+    original five already emit taxonomy words)."""
+    if niche in _SOURCE_NICHES:
+        return _SOURCE_NICHES[niche]
+    return industry, niche
 
 
 def _load_one(name: str, key: str, today: date) -> list[dict[str, Any]]:

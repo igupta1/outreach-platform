@@ -28,11 +28,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 from typing import Any
 
 from system_b.corpus import store
-from system_b.corpus.extract import (MODEL, _call, _pages_for, _Throttle, verify)
+from system_b.corpus.extract import (MODEL, _pages_for, _Throttle, verify)
 
 _SYSTEM = (
     "You read a professional-services firm's website and record ONLY the size "

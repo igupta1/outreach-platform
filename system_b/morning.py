@@ -42,7 +42,7 @@ import webbrowser
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from system_b.clients.inventory import MAGNET_MAX_AGE_DAYS, MAGNETS
+from system_b.clients.inventory import CORE_MAGNETS, MAGNET_MAX_AGE_DAYS, MAGNETS
 
 ROOT = Path(__file__).resolve().parent.parent
 # The lead inventory repo and the folder its `publish` writes. Overridable so a
@@ -118,7 +118,10 @@ def check(today: date | None = None) -> tuple[list[str], list[str]]:
             continue
         count = data.get("count") or len(data.get("leads") or [])
         if not count:
-            problems.append(f"{key}: inventory has ZERO leads")
+            # One of the original five empty means a broken refresh; a duty
+            # family (2026-10-27) may hold no approved lead some weeks.
+            (problems if key in CORE_MAGNETS else warnings).append(
+                f"{key}: inventory has ZERO leads")
             continue
         gen = str(data.get("generated_at") or "")[:10]
         try:

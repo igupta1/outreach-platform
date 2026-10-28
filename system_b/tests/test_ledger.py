@@ -193,7 +193,6 @@ def test_morning_points_at_the_dedup_ledger_not_the_history_sheet():
     """The actual regression: a default, in a different file, that no test for
     run.py could have caught."""
     from system_b.morning import main  # noqa: F401  (import guards the module)
-    import argparse
     import inspect
 
     import system_b.morning as morning

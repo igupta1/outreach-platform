@@ -116,6 +116,12 @@ NICHE_NOUNS: dict[str, tuple[str, str]] = {
     "behavioral health": ("behavioral health practice", "behavioral health practices"),
     "restaurant": ("restaurant", "restaurants"),
     "k-12 education": ("school", "schools"),
+    # Schools and colleges are not companies (the duty leads, 2026-10-27).
+    "education": ("education organization", "education organizations"),
+    "higher education": ("college", "colleges"),
+    "utilities": ("utility", "utilities"),
+    "architecture & engineering": ("architecture & engineering firm",
+                                   "architecture & engineering firms"),
     # A fund manager is not a "private fund company" — the default
     # "{label} company" rule produces a phrase nobody in that world says.
     "private fund": ("private fund manager", "private fund managers"),

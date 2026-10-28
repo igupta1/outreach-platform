@@ -39,12 +39,24 @@ def row(signal_type="federal_cost_reimbursement_contract", payload=None, *, name
     }
 
 
-def test_the_inventory_magnets_are_the_five_published_files():
+def test_the_inventory_magnets_are_the_published_files():
     assert MAGNETS == {
         "nonprofit": "nonprofit-leads.json", "construction": "construction-leads.json",
         "govcon": "govcon-leads.json", "grant": "grant-leads.json",
         "newbusiness": "new-business-leads.json",
+        # The legal-duty families (2026-10-27).
+        "nonprofitduty": "nonprofit-duty-leads.json", "benefits": "benefits-leads.json",
+        "taxtrouble": "tax-trouble-leads.json", "healthcare": "healthcare-leads.json",
+        "property": "property-leads.json", "securities": "securities-leads.json",
+        "publicsector": "public-sector-leads.json", "specialty": "specialty-leads.json",
+        "constructionduty": "construction-duty-leads.json",
+        "govconduty": "govcon-duty-leads.json",
     }
+    from system_b.clients.inventory import CORE_MAGNETS, MAGNET_MAX_AGE_DAYS
+    assert CORE_MAGNETS == {"nonprofit", "construction", "govcon", "grant", "newbusiness"}
+    assert set(MAGNETS) <= set(MAGNET_MAX_AGE_DAYS)
+    # TTB's new-permit file covers 7 days and is overwritten weekly.
+    assert MAGNET_MAX_AGE_DAYS["specialty"] <= 14
     assert set(MAGNET_INDUSTRY) == set(MAGNETS)
     assert MAGNET_INDUSTRY["govcon"] == "government_contracting"
     assert MAGNET_INDUSTRY["grant"] is None        # untagged businesses stay generalist

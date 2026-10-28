@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import re
 import sqlite3
 import sys

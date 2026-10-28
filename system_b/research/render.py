@@ -29,7 +29,6 @@ directly, with its own (higher) render threshold -- see `corpus/crawl.py`.
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import Any
 
 from system_b.research.fetcher import html_to_text

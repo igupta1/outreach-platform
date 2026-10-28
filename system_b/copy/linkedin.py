@@ -105,6 +105,7 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
     names only what its own filter verified: the Funds filter checks for an
     outside administrator and says nothing about who works there, so it must
     not borrow the "nobody in finance" phrasing the other two earn."""
+    from system_b.copy.duty import DUTIES
     from system_b.gift.engine import MAGNET_SIGNALS, what_key
 
     kinds = {lead.signal_type for lead in gift.leads}
@@ -134,6 +135,9 @@ def _flags_what(gift: Gift, pack: NichePack) -> str:
                     "getting their first federal grant in 3+ years",
                 "new_business_formed":
                     "registering as new companies",
+                # The legal-duty types (2026-10-27): the kind of record, in
+                # the record's own words (`copy.duty`).
+                **{t: d.flags_what for t, d in DUTIES.items()},
             }[next(iter(kinds))]
         return "that look like they need finance help"
     return f"posting {pack.dm_role_plural}"

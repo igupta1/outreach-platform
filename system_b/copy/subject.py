@@ -7,6 +7,7 @@ level. `an` before a vowel sound (4c only — plural WHOs take no article).
 
 from __future__ import annotations
 
+from system_b.copy.duty import DUTIES, all_organizations, shared_noun
 from system_b.copy.lex import (
     apply_article,
     city_display,
@@ -69,6 +70,10 @@ RECORD_SINGULAR_WHAT: dict[str, str] = {
     "nonprofit_audit_finding": "whose auditors flagged problems",
     "nonprofit_record": "needs finance help, from public records",
 }
+# The legal-duty types (2026-10-27, `copy.duty`): each is its own category,
+# keyed by its signal type, in the record's own words.
+RECORD_PLURAL_WHAT.update({t: d.subject_plural for t, d in DUTIES.items()})
+RECORD_SINGULAR_WHAT.update({t: d.generic_singular() for t, d in DUTIES.items()})
 _PLURAL_WHAT.update(RECORD_PLURAL_WHAT)
 
 # 4c WHAT (singular), from the best lead's signal type (leadgen raw vocab). One
@@ -103,9 +108,16 @@ def niche_claim(gift: Gift, prospect: Prospect) -> str | None:
 
 
 def lead_noun(gift: Gift, n: int = 2) -> str:
-    """What to call the gift's leads when no vertical is claimed: "nonprofits"
-    when every lead is one (a charity is not a company), else "companies".
-    Describes the LEADS, so it is no claim about whom the prospect serves."""
+    """What to call the gift's leads when no vertical is claimed: the noun
+    every lead's duty type shares ("unions", "credit unions", "providers":
+    `copy.duty`), "nonprofits" when every lead is one (a charity is not a
+    company), else "companies". Describes the LEADS, so it is no claim about
+    whom the prospect serves."""
+    own = shared_noun(gift.leads, n) if gift.leads else None
+    if own:
+        return own
+    if all_organizations(gift.leads):         # a school district and a city: no shared word
+        return "organization" if n == 1 else "organizations"
     if gift.leads and all(ld.industry == "nonprofit" for ld in gift.leads):
         return "nonprofit" if n == 1 else "nonprofits"
     return "company" if n == 1 else "companies"
@@ -204,6 +216,7 @@ _SHORT_WHAT: dict[str, str] = {
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
     "public_record": "that need finance help",
+    **{t: d.short_for([], 2) for t, d in DUTIES.items()},
 }
 _SHORT_WHAT_ONE: dict[str, str] = {
     "nonprofit_audit": "with audit problems",
@@ -214,6 +227,7 @@ _SHORT_WHAT_ONE: dict[str, str] = {
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
     "public_record": "that needs finance help",
+    **{t: d.short_for([], 1) for t, d in DUTIES.items()},
 }
 _CONTRACTOR_KINDS = frozenset({"davis_bacon", "auditable_contract", "new_license",
                                "license_upgrade"})
@@ -237,6 +251,8 @@ def short_subject(gift: Gift, prospect: Prospect) -> str | None:
     place = (city_display(prospect.city) if gift.geo_level == "city"
              else state_display(prospect.state) if gift.geo_level == "state" else "")
     what = (_SHORT_WHAT_ONE if n == 1 else _SHORT_WHAT)[kind]
+    if kind in DUTIES:                  # its own words for THESE leads (warrant vs lien)
+        what = DUTIES[kind].short_for(gift.leads)
     head = " ".join(w for w in (place, noun) if w)
     count = apply_article(f"a {head}") if n == 1 else f"{n} {head}"
     return f"{count} {what}".lower()

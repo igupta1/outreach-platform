@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
+from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
     city_display,
@@ -27,7 +28,6 @@ from system_b.gift.engine import compute_match_level, licensing_state
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import default_pack
-from system_b.niches.text import noun
 
 # Retired 2026-08-04: this fired on 21 of 23 prospects, so it drowned the flags
 # that actually needed a decision. `config.MAX_JOB_LEAD_AGE_DAYS` now bounds
@@ -101,10 +101,12 @@ _FINANCE_PACKS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
 
 
 def _org_noun(gift: Gift | None) -> str:
-    """"organizations" when every lead is a nonprofit, else "companies"."""
+    """"organizations" when every lead is a nonprofit or another non-company
+    (a school, a union, a local government, a credit union...: `copy.duty`'s
+    `org`), else "companies"."""
     leads = gift.leads if gift is not None else []
     if leads and all(ld.signal_type == NONPROFIT_SIGNAL or ld.industry == "nonprofit"
-                     for ld in leads):
+                     or all_organizations([ld]) for ld in leads):
         return "organizations"
     return "companies"
 
@@ -204,7 +206,7 @@ NEW_BUSINESS_SIGNAL = "new_business_formed"
 RECORD_SIGNALS = frozenset({
     DAVIS_BACON_SIGNAL, NEW_LICENSE_SIGNAL, LICENSE_UPGRADE_SIGNAL,
     COST_CONTRACT_SIGNAL, FIRST_GRANT_SIGNAL, NEW_BUSINESS_SIGNAL,
-})
+}) | DUTY_SIGNALS          # + the legal-duty types (2026-10-27, `copy.duty`)
 
 MAGNET_SIGNALS = frozenset({NONPROFIT_SIGNAL, FUNDS_SIGNAL, ECOMMERCE_SIGNAL}) | RECORD_SIGNALS
 
@@ -234,6 +236,8 @@ _MAGNET_NEED: dict[str, str] = {
     COST_CONTRACT_SIGNAL: "on federal contracts the government can audit",
     FIRST_GRANT_SIGNAL: "with their first federal grant in 3+ years",
     NEW_BUSINESS_SIGNAL: "newly registered with the state",
+    # The legal-duty types (`copy.duty`): the record's own predicate.
+    **{t: d.need_clause for t, d in DUTIES.items()},
 }
 
 # A gift mixing record-based signals (an award, a license, a 990 audit
@@ -540,6 +544,8 @@ def _record_kind(gift: Gift) -> str | None:
 
 def _record_detail(lead: Lead, kind: str) -> str:
     """Only what differs between leads that share `kind`; "" for nothing."""
+    if kind in DUTIES:
+        return DUTIES[kind].detail_for(lead)
     p = _payload(lead)
     if kind.startswith("audit_"):
         what, repeat = _audit_facts(lead) or ("", False)
@@ -629,7 +635,15 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
     one = 0 if n != 1 else 1
     noun = "" if niche else lead_noun(gift, n)
     at = f"in {where}" if where else ""
-    if kind in _RECORD_WHY:
+    duty = DUTIES.get(kind)
+    if duty is not None:
+        # The legal-duty types (2026-10-27): the same "these 3 ... predicate[,
+        # why]:" sentence, the why only where `copy.duty` gives one.
+        count = f"these {n}" if n != 1 else ("this" if noun else "this one")
+        why = duty.why_for(gift.leads)
+        ask = " ".join(w for w in (count, noun, at, duty.predicate(gift.leads)) if w) \
+            + (f", {why}:" if why else ":")
+    elif kind in _RECORD_WHY:
         predicates, whys = _RECORD_WHY[kind]
         count = f"these {n}" if n != 1 else ("this" if noun else "this one")
         ask = " ".join(w for w in (count, noun, at, predicates[one]) if w) \
@@ -646,8 +660,11 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
     lines = []
     for lead in gift.leads:
         said = spoken_name(lead.company)
-        # The city is already in the opener when every lead shares it.
-        loc = "" if level == "city" else (city_display(lead.city) or state_display(lead.state))
+        # The city is already in the opener when every lead shares it, and so
+        # is the state when a lead has no city of its own (a film production:
+        # "1. Glue The Film, california" said the state three times).
+        loc = "" if level == "city" or (level == "state" and not city_display(lead.city)) \
+            else (city_display(lead.city) or state_display(lead.state))
         name = f"{said}, {loc}" if loc else said
         if kind == "mixed":
             lines.append(f"{name}: {magnet_phrase(lead)}")
@@ -1110,6 +1127,7 @@ _MAGNET_PHRASES = {
     COST_CONTRACT_SIGNAL: cost_contract_phrase,
     FIRST_GRANT_SIGNAL: first_grant_phrase,
     NEW_BUSINESS_SIGNAL: new_business_phrase,
+    **{t: d.phrase for t, d in DUTIES.items()},
 }
 
 
@@ -1325,6 +1343,8 @@ def _record_predicate(lead: Lead) -> str | None:
     None when it has no sentence form (the caller keeps the colon line)."""
     t = lead.signal_type
     p = _payload(lead)
+    if t in DUTIES:
+        return DUTIES[t].sentence(lead)
     if t == NONPROFIT_SIGNAL:
         facts = _audit_facts(lead)
         if facts is None:
