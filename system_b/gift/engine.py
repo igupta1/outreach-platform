@@ -18,6 +18,7 @@ freshness -> match level.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from datetime import datetime
 from typing import Any, Protocol
@@ -100,8 +101,9 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "nv_casino_new_nonrestricted_license", "film_ca_credit_allocated",
     "film_nj_credit_approved", "ae_caltrans_first_icr_acceptance",
     "fl_condo_new_association", "plan_audit_first_filed",
-    # 4. a required report late or missing
-    "nonprofit_single_audit_late", "local_gov_single_audit_late", "late_filing_notice",
+    # 4. a required report late or missing (a charity two years without a 990
+    # first: one more year and its exemption is revoked by law)
+    "nonprofit_990_missed_2yr", "nonprofit_single_audit_late", "nonprofit_990_missed_1yr", "local_gov_single_audit_late", "late_filing_notice",
     "nasdaq_late_filing_deficiency", "rega_tier2_1k_missing", "bd_annual_audit_late",
     "charter_audit_missing", "water_ca_annual_report_missing", "union_lm_report_late",
     "local_gov_financial_report_late", "ae_txdot_overhead_approval_lapsed",
@@ -118,6 +120,16 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "construction_new_licensed_business",
 )
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
+
+# HELD (2026-10-29): types whose wording is written (`copy.duty.HELD_DUTIES`)
+# but not yet approved by the user. They keep their rank above, but are no
+# record signal: no gift, opener, subject or DM uses one. The inventory holds
+# them back too (its `sources.APPROVED_SIGNALS` leaves them out, so `publish`
+# never sends one). To approve a type: delete it here AND add it to the
+# inventory's APPROVED_SIGNALS (`test_duty_copy` checks the two agree).
+# OUTREACH_PREVIEW_HELD=1 lifts the hold for a local preview run only.
+HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else \
+    frozenset({"nonprofit_990_missed_1yr", "nonprofit_990_missed_2yr"})
 _OTHER_TYPE = len(_TYPE_STRENGTH)
 TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
                    "new_business_expanding": _OTHER_TYPE + 2})
@@ -715,7 +727,7 @@ RECORD_SIGNALS: frozenset[str] = frozenset({
     "federal_cost_reimbursement_contract",
     "federal_first_time_grant",
     "new_business_formed",
-}) | (frozenset(_TYPE_STRENGTH) - {"nonprofit_grant_no_finance_officer"})   # + duty types
+}) | (frozenset(_TYPE_STRENGTH) - {"nonprofit_grant_no_finance_officer"} - HELD_TYPES)  # + duty
 MAGNET_SIGNALS: frozenset[str] = ABSENCE_SIGNALS | RECORD_SIGNALS
 
 # signal type -> subject WHAT category. Each names only what its own filter

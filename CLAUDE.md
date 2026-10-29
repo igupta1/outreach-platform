@@ -706,6 +706,29 @@ on two to four plain words; a Form 5500 sponsor can be "S Sato" or "Carol K.
 Lee, MD") is dropped at load (`person_name`). Tests:
 `tests/test_duty_copy.py`.
 
+**Held types: worded, not live** (2026-10-29). `copy.duty.HELD_DUTIES` holds
+wording for types the user has not approved yet; `gift.engine.HELD_TYPES`
+keeps them out of `RECORD_SIGNALS` (so no gift, opener, subject or DM uses
+one) while `_TYPE_STRENGTH` already gives them a rank, and the inventory keeps
+them out of `APPROVED_SIGNALS` (so `publish` never sends one). Approving a
+type = delete it from `HELD_TYPES` and add it to the inventory's
+`APPROVED_SIGNALS`; `test_duty_copy` fails until both are done.
+`OUTREACH_PREVIEW_HELD=1` lifts the hold for a local preview only (the test
+renders the held words that way, in a subprocess). Held today: the 990
+filing gaps, `nonprofit_990_missed_2yr` (ranked first among "required report
+missing") and `nonprofit_990_missed_1yr` (after late single audits):
+
+    these 3 nonprofits in denver have no 990 on irs public record for two
+    years running, so a third would cost each its tax exemption:
+
+    1. Mile High Youth Fund (fy2023 and fy2024, next one due soon)
+
+"no 990 on irs public record", never "didn't file" or "missed": a return can
+sit with the IRS for weeks before it is published (~5% of flags, measured in
+Nonprofit `filinggap.py`). "next one due soon" only when the next deadline is
+within 90 days (`next_deadline_within_90_days`). Tests:
+`tests/test_filing_gap_copy.py`.
+
 ## Forbidden without explicit instruction
 
 - Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).

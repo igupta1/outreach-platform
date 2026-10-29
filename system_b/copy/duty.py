@@ -38,6 +38,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from system_b.gift.engine import HELD_TYPES
 from system_b.models import Lead
 
 Text = str | Callable[[list[Lead]], str]
@@ -792,6 +793,48 @@ DUTIES: dict[str, Duty] = {
         short=("with first sbir phase ii awards", "with a first sbir phase ii award"),
         dm="winning their first sbir phase ii award"),
 }
+
+
+
+# --- Held: worded, not live (2026-10-29) --------------------------------------
+# A charity with no Form 990 (or 990-EZ / 990-N) in the IRS's public records
+# for one or two years past the extended deadline (Nonprofit `filinggap.py`).
+# Three years in a row revokes its exemption by law (IRC 6033(j)). The record
+# shows an ABSENCE on a date, so the words are "no 990 on irs public record",
+# never "didn't file" or "missed": a return can be in the IRS's hands for
+# weeks before it is published (~5% of flags, measured). Only the year is said
+# per lead (the form's year); "next one due soon" when the next deadline is
+# within 90 days. Held by `gift.engine.HELD_TYPES` until the user approves.
+
+def _gap_years(lead: Lead) -> str:
+    years = [str(y) for y in _payload(lead).get("missed_tax_years") or []]
+    detail = " and ".join(f"fy{y}" for y in years)
+    if _payload(lead).get("next_deadline_within_90_days") is True:
+        detail = f"{detail}, next one due soon" if detail else "next one due soon"
+    return detail
+
+
+HELD_DUTIES: dict[str, Duty] = {
+    "nonprofit_990_missed_1yr": Duty(
+        plural="have no 990 on irs public record for a year past due",
+        singular="has no 990 on irs public record for a year past due",
+        why=("and three years running costs a charity its exemption",
+             "and three years running costs a charity its exemption"),
+        detail=_gap_years,
+        line="no 990 on file for a past-due year",
+        short=("with no 990 on file", "with no 990 on file"),
+        dm="with no 990 on file for a year past due"),
+    "nonprofit_990_missed_2yr": Duty(
+        plural="have no 990 on irs public record for two years running",
+        singular="has no 990 on irs public record for two years running",
+        why=("so a third would cost each its tax exemption",
+             "so a third would cost it its tax exemption"),
+        detail=_gap_years,
+        line="no 990 on file for two years running",
+        short=("with no 990 on file for 2 years", "with no 990 on file for 2 years"),
+        dm="with no 990 on file for two years running"),
+}
+DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
 
 DUTY_SIGNALS = frozenset(DUTIES)
 
