@@ -98,28 +98,36 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "cu_over_500m_no_fs_audit", "cu_stale_audit", "wi_choice_school_new",
     "construction_first_prevailing_wage_intent", "hud_new_owner",
     "ttb_new_distillery_permit", "ttb_new_winery_permit",
+    "cannabis_new_license", "cannabis_began_operations",
     "nv_casino_new_nonrestricted_license", "film_ca_credit_allocated",
     "film_nj_credit_approved", "ae_caltrans_first_icr_acceptance",
     "fl_condo_new_association", "plan_audit_first_filed",
     # 4. a required report late or missing (a charity two years without a 990
     # first: one more year and its exemption is revoked by law)
     "nonprofit_990_missed_2yr", "nonprofit_single_audit_late", "nonprofit_990_missed_1yr", "local_gov_single_audit_late", "late_filing_notice",
-    "nasdaq_late_filing_deficiency", "rega_tier2_1k_missing", "bd_annual_audit_late",
+    "nasdaq_late_filing_deficiency", "rega_tier2_1k_missing", "adv_annual_amendment_overdue",
+    "bd_annual_audit_late",
     "charter_audit_missing", "water_ca_annual_report_missing", "union_lm_report_late",
     "local_gov_financial_report_late", "ae_txdot_overhead_approval_lapsed",
     "proprietary_90_10_near_limit", "auditor_change", "cu_approaching_fs_audit",
     # 5. tax debts and self-reported plan or 990 problems
     "federal_tax_lien", "state_tax_lien", "unemployment_tax_lien", "top_tax_delinquent",
+    "cannabis_licensee_tax_delinquent", "cannabis_tax_report_violation",
+    "cannabis_recordkeeping_violation", "cannabis_traceability_violation",
+    "cannabis_license_suspended",
     "construction_fl_stop_work_order", "pension_unpaid_min_contribution",
     "plan_prohibited_transaction", "nonprofit_ubi_no_990t", "nonprofit_excess_benefit",
     "nonprofit_exemption_revoked", "nonprofit_state_audit_line_no_audit",
     "plan_late_contributions", "plan_termination_pending",
-    # 6. the original weaker rows
+    # 6. the original weaker rows (Funds' absence first: re-added 2026-10-30)
+    "adv_no_fund_administrator",
     "federal_first_time_grant", "govcon_first_sbir_phase2", "tcac_placed_in_service",
     "construction_license_upgrade", "construction_nv_license_limit",
     "construction_new_licensed_business",
     # a new nonprofit: its first annual return, then a new 501(c)(3)
     "nonprofit_first_990", "nonprofit_new_501c3",
+    # a tech company's new Form D (2026-10-30): an event, no duty
+    "startup_first_form_d", "startup_new_form_d",
 )
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 
@@ -132,7 +140,11 @@ TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 # OUTREACH_PREVIEW_HELD=1 lifts the hold for a local preview run only.
 # Empty since 2026-10-30: the 990 filing gaps and the two new-nonprofit types
 # (`nonprofit_new_501c3`, `nonprofit_first_990`) were approved.
-_HELD: frozenset[str] = frozenset()
+# 2026-10-30: Funds' `adv_annual_amendment_overdue` (wording drafted, not approved).
+# Cannabis traceability citations and suspensions (2026-10-30): held by decision.
+_HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
+                                   "cannabis_traceability_violation",
+                                   "cannabis_license_suspended"})
 HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else _HELD
 _OTHER_TYPE = len(_TYPE_STRENGTH)
 TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
@@ -425,7 +437,20 @@ def _same_company(lead: Lead, gift: list[Lead]) -> bool:
     if ident and any(other.identity == ident for other in gift):
         return True
     name = _name_key(lead.company)
-    return bool(name) and any(_name_key(o.company) == name for o in gift)
+    return bool(name) and any(_names_collide(name, _name_key(o.company)) for o in gift)
+
+
+def _names_collide(a: str, b: str) -> bool:
+    """The same name on the page, or one name the other plus a tail ("Have A
+    Heart" / "Have A Heart CC": two WA cannabis UBIs of one trade name, which
+    a reader takes for one business listed twice, 2026-10-30). The shorter
+    must have two or more words, so "Acme" never swallows "Acme Roofing"."""
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long_ = sorted((a.split(), b.split()), key=len)
+    return len(short) >= 2 and long_[:len(short)] == short
 
 
 # Words a CPA firm's name carries that do not identify it. "Denman & Company,
@@ -731,7 +756,7 @@ RECORD_SIGNALS: frozenset[str] = frozenset({
     "federal_cost_reimbursement_contract",
     "federal_first_time_grant",
     "new_business_formed",
-}) | (frozenset(_TYPE_STRENGTH) - {"nonprofit_grant_no_finance_officer"} - HELD_TYPES)  # + duty
+}) | (frozenset(_TYPE_STRENGTH) - ABSENCE_SIGNALS - HELD_TYPES)  # + duty
 MAGNET_SIGNALS: frozenset[str] = ABSENCE_SIGNALS | RECORD_SIGNALS
 
 # signal type -> subject WHAT category. Each names only what its own filter

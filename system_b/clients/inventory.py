@@ -93,8 +93,8 @@ def _blob_base() -> str:
 # publish of old data still reads as old. Per-lead expiry is separate: every
 # contract-v2 lead carries its own `expires_at` (see `_past_expiry`).
 #
-# The older magnets (funds, ecommerce) are switched off upstream; their limits
-# stay so `LEADGEN_INVENTORY_DIR` pointed at an old folder still reads them.
+# Ecommerce is switched off upstream; its limit stays so
+# `LEADGEN_INVENTORY_DIR` pointed at an old folder still reads it.
 MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "nonprofit": 45,
     "construction": 45,
@@ -117,7 +117,12 @@ MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "specialty": 14,
     "constructionduty": 21,
     "govconduty": 30,
-    "funds": 75,          # SEC publishes monthly (off upstream)
+    # Funds: the SEC roster is monthly, the IAPD feed weekly; the inventory
+    # refreshes it weekly (Inventory `max_age_days` 45).
+    "funds": 45,
+    "fundsduty": 45,
+    "startups": 21,       # weekly refresh + one missed run
+    "cannabis": 21,
     "ecommerce": 180,     # refreshed when a new Apollo export is bought (off upstream)
 }
 
@@ -982,8 +987,8 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
 # Each file is its source's own contract-v2 records with the inventory's
 # websites, contacts, IDs and 0-100 strength laid over them.
 #
-# Funds and ecommerce are switched off upstream (the MVP uses free sources
-# only), so they are not listed; their adapters and copy stay.
+# Ecommerce is switched off upstream (the MVP uses free sources only), so it
+# is not listed; its adapter and copy stay. Funds is back since 2026-10-30.
 MAGNETS: dict[str, str] = {
     "nonprofit": "nonprofit-leads.json",          # Row 1: IRS Form 990 + Federal Audit Clearinghouse
     "construction": "construction-leads.json",    # Row 7: Davis-Bacon awards, FL + WA licenses
@@ -1002,6 +1007,12 @@ MAGNETS: dict[str, str] = {
     "specialty": "specialty-leads.json",                # TTB, A/E rates, CPUC, NV gaming, film
     "constructionduty": "construction-duty-leads.json",  # WA prevailing wage, NV, FL stop-work
     "govconduty": "govcon-duty-leads.json",             # first SBIR Phase II
+    # Funds (re-added 2026-10-30): SEC Form ADV advisers whose funds report
+    # no outside administrator; the duty file holds only approved types.
+    "funds": "fund-leads.json",
+    "fundsduty": "fund-duty-leads.json",                # Form ADV annual amendment
+    "startups": "startup-leads.json",                   # SEC Form D, US tech companies
+    "cannabis": "cannabis-leads.json",                  # state cannabis licensees + citations
 }
 # The original five: a run that finds one of THESE empty stops (morning);
 # a duty family may legitimately publish nothing for a week.
@@ -1031,6 +1042,10 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "specialty": None,            # per program (_taxonomy_tags)
     "constructionduty": "construction",
     "govconduty": "government_contracting",
+    "funds": "investment_management",       # niche private_funds (taxonomy words)
+    "fundsduty": "investment_management",
+    "startups": "software_saas",            # niche tech_startup -> _SOURCE_NICHES
+    "cannabis": "cannabis",
 }
 
 # A duty source's own (industry, niche) words, by niche, mapped onto the
@@ -1075,6 +1090,9 @@ _SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
     "water_utility": ("energy", "utilities"), "sewer_utility": ("energy", "utilities"),
     # Federal duty
     "8a": ("government_contracting", None), "sbir_sttr": ("government_contracting", None),
+    # Startups: Form D says "technology", never b2b vs consumer vs hardware,
+    # so no child is guessed (hardware / deep tech stay under software_saas).
+    "tech_startup": ("software_saas", None),
 }
 
 

@@ -116,6 +116,8 @@ def lead_noun(gift: Gift, n: int = 2) -> str:
     own = shared_noun(gift.leads, n) if gift.leads else None
     if own:
         return own
+    if gift.leads and all(ld.industry == "investment_management" for ld in gift.leads):
+        return "fund manager" if n == 1 else "fund managers"
     if all_organizations(gift.leads):         # a school district and a city: no shared word
         return "organization" if n == 1 else "organizations"
     if gift.leads and all(ld.industry == "nonprofit" for ld in gift.leads):
@@ -216,6 +218,7 @@ _SHORT_WHAT: dict[str, str] = {
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
     "public_record": "that need finance help",
+    "unstaffed_funds": "with no fund administrator",
     **{t: d.short_for([], 2) for t, d in DUTIES.items()},
 }
 _SHORT_WHAT_ONE: dict[str, str] = {
@@ -227,6 +230,7 @@ _SHORT_WHAT_ONE: dict[str, str] = {
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
     "public_record": "that needs finance help",
+    "unstaffed_funds": "with no fund administrator",
     **{t: d.short_for([], 1) for t, d in DUTIES.items()},
 }
 _CONTRACTOR_KINDS = frozenset({"davis_bacon", "auditable_contract", "new_license",

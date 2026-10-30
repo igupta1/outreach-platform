@@ -77,7 +77,7 @@ def body(g: Gift, p: Prospect = DANA, pack: str = "cfo") -> str:
 def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
-    assert len(DUTIES) == 67
+    assert len(DUTIES) == 74      # + 2 Startups, 5 Cannabis (2026-10-30)
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t
@@ -364,7 +364,9 @@ def test_every_published_duty_lead_renders_a_clean_line():
     seen: dict[str, int] = {}
     for key, name in MAGNETS.items():
         path = INVENTORY_DIR / name
-        if key in ("nonprofit", "construction", "govcon", "grant", "newbusiness") \
+        # The original five and Funds (an absence magnet, not a duty family:
+        # `test_funds_startups_cannabis_copy` reads its file).
+        if key in ("nonprofit", "construction", "govcon", "grant", "newbusiness", "funds") \
                 or not path.exists():
             continue
         for row in json.loads(path.read_text()).get("leads") or []:

@@ -870,6 +870,140 @@ HELD_DUTIES: dict[str, Duty] = {
         short=("that filed their first irs returns", "that filed its first irs return"),
         dm="filing their first annual returns with the irs"),
 }
+# --- Startups (2026-10-30): SEC Form D, US tech companies -----------------------
+# The raise claim is allowed for THIS source only (CLAUDE.md): every lead links
+# its own Form D. No dollar figure, no date, no "round", no "first funding".
+# "tech startups" only when every lead was incorporated within five years
+# (`noun_mixed` covers a gift that mixes them: "tech companies").
+_TECH_CO = ("tech company", "tech companies")
+
+
+def _startup_noun(lead: Lead) -> tuple[str, str]:
+    young = _payload(lead).get("incorporated_within_five_years") is True
+    return ("tech startup", "tech startups") if young else _TECH_CO
+
+
+_RAISE_WHY = ("so each has a new raise to get on its books",
+              "so it has a new raise to get on its books")
+
+DUTIES.update({
+    "startup_first_form_d": Duty(
+        plural="filed their first form d with the sec",
+        singular="filed its first form d with the sec",
+        why=_RAISE_WHY,
+        line="filed its first form d with the sec",
+        short=("with a first sec form d", "with a first sec form d"),
+        noun=_startup_noun, dm="filing their first form d",
+        extra={"noun_mixed": _TECH_CO}),
+    "startup_new_form_d": Duty(
+        plural="filed new form ds with the sec for new private offerings",
+        singular="filed a new form d with the sec for a new private offering",
+        why=_RAISE_WHY,
+        line="new sec form d for a new offering",
+        short=("with a new sec form d", "with a new sec form d"),
+        noun=_startup_noun, dm="filing new form ds",
+        extra={"noun_mixed": _TECH_CO}),
+})
+
+# --- Cannabis (Row 8c, 2026-10-30): state cannabis licensees ------------------------
+# The predicate is only what the state's record shows. A "why" only where the
+# license class collects the state cannabis tax (`collects_state_cannabis_tax`
+# on EVERY lead). Never "280E": no list shows whether a business's product is
+# medical (rescheduled) or adult-use. No dollar figures.
+_CANNABIS = ("cannabis business", "cannabis businesses")
+_CANNABIS_KIND = {"retail": "dispensary", "delivery": "delivery",
+                  "microbusiness": "microbusiness", "cultivation": "cultivator",
+                  "manufacturing": "processor", "distribution": "distributor",
+                  "courier": "courier", "testing": "lab", "vertical": "dispensary"}
+
+
+def _cannabis_kind(lead: Lead) -> str:
+    return _CANNABIS_KIND.get(str(_payload(lead).get("license_kind") or ""), "")
+
+
+def _cannabis_tax_why(leads: list[Lead]) -> tuple[str, str] | None:
+    if leads and all(_payload(ld).get("collects_state_cannabis_tax") is True for ld in leads):
+        return ("so each now has state cannabis tax returns to file",
+                "so it now has state cannabis tax returns to file")
+    return None
+
+
+def _cannabis_opened(lead: Lead) -> str:
+    return ("opened to the public"
+            if _payload(lead).get("event_field") == "opened_to_public"
+            else "was cleared by the state to start operating")
+
+
+def _cannabis_opened_plural(leads: list[Lead]) -> str:
+    if leads and all(_cannabis_opened(ld) == "opened to the public" for ld in leads):
+        return "opened to the public"
+    return "started operating under their state cannabis licenses"
+
+
+DUTIES.update({
+    "cannabis_new_license": Duty(
+        plural="got new state cannabis licenses",
+        singular="got a new state cannabis license",
+        why=_cannabis_tax_why, detail=_cannabis_kind,
+        line="new state cannabis license",
+        short=("with new cannabis licenses", "with a new cannabis license"),
+        noun=_CANNABIS, dm="getting new state cannabis licenses"),
+    "cannabis_began_operations": Duty(
+        plural=_cannabis_opened_plural, singular=_cannabis_opened,
+        why=_cannabis_tax_why, detail=_cannabis_kind,
+        line="just opened under a state cannabis license",
+        short=("that just opened", "that just opened"),
+        noun=_CANNABIS, dm="just opening under state cannabis licenses"),
+    "cannabis_tax_report_violation": Duty(
+        plural="were cited by the state's cannabis board for missing monthly tax "
+               "reports or payments",
+        singular="was cited by the state's cannabis board for missing monthly tax "
+                 "reports or payments",
+        line="cited for missing monthly cannabis tax reports",
+        short=("cited over cannabis tax reports", "cited over cannabis tax reports"),
+        noun=_CANNABIS, dm="cited over monthly cannabis tax reports"),
+    "cannabis_recordkeeping_violation": Duty(
+        plural="were cited by the state's cannabis board over their recordkeeping",
+        singular="was cited by the state's cannabis board over its recordkeeping",
+        line="cited by the state over recordkeeping",
+        short=("cited over recordkeeping", "cited over recordkeeping"),
+        noun=_CANNABIS, dm="cited over cannabis recordkeeping"),
+    "cannabis_licensee_tax_delinquent": Duty(
+        plural="are on the state's top 500 sales and use tax delinquent list",
+        singular="is on the state's top 500 sales and use tax delinquent list",
+        line="on california's top 500 tax delinquent list",
+        short=("on the state's top 500 tax list", "on the state's top 500 tax list"),
+        noun=_CANNABIS, dm="on california's top 500 tax delinquent list"),
+})
+# Held (2026-10-30): worded, not approved.
+HELD_DUTIES.update({
+    "cannabis_traceability_violation": Duty(
+        plural="were cited by the state over their seed-to-sale inventory tracking",
+        singular="was cited by the state over its seed-to-sale inventory tracking",
+        line="cited over seed-to-sale inventory tracking",
+        short=("cited over inventory tracking", "cited over inventory tracking"),
+        noun=_CANNABIS, dm="cited over seed-to-sale inventory tracking"),
+    "cannabis_license_suspended": Duty(
+        plural="have suspended state cannabis licenses",
+        singular="has a suspended state cannabis license",
+        line="state cannabis license suspended",
+        short=("with suspended cannabis licenses", "with a suspended cannabis license"),
+        noun=_CANNABIS, dm="with suspended state cannabis licenses"),
+})
+
+# Funds (2026-10-30), HELD until the user approves it. The record: the
+# adviser's latest Form ADV filing of any kind predates its last fiscal year
+# end and the 90-day annual-amendment deadline (rules 204-1 / 204-4) has
+# passed. "not on file", never "late" / "missed": extensions are not public.
+HELD_DUTIES["adv_annual_amendment_overdue"] = Duty(
+    plural="don't have their annual form adv update on file with the sec",
+    singular="doesn't have its annual form adv update on file with the sec",
+    detail=lambda ld: ("two years running"
+                       if _payload(ld).get("missed_years") == 2 else ""),
+    line="annual form adv update not on file",
+    short=("without their form adv update", "without its form adv update"),
+    noun=("fund manager", "fund managers"),
+    dm="with no annual form adv update on file")
 # Every type above is approved (2026-10-30); `gift.engine.HELD_TYPES` still
 # names any type whose wording is written but not yet approved.
 DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
@@ -889,6 +1023,14 @@ def shared_noun(leads: list[Lead], n: int) -> str | None:
         noun = next(iter(nouns))
         if noun:
             return noun[0] if n == 1 else noun[1]
+    # A type whose noun differs lead by lead (Startups: "tech startups" only
+    # when every one is young) names its shared fallback instead.
+    falls = {DUTIES[ld.signal_type].extra.get("noun_mixed") if ld.signal_type in DUTIES
+             else None for ld in leads}
+    if len(falls) == 1:
+        fall = next(iter(falls))
+        if fall:
+            return fall[0] if n == 1 else fall[1]
     return None
 
 

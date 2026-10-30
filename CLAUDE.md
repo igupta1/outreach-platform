@@ -572,8 +572,9 @@ every strong ID in the signal payload.
 | newbusiness | new-business-leads.json | Row 8: CO + CT new LLCs / corporations | state ID | per lead (NAICS) |
 | nonprofitduty, benefits, taxtrouble, healthcare, property, securities, publicsector, specialty, constructionduty, govconduty | `<family>-leads.json` | the approved legal-duty types (below) | EIN, NPI, CIK, NCUA, OLMS, program / record numbers | `_taxonomy_tags` |
 
-Funds (Form ADV) and Ecommerce are switched off upstream (free sources only),
-so they are out of `MAGNETS`; their adapters, phrases and tests stay. A
+Ecommerce is switched off upstream (free sources only), so it is out of
+`MAGNETS`; its adapter, phrases and tests stay. Funds (Form ADV) is back since
+2026-10-30 (below). A
 business grant recipient carries no industry and so is only ever a
 generalist (city/state) gift. `government_contracting` has NO children: govcon
 leads carry no niche, so a child would map a prospect to a niche no lead can
@@ -770,6 +771,52 @@ public company in <SIC description> (SEC industry code N).") so Gate B can
 judge each lead; it never reaches copy. TaxTrouble's `tax_trouble` niche word
 maps to nothing.
 
+## Funds, Startups and Cannabis (2026-10-30)
+
+Three more magnets (`MAGNETS`: `funds`, `fundsduty`, `startups`, `cannabis`;
+age limits 45 / 45 / 21 / 21 days). Tests:
+`tests/test_funds_startups_cannabis_copy.py`.
+
+- **Funds** (`fund-leads.json`, Inventory re-added it): SEC Form ADV advisers
+  whose private funds report no outside administrator (Schedule D 7.B.(1)
+  Q26(a)), <=20 filed staff or an ERA under the screen, < $1B in private
+  funds. Still an ABSENCE signal (`ABSENCE_SIGNALS`), but it now opens like a
+  record (`_RECORD_FAMILY`, `_RECORD_WHY`), ranked first in group 6:
+
+      these 3 fund managers in boston run private funds with no outside
+      administrator on their latest form adv, so each handles its fund
+      accounting in house:
+
+      1. Wave Equity Partners (17 funds)
+
+  The count is unadministered funds (a floor), never dollars. The leads' noun
+  is "fund managers" (`lead_noun`, industry `investment_management`); short
+  subject "with no fund administrator". A gift mixing funds with other kinds
+  keeps the legacy per-lead phrases (never "need finance help": the record
+  says who does the fund accounting, not that help is needed).
+  `adv_annual_amendment_overdue` (Funds' duty file: no annual Form ADV update
+  on file 90+30 days after fiscal year end) is worded in `HELD_DUTIES` and
+  HELD (`_HELD`); `fund-duty-leads.json` publishes nothing until approved.
+- **Startups** (`startup-leads.json`): US tech companies' new Form D filings,
+  approved: "filed their first form d with the sec" / "filed new form ds with
+  the sec for new private offerings", why "so each has a new raise to get on
+  its books" (the raise claim is allowed for this source only, see
+  Forbidden). "tech startups" only when every lead was incorporated within
+  five years, else "tech companies" (`Duty.extra["noun_mixed"]`). Industry
+  `software_saas`, no child guessed (hardware / deep tech included). Ranked
+  last of group 6.
+- **Cannabis** (`cannabis-leads.json`, Row 8c): approved
+  `cannabis_new_license`, `cannabis_began_operations` (ranked with the TTB
+  permits), `cannabis_tax_report_violation`, `cannabis_licensee_tax_delinquent`,
+  `cannabis_recordkeeping_violation` (with the tax liens). HELD:
+  `cannabis_traceability_violation`, `cannabis_license_suspended`. The
+  state-cannabis-tax "why" only when every lead's license class collects the
+  tax; per-lead detail is the license kind ("dispensary", "cultivator").
+  Never "280E". A name appears once per email: `_same_company` also treats
+  "Have A Heart" / "Have A Heart CC" as one name (`_names_collide`: a name
+  that is another plus a tail, the shorter two words or more), since WA
+  publishes trade names that repeat across UBIs.
+
 ## Forbidden without explicit instruction
 
 - Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).
@@ -782,6 +829,11 @@ maps to nothing.
   `cfo_wanted`/`funding_only`/`hiring_only` collapsed signal vocabulary.
 - Re-adding a raise/funding claim (`funding_phrase`, `raise_signals`) — the
   EDGAR sources that evidenced it were deleted, so the claim is unprovable.
+  **Lifted for the Startups source ONLY** (user, 2026-10-30): its two types
+  (`startup_first_form_d`, `startup_new_form_d`) say "filed their first form d
+  with the sec, so each has a new raise to get on its books", and every lead
+  links its own Form D filing. Still no dollar figure, no date, no "round",
+  no "first funding", and nothing else may claim a raise.
 - Letting a model write any part of a lead line.
 - Wholesale-destructive ops (`rm -rf` of dirs, `git reset --hard`, force push,
   dropping/truncating data, mass file deletes). Single-file deletes are fine.

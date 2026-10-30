@@ -403,24 +403,24 @@ class _Research:
 
 
 class _Prospect:
-    # Software: no magnet serves it. (Construction was the example until the
-    # construction magnet arrived, 2026-10-18; healthcare until the duty
-    # families, 2026-10-27.)
-    match_param = ("industry", "software_saas")
-    niche_phrase = "we serve saas companies"
+    # Logistics: no magnet's own industry. (Construction was the example until
+    # the construction magnet arrived, 2026-10-18; healthcare until the duty
+    # families, 2026-10-27; software until Startups, 2026-10-30.)
+    match_param = ("industry", "logistics_transport")
+    niche_phrase = "we serve logistics companies"
 
 
 def test_a_firm_we_have_no_magnet_for_is_held_not_discarded():
-    """A software-focused firm is a perfectly good prospect; there is just
-    no software magnet yet. Throwing it away loses both the prospect and
+    """A logistics-focused firm is a perfectly good prospect; there is just
+    no logistics magnet yet. Throwing it away loses both the prospect and
     the evidence for what to build next."""
     from system_b.sequence.generate import _backlog_row
     row = {"firm_name": "Acme CFO", "email": "a@b.co", "website": "https://b.co",
            "city": "Denver", "state": "CO"}
     got = _backlog_row(row, _Research(), _Prospect())
     assert got["reason"] == "no_magnet"
-    assert got["stated_vertical"] == "software_saas"
-    assert got["stated_phrase"] == "we serve saas companies"
+    assert got["stated_vertical"] == "logistics_transport"
+    assert got["stated_phrase"] == "we serve logistics companies"
     assert got["email"] == "a@b.co"
 
 

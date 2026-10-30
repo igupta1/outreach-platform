@@ -246,7 +246,9 @@ _MAGNET_NEED: dict[str, str] = {
 # a company that advertised a role, which none of these did. Funds and
 # ecommerce stay out: their filters verify an absence this does not cover.
 _MIXED_RECORD_NEED = "showing they need finance help"
-_RECORD_FAMILY = RECORD_SIGNALS | {NONPROFIT_SIGNAL}
+# Funds (re-added 2026-10-30) opens like the record signals too: its record
+# is the adviser's own Form ADV.
+_RECORD_FAMILY = RECORD_SIGNALS | {NONPROFIT_SIGNAL, FUNDS_SIGNAL}
 
 
 def need_for(gift: Gift, *, default: str) -> str:
@@ -260,7 +262,10 @@ def need_for(gift: Gift, *, default: str) -> str:
     kinds = {lead.signal_type for lead in gift.leads}
     if len(kinds) == 1:
         return _MAGNET_NEED.get(next(iter(kinds)), default)
-    if kinds and kinds <= _RECORD_FAMILY:
+    # A fund with no administrator never shares "need finance help" with the
+    # others: its record says who does the fund accounting, not that help is
+    # needed (test_magnets pins it).
+    if kinds and kinds <= _RECORD_FAMILY - {FUNDS_SIGNAL}:
         return _MIXED_RECORD_NEED
     return default
 
@@ -499,6 +504,13 @@ _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
                             "won a federal contract the government can audit"),
                            ("so each needs books that can pass a government audit",
                             "so it needs books that can pass a government audit")),
+    # Form ADV Schedule D 7.B.(1) Q26(a), "does the private fund use an
+    # administrator other than your firm?", answered No: the firm does that
+    # work itself. A count of funds, never a dollar figure (`_record_detail`).
+    FUNDS_SIGNAL: (("run private funds with no outside administrator on their latest form adv",
+                    "runs private funds with no outside administrator on its latest form adv"),
+                   ("so each handles its fund accounting in house",
+                    "so it handles its fund accounting in house")),
     FIRST_GRANT_SIGNAL: (("got their first federal grant in 3+ years",
                           "got its first federal grant in 3+ years"),
                          ("so each now has strict tracking and reporting rules to follow",
@@ -527,7 +539,9 @@ def _record_kind(gift: Gift) -> str | None:
         return None
     kinds = {ld.signal_type for ld in leads}
     if len(kinds) > 1:
-        return "mixed"
+        # "that need finance help" is not what a fund's Form ADV says: a fund
+        # mixed with other kinds keeps the legacy path (its own phrase per lead).
+        return None if FUNDS_SIGNAL in kinds else "mixed"
     kind = next(iter(kinds))
     if kind == NONPROFIT_SIGNAL:
         facts = [_audit_facts(ld) for ld in leads]
@@ -562,6 +576,8 @@ def _record_detail(lead: Lead, kind: str) -> str:
         return "more than one" if isinstance(n, int) and n > 1 else ""
     if kind == COST_CONTRACT_SIGNAL:
         return "hourly" if p.get("pricing_kind") in ("time-and-materials", "labor-hour") else ""
+    if kind == FUNDS_SIGNAL:
+        return _funds_count(p)
     if kind == NEW_LICENSE_SIGNAL:
         bits = ["new company"] if p.get("formed_class") == "new_company" else []
         where = _elsewhere(lead, _licensing_state(lead))
@@ -981,6 +997,12 @@ def nonprofit_phrase(lead: Lead) -> str:
     return "grant funded, no finance officer on their 990"
 
 
+def _funds_count(p: dict) -> str:
+    """"9 funds" (the unadministered ones: a floor, never too high), or ""."""
+    n = p.get("unadmin_funds")
+    return f"{n} funds" if isinstance(n, int) and n > 1 else ""
+
+
 def funds_phrase(lead: Lead) -> str:
     """`runs several funds with no outside administrator`.
 
@@ -1345,6 +1367,11 @@ def _record_predicate(lead: Lead) -> str | None:
     p = _payload(lead)
     if t in DUTIES:
         return DUTIES[t].sentence(lead)
+    if t == FUNDS_SIGNAL:
+        n = _funds_count(p)
+        return (f"runs {n.replace(' funds', ' private funds')} with no outside administrator "
+                "on its latest form adv" if n else
+                "runs private funds with no outside administrator on its latest form adv")
     if t == NONPROFIT_SIGNAL:
         facts = _audit_facts(lead)
         if facts is None:
