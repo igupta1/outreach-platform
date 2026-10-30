@@ -38,6 +38,7 @@ import httpx
 from system_b import config
 from system_b.clients.people import looks_like_person
 from system_b.clients.scraper_client import SnapshotScraper
+from system_b.copy.names import front_the
 from system_b.models import Lead, Signal
 
 log = logging.getLogger("system_b.inventory")
@@ -434,7 +435,7 @@ def _clean_company_name(name: str) -> str:
     # "Ioos Association, Inc. A/K/A Ioos Association": the alias repeats the
     # name, and a slash-acronym in an email reads as a filing.
     name = _AKA_RE.split(name, maxsplit=1)[0].rstrip(" ,")
-    name = name.replace(" / ", " ").strip(" /|-")
+    name = front_the(name.replace(" / ", " ").strip(" /|-"))
     name = _MULTISPACE_RE.sub(" ", name).strip()
     return _fix_title_tokens(_fix_shouting(name))
 

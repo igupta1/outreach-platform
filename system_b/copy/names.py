@@ -83,8 +83,19 @@ _SYSTEM = (
 FixFn = Callable[[list[str]], dict[str, str]]
 
 
+_TRAILING_THE_RE = re.compile(r"[,.]\s*the\s*$", re.IGNORECASE)
+
+
+def front_the(name: str) -> str:
+    """Registries file "San Francisco Housing Accelerator Fund, The"; an email
+    says "The San Francisco Housing Accelerator Fund"."""
+    m = _TRAILING_THE_RE.search(name or "")
+    return f"The {name[:m.start()].strip()}" if m and name[:m.start()].strip() else name
+
+
 def _words(name: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", (name or "").lower())
+    # An apostrophe joins: "Children's" is the word "childrens", not "children" + "s".
+    return re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", (name or "").lower()))
 
 
 def _subseq(short: str, long: str) -> bool:
@@ -110,8 +121,11 @@ def same_name(original: str, fixed: str) -> bool:
         return "".join(w for w in _words(name) if w not in _LEGAL)
     if letters(original) == letters(fixed):
         return True
-    orig = [w for w in _words(original) if w != "the"]
-    new = [w for w in _words(fixed) if w != "the"]
+    # "The" keeps its place: a trailing ", The" may move to the front, and
+    # nothing else may move it ("The X Fund" -> "X Fund, The" is refused).
+    orig, new = _words(original), _words(fixed)
+    if len(orig) > 1 and orig[-1] == "the":
+        orig = ["the"] + orig[:-1]
     i = 0
     for w in new:
         while i < len(orig) and not _spelled_out(orig[i], w):
@@ -159,10 +173,14 @@ class NameFixer:
                 self._cache = json.loads(cache_path.read_text())
             except (OSError, ValueError):
                 log.warning("name cache unreadable — starting empty")
-        # A proposal refused under an older guard is judged again by this one.
+        # Every answer is judged again by this guard: a refusal it now
+        # accepts is applied, a fix it now refuses is undone.
         for name, entry in self._cache.items():
             if entry.get("status") == "rejected" and same_name(name, entry.get("proposed", "")):
                 self._cache[name] = {"out": entry["proposed"], "status": "fixed"}
+            elif entry.get("status") == "fixed" and not same_name(name, entry.get("out", "")):
+                self._cache[name] = {"out": name, "status": "rejected",
+                                     "proposed": entry.get("out", "")}
         # tidied name -> the registry's, so a lead already renamed for one firm
         # still carries its note on the next firm's card.
         self._origin = {e["out"]: n for n, e in self._cache.items() if e.get("status") == "fixed"}
@@ -206,7 +224,7 @@ class NameFixer:
         notes: list[str] = []
         for ld in live:
             original = self._origin.get(ld.company, ld.company)
-            ld.company = (self._cache.get(original) or {}).get("out") or original
+            ld.company = front_the((self._cache.get(original) or {}).get("out") or original)
             note = self.note(original)
             if note and note not in notes:
                 notes.append(note)
@@ -214,7 +232,7 @@ class NameFixer:
 
     def __call__(self, name: str) -> str:
         self.prime([name])
-        return (self._cache.get(name) or {}).get("out") or name
+        return front_the((self._cache.get(name) or {}).get("out") or name)
 
     def note(self, name: str) -> str | None:
         """The review-card line for a name the fixer touched, or None."""

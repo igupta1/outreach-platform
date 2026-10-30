@@ -154,3 +154,47 @@ def test_new_instructions_reask_names_the_old_ones_left_alone(tmp_path):
     assert fixer("Rac Construction & Engineering") == "RAC Construction & Engineering"
     assert fixer("Vip Structures") == "VIP Structures"     # a kept fix is not re-asked
     assert asked == [["Rac Construction & Engineering"]]
+
+
+def test_a_trailing_the_moves_to_the_front_in_code():
+    from system_b.clients.inventory import _clean_company_name
+    from system_b.copy.names import front_the
+
+    assert front_the("San Francisco Housing Accelerator Fund, The") == \
+        "The San Francisco Housing Accelerator Fund"
+    assert front_the("The Arc") == "The Arc" and front_the(", The") == ", The"
+    assert _clean_company_name("San Francisco Housing Accelerator Fund, The") == \
+        "The San Francisco Housing Accelerator Fund"
+
+
+def test_the_keeps_its_place_and_an_apostrophe_joins_a_word():
+    from system_b.copy.names import front_the
+
+    assert not same_name("The San Francisco Housing Accelerator Fund",
+                         "San Francisco Housing Accelerator Fund, The")
+    assert same_name("San Francisco Housing Accelerator Fund, The",
+                     "The San Francisco Housing Accelerator Fund")
+    assert same_name("Stamford Museum And Nature Center, Inc. The",
+                     "The Stamford Museum and Nature Center")
+    assert front_the("Stamford Museum And Nature Center, Inc. The") == \
+        "The Stamford Museum And Nature Center, Inc"
+    assert same_name("Childrens Initiative", "Children's Initiative")
+    assert same_name("Adults & Childrens Alliance Inc", "Adults & Children’s Alliance")
+    assert same_name("The Treehouse A Childrens Acad", "The Treehouse A Children's Academy")
+    assert not same_name("Childrens Initiative", "Children's Health Initiative")
+
+
+def test_a_cached_fix_the_guard_now_refuses_is_undone(tmp_path):
+    import json
+
+    path = tmp_path / "n.json"
+    path.write_text(json.dumps({
+        "The San Francisco Housing Accelerator Fund": {
+            "out": "San Francisco Housing Accelerator Fund, The", "status": "fixed"},
+        "San Francisco Housing Accelerator Fund, The": {
+            "out": "San Francisco Housing Accelerator Fund, The", "status": "unchanged", "v": 2}}))
+    fixer = NameFixer(None, cache_path=path)
+    a, b = _lead("The San Francisco Housing Accelerator Fund"), \
+        _lead("San Francisco Housing Accelerator Fund, The")
+    fixer.tidy([a, b])
+    assert a.company == b.company == "The San Francisco Housing Accelerator Fund"

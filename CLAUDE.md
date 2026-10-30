@@ -509,7 +509,12 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   registry's name and says so on the card; every applied fix is listed there
   too. Answers are cached by name in `data/name-fixes.json` (gitignored).
   Leads are renamed before any copy is written. `--skip-name-fixer` turns it
-  off. The user reviews the finished gate (asking Claude to check it) as the
+  off. Since 2026-10-30 "The" keeps its place (a trailing ", The" may move to
+  the front, nothing else may move it: the model once turned "The San
+  Francisco Housing Accelerator Fund" into "..., The"), an apostrophe joins a
+  word ("Children's" = "childrens"), and code itself moves a trailing ", The"
+  to the front (`front_the`, in `_clean_company_name` and on every fixer
+  answer). Cached answers are judged again by the current guard on load. The user reviews the finished gate (asking Claude to check it) as the
   safety net.
   Its instructions also cover short non-words as initials ("Rac" -> "RAC"),
   abbreviated states ("For Tex" -> "for Texas") and an obviously cut-off last
