@@ -669,8 +669,8 @@ repeat material-weakness finding under 29,000 ordered by fiscal-year end.
 ## The legal-duty record signals (2026-10-27)
 
 63 more record types from the inventory's batches 1-8b (Inventory
-`sources.APPROVED_SIGNALS`; 38 others stay held there, reasons in its
-CLAUDE.md). ALL their words live in ONE table, `copy/duty.py` (`DUTIES`):
+`sources.APPROVED_SIGNALS`; 67 since 2026-10-30; the others stay held there,
+reasons in its CLAUDE.md). ALL their words live in ONE table, `copy/duty.py` (`DUTIES`):
 per type the opener predicate (plural / singular, the singular is also email
 2's sentence), a "why" only where a rule follows from the record (a plan past
 120 account holders owes its first plan audit; a new Medicare provider its
@@ -698,8 +698,9 @@ limit (its source's weekly or monthly cadence plus one missed run; specialty
 morning run when empty (`CORE_MAGNETS`). A duty source's industry words map
 onto the taxonomy in `clients.inventory._taxonomy_tags` (hospice / home
 health / nursing -> senior care, colleges -> higher_ed, schools -> k12,
-A/E firms -> architecture & engineering, wineries -> cpg; SEC filers, local
-governments and unions are geography-only). `_ID_FIELDS` adds the strong
+A/E firms -> architecture & engineering, wineries -> cpg; SEC issuers by SIC
+code (below); broker-dealers, credit unions, local governments and unions are
+geography-only). `_ID_FIELDS` adds the strong
 kinds the inventory writes into a duty row's payload (NPI, CIK, NCUA charter,
 OLMS file, OPEID, NCES...), then program IDs naming one organization (HUD
 owner, DRE / TTB licence, FL condo entity, TBPELS firm), then the public
@@ -718,10 +719,11 @@ one) while `_TYPE_STRENGTH` already gives them a rank, and the inventory keeps
 them out of `APPROVED_SIGNALS` (so `publish` never sends one). Approving a
 type = delete it from `HELD_TYPES` and add it to the inventory's
 `APPROVED_SIGNALS`; `test_duty_copy` fails until both are done.
-`OUTREACH_PREVIEW_HELD=1` lifts the hold for a local preview only (the test
-renders the held words that way, in a subprocess). Held today: the 990
-filing gaps, `nonprofit_990_missed_2yr` (ranked first among "required report
-missing") and `nonprofit_990_missed_1yr` (after late single audits):
+`OUTREACH_PREVIEW_HELD=1` lifts the hold for a local preview only. Held
+today: nothing. Approved 2026-10-30 (now 67 duty types): the 990 filing gaps,
+`nonprofit_990_missed_2yr` (ranked first among "required report missing")
+and `nonprofit_990_missed_1yr` (after late single audits), and the two new
+nonprofit types below:
 
     these 3 nonprofits in denver have no 990 on irs public record for two
     years running, so a third would cost each its tax exemption:
@@ -733,6 +735,40 @@ sit with the IRS for weeks before it is published (~5% of flags, measured in
 Nonprofit `filinggap.py`). "next one due soon" only when the next deadline is
 within 90 days (`next_deadline_within_90_days`). Tests:
 `tests/test_filing_gap_copy.py`.
+
+**New nonprofits** (Nonprofit `newnp.py`, approved 2026-10-30), ranked last
+among the duty types (a new charity is not in trouble yet):
+
+    these 3 nonprofits in denver are newly incorporated and recognized as
+    501(c)(3)s by the irs, so each has a 990 or 990-ez to file each year:
+
+    these 3 nonprofits in denver filed their first annual returns with the irs:
+
+    1. Mile High Youth Fund (990-ez for fy2025, filed without a paid preparer)
+    2. Front Range Arts (990 for fy2025)
+
+`nonprofit_new_501c3` = a state formation date within 12 months + an IRS
+letter within 6 (filing code 01, "990 or 990-EZ"): "newly incorporated",
+never "brand new" / "just started", no month dates. `nonprofit_first_990`:
+the form is named as filed (a 990-EZ is never "a 990" alone, never "full
+990"); "filed without a paid preparer" is the ONLY no-help claim, made only
+when `paid_preparer_listed` is False (the return names neither a preparer
+firm nor a preparer; None = not read, nothing said). Tests:
+`tests/test_new_nonprofit_copy.py`.
+
+**SEC issuers carry a vertical since 2026-10-30.** A public company / Reg A
+issuer maps by its EDGAR SIC code (`clients.inventory._SIC_TAXONOMY`, payload
+`sic`) where the code names a vertical plainly: 20-39 manufacturing (but 283x
+drugs -> healthcare / biotech, 2711-2741 -> publishing), oil & gas, rail /
+trucking / water / freight arrangement -> logistics, electric & gas ->
+utilities, restaurants, hotels, real estate and REITs, prepackaged software,
+health services, education, film production, construction, agriculture.
+Banks, insurers, blank checks, metal mining, communications, wholesale,
+retail stores (not "ecommerce") and other services stay geography only, as
+do broker-dealers and credit unions. Securities emits an `insight` ("X is a
+public company in <SIC description> (SEC industry code N).") so Gate B can
+judge each lead; it never reaches copy. TaxTrouble's `tax_trouble` niche word
+maps to nothing.
 
 ## Forbidden without explicit instruction
 

@@ -118,6 +118,8 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "federal_first_time_grant", "govcon_first_sbir_phase2", "tcac_placed_in_service",
     "construction_license_upgrade", "construction_nv_license_limit",
     "construction_new_licensed_business",
+    # a new nonprofit: its first annual return, then a new 501(c)(3)
+    "nonprofit_first_990", "nonprofit_new_501c3",
 )
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 
@@ -128,8 +130,10 @@ TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 # never sends one). To approve a type: delete it here AND add it to the
 # inventory's APPROVED_SIGNALS (`test_duty_copy` checks the two agree).
 # OUTREACH_PREVIEW_HELD=1 lifts the hold for a local preview run only.
-HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else \
-    frozenset({"nonprofit_990_missed_1yr", "nonprofit_990_missed_2yr"})
+# Empty since 2026-10-30: the 990 filing gaps and the two new-nonprofit types
+# (`nonprofit_new_501c3`, `nonprofit_first_990`) were approved.
+_HELD: frozenset[str] = frozenset()
+HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else _HELD
 _OTHER_TYPE = len(_TYPE_STRENGTH)
 TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
                    "new_business_expanding": _OTHER_TYPE + 2})

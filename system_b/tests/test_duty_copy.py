@@ -77,7 +77,7 @@ def body(g: Gift, p: Prospect = DANA, pack: str = "cfo") -> str:
 def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
-    assert len(DUTIES) == 63
+    assert len(DUTIES) == 67
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t
@@ -266,6 +266,59 @@ def test_duty_sources_are_tagged_in_the_taxonomys_words():
     # The original five already emit taxonomy words: passed through.
     assert _taxonomy_tags("construction", "specialty_trades") == ("construction",
                                                                   "specialty_trades")
+
+
+@pytest.mark.parametrize("sic,want", [
+    ("3714", ("manufacturing", None)),             # motor vehicle parts
+    ("3663", ("manufacturing", None)),
+    ("2834", ("healthcare", "biotech_pharma")),    # drugs read as biotech, not factories
+    ("2711", ("media_entertainment", "publishing")),
+    ("1311", ("energy", "oil_gas")),
+    ("4731", ("logistics_transport", "supply_chain_3pl")),
+    ("4011", ("logistics_transport", None)),
+    ("4512", (None, None)),                        # an airline is not "logistics"
+    ("4813", (None, None)),                        # communications
+    ("4911", ("energy", "utilities")),
+    ("5812", ("hospitality_food", "restaurant")),
+    ("5411", (None, None)),                        # a grocery chain is not "ecommerce"
+    ("6798", ("real_estate", "real_estate_investment")),
+    ("6022", (None, None)),                        # a bank
+    ("6770", (None, None)),                        # a blank check
+    ("7372", ("software_saas", None)),
+    ("7374", (None, None)),                        # data processing (crypto miners, too)
+    ("8071", ("healthcare", None)),
+    ("1040", (None, None)),                        # gold mining
+    (None, (None, None)), ("", (None, None)), ("abc", (None, None)),
+])
+def test_an_sec_issuer_takes_its_vertical_from_its_sic_code(sic, want):
+    assert _taxonomy_tags("manufacturing", "public_company", sic) == want
+    assert _taxonomy_tags("manufacturing", "reg_a_issuer", sic) == want
+    # Broker-dealers and credit unions stay geography only, whatever the code.
+    assert _taxonomy_tags("finance_real_estate", "broker_dealer", sic) == (None, None)
+
+
+def test_a_manufacturing_public_company_reaches_a_manufacturing_firm():
+    row = {"id": "cik:1:late_filing_notice", "name": "ACME AXLE CORP", "signal_type":
+           "late_filing_notice", "industry": "manufacturing", "niche": "public_company",
+           "insight": "ACME AXLE CORP is a public company in Motor Vehicle Parts & "
+                      "Accessories (SEC industry code 3714).",
+           "city": "Toledo", "state": "OH", "as_of": "2026-10-28", "expires_at": "2026-12-27",
+           "status": "active",
+           "signals": [{"type": "late_filing_notice", "event_date": "2026-09-29T00:00:00",
+                        "date_confidence": "high", "evidence_text": "x",
+                        "source_url": "https://www.sec.gov/x",
+                        "payload": {"cik": "1", "sic": "3714", "form": "NT 10-K"}}]}
+    ld = adapt_leadgen_lead(row, today=TODAY)
+    assert (ld.industry, ld.niche) == ("manufacturing", None)
+    assert ld.value_prop.endswith("Motor Vehicle Parts & Accessories (SEC industry code 3714).")
+    from system_b.gift.engine import compute_match_level
+    p = Prospect(firm_name="Mfg CPAs", city="Toledo", state="OH", first_name="Al",
+                 classification="niched", match_param=("industry", "manufacturing"))
+    assert compute_match_level(ld, p) == 1
+
+
+def test_tax_trouble_niche_word_is_not_passed_through():
+    assert _taxonomy_tags(None, "tax_trouble") == (None, None)
 
 
 @pytest.mark.parametrize("key,value,want", [

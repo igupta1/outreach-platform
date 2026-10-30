@@ -796,21 +796,42 @@ DUTIES: dict[str, Duty] = {
 
 
 
-# --- Held: worded, not live (2026-10-29) --------------------------------------
-# A charity with no Form 990 (or 990-EZ / 990-N) in the IRS's public records
-# for one or two years past the extended deadline (Nonprofit `filinggap.py`).
-# Three years in a row revokes its exemption by law (IRC 6033(j)). The record
-# shows an ABSENCE on a date, so the words are "no 990 on irs public record",
-# never "didn't file" or "missed": a return can be in the IRS's hands for
-# weeks before it is published (~5% of flags, measured). Only the year is said
-# per lead (the form's year); "next one due soon" when the next deadline is
-# within 90 days. Held by `gift.engine.HELD_TYPES` until the user approves.
+# --- Nonprofit: the 990 filing gaps and new nonprofits (approved 2026-10-30) ---
+# The 990 filing gaps: a charity with no Form 990 (or 990-EZ / 990-N) in the
+# IRS's public records for one or two years past the extended deadline
+# (Nonprofit `filinggap.py`). Three years in a row revokes its exemption by
+# law (IRC 6033(j)). The record shows an ABSENCE on a date, so the words are
+# "no 990 on irs public record", never "didn't file" or "missed": a return
+# can be in the IRS's hands for weeks before it is published (~5% of flags,
+# measured). Only the year is said per lead (the form's year); "next one due
+# soon" when the next deadline is within 90 days.
 
 def _gap_years(lead: Lead) -> str:
     years = [str(y) for y in _payload(lead).get("missed_tax_years") or []]
     detail = " and ".join(f"fy{y}" for y in years)
     if _payload(lead).get("next_deadline_within_90_days") is True:
         detail = f"{detail}, next one due soon" if detail else "next one due soon"
+    return detail
+
+
+# New nonprofits (Nonprofit `newnp.py`). `nonprofit_new_501c3`: a state
+# registry formation within 12 months of the read and an IRS 501(c)(3) letter
+# within 6, IRS filing code 01 ("990 or 990-EZ"): "newly incorporated", never
+# "brand new" or "just started" (the state date is when it incorporated, which
+# can follow when it began). `nonprofit_first_990`: a 990 / 990-EZ with the
+# Initial return box ticked, corroborated by the IRS's own records. The form
+# is named as filed (a 990-EZ is never a "990" alone, never a "full 990"), and
+# the ONLY no-help claim is "filed without a paid preparer", said only when
+# the return names neither a preparer firm nor a preparer
+# (`paid_preparer_listed` is False; None = not read, so nothing is said).
+
+def _first_990_detail(lead: Lead) -> str:
+    p = _payload(lead)
+    form = "990-ez" if str(p.get("return_type") or "").upper() == "990EZ" else "990"
+    year = p.get("tax_year")
+    detail = f"{form} for fy{year}" if year else form
+    if p.get("paid_preparer_listed") is False:
+        detail += ", filed without a paid preparer"
     return detail
 
 
@@ -833,7 +854,24 @@ HELD_DUTIES: dict[str, Duty] = {
         line="no 990 on file for two years running",
         short=("with no 990 on file for 2 years", "with no 990 on file for 2 years"),
         dm="with no 990 on file for two years running"),
+    "nonprofit_new_501c3": Duty(
+        plural="are newly incorporated and recognized as 501(c)(3)s by the irs",
+        singular="is newly incorporated and recognized as a 501(c)(3) by the irs",
+        why=("so each has a 990 or 990-ez to file each year",
+             "so it has a 990 or 990-ez to file each year"),
+        line="newly incorporated, new 501(c)(3) status",
+        short=("newly recognized as 501(c)(3)s", "newly recognized as a 501(c)(3)"),
+        dm="newly recognized as 501(c)(3)s"),
+    "nonprofit_first_990": Duty(
+        plural="filed their first annual returns with the irs",
+        singular="filed its first annual return with the irs",
+        detail=_first_990_detail,
+        line="first annual return filed with the irs",
+        short=("that filed their first irs returns", "that filed its first irs return"),
+        dm="filing their first annual returns with the irs"),
 }
+# Every type above is approved (2026-10-30); `gift.engine.HELD_TYPES` still
+# names any type whose wording is written but not yet approved.
 DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
 
 DUTY_SIGNALS = frozenset(DUTIES)

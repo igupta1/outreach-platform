@@ -593,9 +593,10 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
                               source_url=s.get("source_url"))
     """
     company = _clean_company_name(row.get("name") or "")
-    industry, niche = _taxonomy_tags(row.get("industry"), row.get("niche"))
-
     primary = _primary_signal(row)
+    industry, niche = _taxonomy_tags(row.get("industry"), row.get("niche"),
+                                     (primary.get("payload") or {}).get("sic"))
+
     freshness = _freshness(primary.get("event_date"), today)
     # Contract v2: the source says how long the lead holds (`expires_at`; one
     # past it never gets here, see `_past_expiry`), so an active v2 lead IS
@@ -1025,7 +1026,7 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "taxtrouble": None,           # no industry on a lien
     "healthcare": "healthcare",
     "property": "real_estate",
-    "securities": None,           # SIC divisions: not taxonomy words (_taxonomy_tags)
+    "securities": None,           # per lead, from its SIC code (_taxonomy_tags)
     "publicsector": None,         # schools -> education; governments, unions none
     "specialty": None,            # per program (_taxonomy_tags)
     "constructionduty": "construction",
@@ -1057,11 +1058,14 @@ _SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
     "school_district": ("education", "k12_school"),
     "local_government": (None, None), "special_district": (None, None),
     "labor_union": (None, None),
-    # Securities (SIC divisions are not verticals, and these leads carry no
-    # insight for Gate B to judge): geography only.
+    # Securities: a broker-dealer or credit union is a finance firm, not a
+    # vertical (fintech is software): geography only. An ISSUER's vertical is
+    # its SIC code (`_SIC_TAXONOMY`, below), else geography only.
     "public_company": (None, None), "broker_dealer": (None, None),
     "credit_union": (None, None), "reg_a_issuer": (None, None),
     "crowdfunding_issuer": (None, None),
+    # TaxTrouble: a lien names no industry.
+    "tax_trouble": (None, None),
     # Specialty
     "engineering": ("professional_services", "architecture_engineering"),
     "film_tv_production": ("media_entertainment", "production_studio"),
@@ -1074,10 +1078,57 @@ _SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
 }
 
 
-def _taxonomy_tags(industry: str | None, niche: str | None) -> tuple[str | None, str | None]:
-    """(industry, niche) in the taxonomy's own words. A duty source's niche word
-    maps through `_SOURCE_NICHES`; anything else passes through unchanged (the
-    original five already emit taxonomy words)."""
+# An SEC issuer's SIC code (EDGAR's own, payload `sic`) -> (parent, child),
+# only where the code names the vertical plainly; first match wins, so the
+# narrow ranges come before the division they sit in. Everything else (banks,
+# insurers, blank checks, metal mining, communications, wholesale, retail
+# stores, most services) stays geography only: "finance_real_estate" or
+# "services" is no vertical a firm states. Drugs (283x) read as biotech, not
+# manufacturing: most such filers are clinical-stage companies; newspapers and
+# publishers (2711-2741) as publishing. Gate B still judges every lead on its
+# `insight` ("X is a public company in <SIC description>", from Securities).
+_SIC_TAXONOMY: tuple[tuple[int, int, str, str | None], ...] = (
+    (100, 799, "agriculture", None),
+    (1311, 1389, "energy", "oil_gas"),
+    (1500, 1799, "construction", None),
+    (2711, 2741, "media_entertainment", "publishing"),
+    (2833, 2836, "healthcare", "biotech_pharma"),
+    (2000, 3999, "manufacturing", None),
+    (4000, 4099, "logistics_transport", None),          # railroads
+    (4200, 4299, "logistics_transport", None),          # trucking, warehousing
+    (4400, 4499, "logistics_transport", None),          # water transportation
+    (4731, 4731, "logistics_transport", "supply_chain_3pl"),   # freight arrangement
+    (4900, 4939, "energy", "utilities"),                # electric and gas
+    (5810, 5813, "hospitality_food", "restaurant"),
+    (6500, 6599, "real_estate", None),
+    (6798, 6798, "real_estate", "real_estate_investment"),     # REITs
+    (7011, 7011, "hospitality_food", "hotel_lodging"),
+    (7372, 7372, "software_saas", None),                # prepackaged software
+    (7812, 7812, "media_entertainment", "production_studio"),
+    (8000, 8099, "healthcare", None),
+    (8200, 8299, "education", None),
+)
+# The Securities niche words whose leads are issuers with an SIC code.
+_SIC_NICHES = frozenset({"public_company", "reg_a_issuer", "crowdfunding_issuer"})
+
+
+def _sic_tags(sic: object) -> tuple[str | None, str | None]:
+    try:
+        n = int(str(sic or "").strip())
+    except ValueError:
+        return None, None
+    return next(((ind, child) for lo, hi, ind, child in _SIC_TAXONOMY if lo <= n <= hi),
+                (None, None))
+
+
+def _taxonomy_tags(industry: str | None, niche: str | None,
+                   sic: object = None) -> tuple[str | None, str | None]:
+    """(industry, niche) in the taxonomy's own words. An SEC issuer maps by
+    its SIC code (`_SIC_TAXONOMY`); a duty source's niche word through
+    `_SOURCE_NICHES`; anything else passes through unchanged (the original
+    five already emit taxonomy words)."""
+    if niche in _SIC_NICHES:
+        return _sic_tags(sic)
     if niche in _SOURCE_NICHES:
         return _SOURCE_NICHES[niche]
     return industry, niche

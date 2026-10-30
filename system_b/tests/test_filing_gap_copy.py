@@ -1,9 +1,9 @@
-"""The 990 filing-gap types (2026-10-29, `copy.duty.HELD_DUTIES`): worded but
-HELD -- no gift, opener, subject or DM can use one until the user approves
-(`gift.engine.HELD_TYPES`, and the inventory's APPROVED_SIGNALS leaves them
-out). The words are checked by rendering them with the hold lifted
-(OUTREACH_PREVIEW_HELD=1) in a separate interpreter, so this process keeps
-the live vocabulary."""
+"""The 990 filing-gap types (2026-10-29), approved 2026-10-30: worded in
+`copy.duty`, live in the engine (no longer in `gift.engine.HELD_TYPES`) and in
+the inventory's APPROVED_SIGNALS. The words are still pinned exactly; the
+render runs in a separate interpreter as before (with the preview flag, which
+now changes nothing), so the test also proves the live vocabulary renders
+them."""
 
 from __future__ import annotations
 
@@ -25,18 +25,17 @@ GAPS = ("nonprofit_990_missed_1yr", "nonprofit_990_missed_2yr")
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_the_gap_types_are_worded_but_held_everywhere():
-    assert set(GAPS) <= set(HELD_DUTIES) and set(GAPS) <= HELD_TYPES
+def test_the_gap_types_are_approved_everywhere():
+    assert set(GAPS) <= set(HELD_DUTIES) and not set(GAPS) & HELD_TYPES
     for t in GAPS:
-        assert t not in DUTIES and t not in RECORD_SIGNALS and t not in MAGNET_SIGNALS
-        assert t not in ENGINE_MAGNET
-        assert t in TYPE_ORDER                 # its rank is ready for the day it is approved
+        assert t in DUTIES and t in RECORD_SIGNALS and t in MAGNET_SIGNALS
+        assert t in ENGINE_MAGNET and t in TYPE_ORDER
     # Two years outranks one; both sit with the "required report missing" kinds.
     assert TYPE_ORDER["nonprofit_990_missed_2yr"] < TYPE_ORDER["nonprofit_single_audit_late"] \
         < TYPE_ORDER["nonprofit_990_missed_1yr"] < TYPE_ORDER["nonprofit_exemption_revoked"]
 
 
-def test_the_inventory_holds_them_too():
+def test_the_inventory_approves_them_too():
     inv = Path.home() / "Developer/Inventory/leadinv/sources.py"
     if not inv.exists():
         pytest.skip("no inventory checkout")
@@ -47,7 +46,7 @@ def test_the_inventory_holds_them_too():
                     and any(getattr(t, "id", "") == name for t in n.targets))
         return {e.value for e in node.value.elts if isinstance(e, ast.Constant)}
     assert set(GAPS) <= tuple_named("NONPROFIT_DUTY_SIGNALS")
-    assert not set(GAPS) & tuple_named("APPROVED_SIGNALS")
+    assert set(GAPS) <= tuple_named("APPROVED_SIGNALS")
 
 
 _PREVIEW = r"""
@@ -101,7 +100,7 @@ print(json.dumps(out))
 def preview():
     env = {**os.environ, "OUTREACH_PREVIEW_HELD": "1"}
     res = subprocess.run([sys.executable, "-c", _PREVIEW], cwd=ROOT, env=env,
-                         capture_output=True, text=True, timeout=120)
+                         capture_output=True, text=True, timeout=120, check=False)
     assert res.returncode == 0, res.stderr
     return json.loads(res.stdout.strip().splitlines()[-1])
 
