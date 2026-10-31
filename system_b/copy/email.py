@@ -16,6 +16,7 @@ from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
     city_display,
+    city_state_display,
     fix_articles,
     niche_display,
     niche_noun,
@@ -679,8 +680,12 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
         # The city is already in the opener when every lead shares it, and so
         # is the state when a lead has no city of its own (a film production:
         # "1. Glue The Film, california" said the state three times).
+        # With no place shared by every lead the opener names none, so each
+        # line says city AND state ("sioux city, IA"): "hutchinson" alone
+        # left a Nebraska reader guessing (2026-10-30).
         loc = "" if level == "city" or (level == "state" and not city_display(lead.city)) \
-            else (city_display(lead.city) or state_display(lead.state))
+            else city_display(lead.city) if level == "state" \
+            else (city_state_display(lead.city, lead.state) or state_display(lead.state))
         name = f"{said}, {loc}" if loc else said
         if kind == "mixed":
             lines.append(f"{name}: {magnet_phrase(lead)}")
@@ -1209,7 +1214,8 @@ def _lead_line(
         if suffix:                             # relative date would drift by send time.
             text = f"{text}, {suffix}" if text else suffix
 
-    loc = city_display(lead.city) or state_display(lead.state)
+    loc = ((city_state_display(lead.city, lead.state) if geo_level == "none"
+            else city_display(lead.city)) or state_display(lead.state))
     said = spoken_name(lead.company)          # "Antilles Power Depot, Inc." -> no "Inc."
     line = f"{said}, {loc}: {text}" if loc else f"{said}: {text}"
 

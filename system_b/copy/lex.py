@@ -252,6 +252,25 @@ def state_display(state: str | None) -> str:
     return s
 
 
+_STATE_ABBR: dict[str, str] = {}   # filled below _STATE_FULL's definition
+
+
+def city_state_display(city: str | None, state: str | None) -> str:
+    """"sioux city, IA": where a lead is when the email names no place for all
+    of them (2026-10-30). The state is the postal code, upper case, so "or"
+    and "me" never read as words. "" without a city; the state alone without
+    a known code."""
+    c = city_display(city)
+    if not c:
+        return ""
+    s = (state or "").strip().lower()
+    code = s if len(s) == 2 else _STATE_ABBR.get(s, "")
+    return f"{c}, {code.upper()}" if code else c
+
+
+_STATE_ABBR.update({full: code for code, full in _STATE_FULL.items()})
+
+
 def _article_for(word: str) -> str:
     """'a' or 'an' for the word that follows, honoring the sound exceptions."""
     w = word.lower().strip("(\"'").strip(".,;:)\"'")

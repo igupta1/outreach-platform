@@ -22,6 +22,7 @@ gift (`giftable`).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -377,9 +378,23 @@ def _in_city(lead: Lead, home: tuple[str | None, str | None]) -> bool:
         norm_state(lead.state) == norm_state(state) and norm_loc(lead.city) == norm_loc(city)
 
 
+def rotation(lead: Lead, salt: str | None) -> int:
+    """A stable per-prospect shuffle among EQUALLY strong record leads
+    (2026-10-30): with no allocation limit, firms in one city all got the same
+    three organizations (64% of simulated gifts matched another firm's). Seeded
+    by the prospect's firm name, so a re-run gives the same gift. Only orders
+    leads `sort_key` already ties on everything down to their score; 0 for a
+    job-post lead, whose recency is part of its claim."""
+    if not salt or lead.signal_type not in MAGNET_SIGNALS:
+        return 0
+    key = f"{salt}|{lead.allocation_key or lead.id}".encode()
+    return int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "big")
+
+
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
              focus: str | None = None,
-             home: tuple[str | None, str | None] | None = None) -> tuple:
+             home: tuple[str | None, str | None] | None = None,
+             salt: str | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
     area always take precedence). Strongest signal per the active pack's
     `signal_rank`, then -- when the firm plainly does ONE kind of work -- a
@@ -400,7 +415,10 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
 
     `home` (the prospect's city and state) is passed for the own-state level
     when `STRENGTH_BEATS_CITY`: the strength band, then their city before the
-    rest of their state. Without it both are 0 for every lead."""
+    rest of their state. Without it both are 0 for every lead.
+
+    `salt` (the prospect's firm) rotates record leads that tie through their
+    score (`rotation`); the document date only breaks what is left."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
@@ -429,6 +447,7 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         # Job-post leads carry no score and are unaffected.
         # An audit filed over a year ago scores OLD_AUDIT_PENALTY less.
         -strength(lead),
+        rotation(lead, salt),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )
@@ -548,7 +567,8 @@ def _find_priority_lead(
             and not _same_company(lead, prospect.used_leads)
         ]
         if leads:
-            leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank, prospect.focus))
+            leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank, prospect.focus,
+                                                 salt=prospect.firm_name))
             return leads[0]
     return None
 
@@ -796,7 +816,8 @@ def _walk(
             ]
             own_state = home is not None and "state" in kwargs and "city" not in kwargs
             leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus,
-                                                 home if own_state else None))
+                                                 home if own_state else None,
+                                                 salt=prospect.firm_name))
             for lead in leads:
                 if len(into) >= target:
                     break

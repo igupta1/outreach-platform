@@ -94,7 +94,8 @@ def test_place_is_named_only_when_every_lead_is_there():
     framing2, lines2 = record_opener(g2, Prospect(firm_name="X", first_name="Jo"))
     assert framing2 == ("these 2 nonprofits got their first federal grant in 3+ years, "
                         "so each now has strict tracking and reporting rules to follow:")
-    assert lines2 == ["A, arlington", "B, arlington"]
+    # With no shared place each line carries its state (2026-10-30).
+    assert lines2 == ["A, arlington, WA", "B, arlington, TX"]
 
 
 def test_licenses_and_registrations_get_no_why():

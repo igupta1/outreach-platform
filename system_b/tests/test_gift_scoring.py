@@ -169,13 +169,14 @@ def test_a_gift_from_the_bordering_states_names_no_place_of_theirs():
            lead("Ladder Up", city="Chicago", state="IL")]
     gift = build_gift(lincoln, sc(far))
     # Iowa and Kansas border Nebraska; Illinois comes from the nationwide level.
-    assert [ld.state for ld in gift.leads] == ["IA", "KS", "IL"]
+    assert sorted(ld.state for ld in gift.leads[:2]) == ["IA", "KS"]
+    assert gift.leads[2].state == "IL"
     assert gift.geo_level == "none" and not gift.all_niche
     email = build_email_1(gift, lincoln, today=TODAY, pack=pack_for("cfo"),
                           include_signoff=False)
     text = (email.subject + " " + email.body).lower()
     assert "lincoln" not in text and "nebraska" not in text and "based in" not in text
-    assert "sioux city" in text                                # each lead says where it is
+    assert "sioux city, IA" in email.body                      # each lead says where it is
 
 
 def test_the_own_state_fills_before_any_bordering_one():
@@ -183,3 +184,33 @@ def test_the_own_state_fills_before_any_bordering_one():
     near = lead("Shreveport Charity", city="Shreveport", state="LA")
     assert [ld.company for ld in build_gift(Prospect(**HOUSTON), sc([near, here]),
                                             target=1).leads] == ["Here Lien Co"]
+
+
+# --- rotation among equals, and where each lead is ---------------------------
+
+
+def test_equally_strong_leads_rotate_per_firm_and_never_beat_a_stronger_one():
+    equal = [lead(f"Charity {i}", score=80) for i in range(12)]
+    best = lead("Best Charity", score=95)
+    s = sc([*equal, best])
+    gifts = {f: [ld.company for ld in build_gift(Prospect(firm_name=f, city="Houston",
+                                                          state="TX"), s).leads]
+             for f in ("Acme CPA", "Ledger Bridge", "Peach CFO", "Denman & Co")}
+    assert all(g[0] == "Best Charity" for g in gifts.values())     # never weakened
+    assert len({tuple(g) for g in gifts.values()}) > 1               # firms differ
+    again = build_gift(Prospect(firm_name="Acme CPA", city="Houston", state="TX"), s)
+    assert [ld.company for ld in again.leads] == gifts["Acme CPA"]   # deterministic
+
+
+def test_rotation_never_reorders_job_posts():
+    from system_b.gift.engine import rotation
+    job = lead("Hiring Co", "job_finance_lead")
+    assert rotation(job, "Acme CPA") == 0 and rotation(lead("C"), None) == 0
+
+
+def test_city_state_display():
+    from system_b.copy.lex import city_state_display
+    assert city_state_display("Portland", "Oregon") == "portland, OR"
+    assert city_state_display("Bangor", "me") == "bangor, ME"
+    assert city_state_display("Toronto", "Ontario") == "toronto"
+    assert city_state_display(None, "TX") == ""

@@ -717,6 +717,8 @@ def test_lead_line_says_the_company_the_way_a_person_would():
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
               company="Antilles Power Depot, Inc.", evidence="Chief Financial Officer")
     line, _ = _lead_line(lead, TODAY, "none", pack=default_pack())
+    assert line.startswith("Antilles Power Depot, denver, CO: is looking for a cfo")
+    line, _ = _lead_line(lead, TODAY, "state", pack=default_pack())
     assert line.startswith("Antilles Power Depot, denver: is looking for a cfo")
     assert "Inc." not in line
 
