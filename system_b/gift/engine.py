@@ -29,6 +29,7 @@ import re
 from datetime import datetime
 from typing import Any, Protocol
 
+from system_b import config
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
@@ -383,12 +384,23 @@ def rotation(lead: Lead, salt: str | None) -> int:
     (2026-10-30): with no allocation limit, firms in one city all got the same
     three organizations (64% of simulated gifts matched another firm's). Seeded
     by the prospect's firm name, so a re-run gives the same gift. Only orders
-    leads `sort_key` already ties on everything down to their score; 0 for a
-    job-post lead, whose recency is part of its claim."""
+    leads `sort_key` ties on everything down to their score band
+    (`config.NEAR_TIE_POINTS`); 0 for a job-post lead, whose recency is part
+    of its claim."""
     if not salt or lead.signal_type not in MAGNET_SIGNALS:
         return 0
     key = f"{salt}|{lead.allocation_key or lead.id}".encode()
     return int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), "big")
+
+
+def _near_tie_band(lead: Lead) -> float:
+    """The lead's strength, coarsened to `config.NEAR_TIE_POINTS` bands for a
+    record lead (a job post keeps its exact value: it has no score)."""
+    width = config.NEAR_TIE_POINTS
+    s = strength(lead)
+    if width <= 0 or lead.signal_type not in MAGNET_SIGNALS:
+        return s
+    return float(int(s // width))
 
 
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
@@ -417,8 +429,9 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
     when `STRENGTH_BEATS_CITY`: the strength band, then their city before the
     rest of their state. Without it both are 0 for every lead.
 
-    `salt` (the prospect's firm) rotates record leads that tie through their
-    score (`rotation`); the document date only breaks what is left."""
+    `salt` (the prospect's firm) rotates record leads whose scores share a
+    `config.NEAR_TIE_POINTS` band (`rotation`); the exact score, then the
+    document date, break what is left."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
@@ -446,8 +459,13 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         # material-weakness finding, the strongest evidence in the inventory.
         # Job-post leads carry no score and are unaffected.
         # An audit filed over a year ago scores OLD_AUDIT_PENALTY less.
-        -strength(lead),
+        # With a salt, scores within `config.NEAR_TIE_POINTS` of each other
+        # (one band) are one strength, ordered by the firm's rotation; the
+        # exact score only breaks what that leaves. Type and level come first,
+        # so this never reorders across them.
+        -_near_tie_band(lead) if salt else 0,
         rotation(lead, salt),
+        -strength(lead),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )

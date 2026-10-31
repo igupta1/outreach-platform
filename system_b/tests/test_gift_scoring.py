@@ -61,7 +61,7 @@ def test_email_two_never_names_an_email_one_organization_under_another_record():
     s = sc([*charities, same_org, other])
     p = Prospect(**HOUSTON)
     gift = build_gift(p, s)
-    assert [ld.company for ld in gift.leads] == ["Charity 0", "Charity 1", "Charity 2"]
+    assert {ld.company for ld in gift.leads} == {"Charity 0", "Charity 1", "Charity 2"}
     _, _, leads = _followup_drafts(p, gift, s, pack_for("accounting"), TODAY)
     assert leads[0].company == "Other Charity"
 
@@ -214,3 +214,22 @@ def test_city_state_display():
     assert city_state_display("Bangor", "me") == "bangor, ME"
     assert city_state_display("Toronto", "Ontario") == "toronto"
     assert city_state_display(None, "TX") == ""
+
+
+def test_near_ties_rotate_within_a_band_and_never_past_one(monkeypatch):
+    """Scores 80-84 are one band (config.NEAR_TIE_POINTS = 5): each firm gets
+    its own order among them; 85 always comes first, and a stronger TYPE first
+    of all, whatever its score."""
+    from system_b import config
+    band = [lead(f"Charity {i}", QC, score=80 + i % 5) for i in range(10)]
+    s = sc([*band, lead("Top Of Band", QC, score=85), lead("Flagged", NP, score=1)])
+    firms = ("Acme CPA", "Ledger Bridge", "Peach CFO", "Denman & Co", "Apex Books")
+    gifts = [[ld.company for ld in build_gift(Prospect(firm_name=f, city="Houston",
+                                                       state="TX"), s).leads] for f in firms]
+    assert all(g[:2] == ["Flagged", "Top Of Band"] for g in gifts)
+    assert len({g[2] for g in gifts}) > 1
+    # 0 = exact ties only: the highest score in the band wins for everyone.
+    monkeypatch.setattr(config, "NEAR_TIE_POINTS", 0)
+    exact = {build_gift(Prospect(firm_name=f, city="Houston", state="TX"), s).leads[2].company
+             for f in firms}
+    assert exact <= {"Charity 4", "Charity 9"}

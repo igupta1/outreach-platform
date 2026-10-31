@@ -72,6 +72,14 @@ MAX_DATED_LEAD_AGE_DAYS = 21
 # firm's (an organization reaches up to 44 firms); on, 1%.
 EXCLUSIVE_PER_REGION = False
 
+# Near-ties (2026-10-31): within one signal type at one match level, record
+# leads whose scores fall in the same band of this many percentile points
+# count as equally strong, and each firm gets its own stable order among them
+# (`gift.engine.rotation`). Exact ties alone left 63% of simulated gifts
+# identical to another firm's: integer percentiles rarely tie at the top of a
+# city. 0 = exact ties only. Never reorders across types or levels.
+NEAR_TIE_POINTS = 5
+
 
 def require(*names: str) -> None:
     """Raise if any named secret is blank — used by the CLI before it does live
