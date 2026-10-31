@@ -59,6 +59,19 @@ MAX_FRACTIONAL_LEAD_AGE_DAYS = 30
 # wider window above honest rather than merely permissive.
 MAX_DATED_LEAD_AGE_DAYS = 21
 
+# Whether a lead handed to one firm is off limits to every OTHER firm in its
+# region (state): `gift.allocation`. Off since 2026-10-30, the user: "we can
+# send the same company to multiple people as gifts. we are not that big yet
+# ... let's not limit ourselves." (The batch stopped applying it on 10-25; the
+# LinkedIn tool `dm.py` still did.) Allocations are still RECORDED in
+# data/lead-allocations.csv, and a firm is still never handed an organization
+# it already got (another contact at the firm, a LinkedIn note after an
+# email). True brings back one organization per firm per state, for when leads
+# are partitioned per paying client. Measured 2026-10-30 over the 1,107 unsent
+# prospects: off, 64% of gifts are the same three organizations as some other
+# firm's (an organization reaches up to 44 firms); on, 1%.
+EXCLUSIVE_PER_REGION = False
+
 
 def require(*names: str) -> None:
     """Raise if any named secret is blank — used by the CLI before it does live

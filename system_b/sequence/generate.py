@@ -44,6 +44,9 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     extra_ids: list[str] = []
 
     prospect.sent_lead_ids = list(used)
+    # ...and no organization email 1 named, under another record or the same
+    # name (a charity's audit in email 1, its questioned costs in email 2).
+    prospect.used_leads = list(gift.leads)
     # Keep the sequence on-theme: email 2's lead is the same KIND as email 1's
     # (a charity audit after charity audits), from the same niche when they
     # have one, looking further out before giving up on the kind. Before

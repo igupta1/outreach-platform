@@ -278,8 +278,10 @@ def main() -> None:
                     help="every prospect ever sequenced; the next run skips them "
                          f"before doing any work (default: {DEFAULT_LEDGER})")
     ap.add_argument("--allocations", default=str(ALLOCATIONS_PATH),
-                    help="a log of which firm got which organization; since "
-                         "2026-10-25 it no longer blocks a lead from other firms")
+                    help="which firm got which organization; a firm is never "
+                         "handed one it already got, and (since 2026-10-25) other "
+                         "firms' organizations are not blocked "
+                         "(config.EXCLUSIVE_PER_REGION)")
     ap.add_argument("--skip-name-fixer", action="store_true",
                     help="print lead names as the registry wrote them (no model)")
     ap.add_argument("--skip-naturalness", action="store_true",
@@ -361,12 +363,15 @@ def main() -> None:
     if naturalness is None:
         print("[run] --skip-naturalness: no advisory copy read")
 
-    # A LOG of which firm got which organization, nothing more. Until
-    # 2026-10-25 a lead handed to one firm was off limits to every other firm
-    # in its state; the user dropped that rule ("we are not big enough where
-    # prospects will compare notes"), so every firm gets the strongest leads
-    # near it. A firm's own sequence still never repeats an organization.
+    # Which firm got which organization (gift.allocation). Until 2026-10-25 a
+    # lead handed to one firm was off limits to every other firm in its state;
+    # the user dropped that rule ("we are not big enough where prospects will
+    # compare notes"; config.EXCLUSIVE_PER_REGION, off), so every firm gets
+    # the strongest leads near it. What it still blocks: an organization THIS
+    # firm already got (a second contact at the firm, a LinkedIn note). Not
+    # with --ignore-ledger, which re-drafts firms an earlier run recorded.
     allocations = Allocations.load(Path(args.allocations))
+    own_holdings = not args.ignore_ledger
 
     results: list[dict] = []
     # Firms matched only on location (their site names no industry we have
@@ -382,6 +387,8 @@ def main() -> None:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
+        p = {**p, "blocked_identities": allocations.blocked(firm, p.get("state"),
+                                                            own=own_holdings)}
         try:
             res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
                                     force_pack=args.force_pack,

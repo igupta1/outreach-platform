@@ -9,10 +9,15 @@ Order (2026-10-18, the user's rules): the match level always decides first
 Within a level `sort_key`: the pack's `signal_rank` -> a lead suiting the
 firm's CLEAR focus (`Prospect.focus`, only when its site is plainly one kind of
 work) -> `TYPE_ORDER` across the magnets -> findable -> the lead's score
-(within a type) -> newest -> date confidence. Row 8 (new businesses) is a
-backup: `_pick_leads` walks every other type first and lets Row 8 fill only
-the places left. `_best_lead`: rank -> TYPE_ORDER -> domain -> score ->
-freshness -> match level.
+(within a type) -> newest -> date confidence. `_best_lead`: rank ->
+TYPE_ORDER -> domain -> score -> freshness -> match level.
+
+2026-10-30 (measured over the 1,107 unsent prospects, see `_pick_leads`):
+inside the prospect's own state a stronger BAND of lead beats a closer place
+(`STRENGTH_BEATS_CITY`); past the own state come strong leads from the
+bordering states, then strong leads nationwide (`FAR_LEVELS`); Row 8 (new
+businesses) is off (`ROW8_IN_GIFTS`); a held or unworded type never enters a
+gift (`giftable`).
 """
 
 from __future__ import annotations
@@ -142,9 +147,116 @@ TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
 # new business only fills a place nothing else could (see `_pick_leads`).
 BACKUP_PREFIX = "new_business_"
 
+# Row 8 in gifts at all (2026-10-30: off; the user dislikes it). Measured over
+# the 1,107 unsent prospects against the 2026-10-30 inventory, with and without
+# the old one-organization-per-state rule: 0 gifts used a new business and
+# every US prospect's gift still reached 3 leads without one. It filled 42% of
+# gifts only while the inventory was the original five magnets AND that rule
+# was on (both gone since 2026-10-27 / 10-25). True puts it back as the very
+# last round, after the far levels.
+ROW8_IN_GIFTS = False
+
 
 def is_backup(lead: Lead) -> bool:
     return (lead.signal_type or "").startswith(BACKUP_PREFIX)
+
+
+# --- strength bands (2026-10-30) -------------------------------------------
+#
+# Three coarse bands over `_TYPE_STRENGTH`, cut at the first type of its
+# groups 3 and 5, so a type added INSIDE a group lands in that group's band:
+#   STRONG  an auditor or regulator flagged it; Davis-Bacon; cost-type contract
+#   MEDIUM  a duty just switched on; a required report late or missing
+#   WEAK    tax debts, self-reported problems, grants, licenses, new orgs,
+#           anything unlisted, Row 8
+# Used where a closer place used to win outright: inside the prospect's own
+# state (`STRENGTH_BEATS_CITY`) and in the far levels (`FAR_LEVELS`).
+_MEDIUM_FROM = "plan_audit_first_due"
+_WEAK_FROM = "federal_tax_lien"
+STRONG, MEDIUM, WEAK = 0, 1, 2
+
+
+def strength_band(lead: Lead) -> int:
+    order = TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE)
+    if order < TYPE_ORDER[_MEDIUM_FROM]:
+        return STRONG
+    if order < TYPE_ORDER[_WEAK_FROM]:
+        return MEDIUM
+    return WEAK
+
+
+# Inside the prospect's own state, a WEAK lead in their city no longer beats a
+# stronger one elsewhere in their state: the walk used to take every lead in
+# the city first. Strong and medium city leads keep their place, and within a
+# band the city still comes first. The copy stays honest on its own:
+# `_honesty` says "city" only when every lead is there, else "state".
+# Measured 2026-10-30 (1,107 unsent prospects, no allocation limit):
+#   generalist gifts with a weak lead (tax lien, late plan contribution,
+#   license, new nonprofit)           20% -> 0%
+#   generalist gifts that name the city        90% -> 73%
+#   charity-audit share of generalist leads    46% -> 58%
+# CITY_YIELDS_FROM = MEDIUM would also let a strong state lead beat a medium
+# city lead: 100% strong leads, but only 47% of generalist gifts keep the city.
+STRENGTH_BEATS_CITY = True
+CITY_YIELDS_FROM = WEAK
+
+# Past the prospect's own state (2026-10-30, replacing Row 8): strong leads
+# from the bordering states, then strong leads from anywhere. Only STRONG band
+# leads (a lead from away has to earn its place: the email loses its "in
+# <city>" line), except when `signal_types` narrows the walk to email 1's
+# kind, which already decides. Only for a prospect in a US state. A gift that
+# reaches here has geo_level "none", so no copy names their city or state.
+FAR_LEVELS = True
+LEVEL_NEARBY, LEVEL_NATIONWIDE = 6, 7
+
+_BORDERS = (
+    "al fl", "al ga", "al ms", "al tn", "az ca", "az co", "az nm", "az nv", "az ut",
+    "ar la", "ar mo", "ar ms", "ar ok", "ar tn", "ar tx", "ca nv", "ca or",
+    "co ks", "co ne", "co nm", "co ok", "co ut", "co wy", "ct ma", "ct ny", "ct ri",
+    "de md", "de nj", "de pa", "dc md", "dc va", "fl ga", "ga nc", "ga sc", "ga tn",
+    "id mt", "id nv", "id or", "id ut", "id wa", "id wy", "il ia", "il in", "il ky",
+    "il mo", "il wi", "in ky", "in mi", "in oh", "ia mn", "ia mo", "ia ne", "ia sd",
+    "ia wi", "ks mo", "ks ne", "ks ok", "ky mo", "ky oh", "ky tn", "ky va", "ky wv",
+    "la ms", "la tx", "me nh", "md pa", "md va", "md wv", "ma nh", "ma ny", "ma ri",
+    "ma vt", "mi oh", "mi wi", "mn nd", "mn sd", "mn wi", "ms tn", "mo ne", "mo ok",
+    "mo tn", "mt nd", "mt sd", "mt wy", "ne sd", "ne wy", "nv or", "nv ut", "nh vt",
+    "nj ny", "nj pa", "nm ok", "nm tx", "nm ut", "ny pa", "ny vt", "nc sc", "nc tn",
+    "nc va", "nd sd", "oh pa", "oh wv", "ok tx", "or wa", "pa wv", "sd wy", "tn va",
+    "ut wy", "va wv",
+)
+ADJACENT_STATES: dict[str, frozenset[str]] = {s: frozenset() for s in _US_STATES.values()}
+for _pair in _BORDERS:
+    _a, _b = _pair.split()
+    ADJACENT_STATES[_a] = ADJACENT_STATES[_a] | {_b}
+    ADJACENT_STATES[_b] = ADJACENT_STATES[_b] | {_a}
+
+
+# Types a gift may carry. An inventory type outreach has no words for would
+# otherwise rank "just above Row 8" and render through the job-post path
+# ("hiring finance leadership"), and a HELD type is worded but not approved.
+# Either is skipped and logged once, whatever the inventory publishes
+# (2026-10-30: the inventory moves ahead of outreach as sources are wired).
+_LEGACY_PREFIXES = ("job_", "breach_")
+_SKIPPED_TYPES: set[str] = set()
+
+
+def giftable_type(st: str, rank: dict[str, int] | None = None) -> bool:
+    """A type with approved words: a magnet record or absence, or (the IT
+    packs' --legacy-niche inventory) a job, breach or funding signal."""
+    if st in HELD_TYPES:
+        return False
+    return (st in MAGNET_SIGNALS or st in FUNDING_SIGNALS or st in (rank or {})
+            or st.startswith(_LEGACY_PREFIXES))
+
+
+def giftable(lead: Lead, rank: dict[str, int] | None = None) -> bool:
+    st = lead.signal_type or ""
+    ok = giftable_type(st, rank)
+    if not ok and st not in _SKIPPED_TYPES:
+        _SKIPPED_TYPES.add(st)
+        log.warning("gift: %r leads never enter a gift (%s)", st,
+                    "held" if st in HELD_TYPES else "no wording for this type")
+    return ok
 
 
 # The service tags that suit a firm whose site is plainly about ONE kind of
@@ -239,8 +351,23 @@ def strongest_first(gift: Gift) -> None:
     gift.leads.sort(key=lambda ld: (0 if _recent_finding(ld) else 1, -strength(ld)))
 
 
+def _home_band(lead: Lead) -> int:
+    """The band the own-state level sorts by: bands below `CITY_YIELDS_FROM`
+    are one group, so only a lead at or past it gives way to a stronger one
+    outside the city."""
+    band = strength_band(lead)
+    return band if band >= CITY_YIELDS_FROM else STRONG
+
+
+def _in_city(lead: Lead, home: tuple[str | None, str | None]) -> bool:
+    city, state = home
+    return bool(city and state and lead.city and lead.state) and \
+        norm_state(lead.state) == norm_state(state) and norm_loc(lead.city) == norm_loc(city)
+
+
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
-             focus: str | None = None) -> tuple:
+             focus: str | None = None,
+             home: tuple[str | None, str | None] | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
     area always take precedence). Strongest signal per the active pack's
     `signal_rank`, then -- when the firm plainly does ONE kind of work -- a
@@ -257,10 +384,18 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
     anyone can register a domain, but only a real filing entity has an EIN with
     a 990 behind it or a CRD with a Form ADV. Ranking on domain alone pushed
     every nonprofit and fund lead to the bottom as "unfindable" when each
-    carries a verifiable federal record. Ranked below, never dropped."""
+    carries a verifiable federal record. Ranked below, never dropped.
+
+    `home` (the prospect's city and state) is passed for the own-state level
+    when `STRENGTH_BEATS_CITY`: the strength band, then their city before the
+    rest of their state. Without it both are 0 for every lead."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
+        # Own-state level only (else 0, 0): the band, then their city first.
+        # Before focus, so focus never moves a lead across that line.
+        _home_band(lead) if home else 0,
+        0 if home is None or _in_city(lead, home) else 1,
         # No focus -> 0 for everyone, so no preference at all.
         0 if focus is None or suits_focus(lead, focus) else 1,
         TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
@@ -326,13 +461,17 @@ def compute_match_level(lead: Lead, prospect: Prospect) -> int | None:
 
 
 def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dict[str, Any]]]:
+    """The match levels, nearest first. With `STRENGTH_BEATS_CITY` the city
+    levels (1 and 4; a generalist's 1) are folded into their state level, which
+    `_walk` sorts by band and then city first (`sort_key(home=...)`)."""
     levels: list[tuple[int, dict[str, Any]]] = []
+    city_levels = bool(p.city and p.state) and not STRENGTH_BEATS_CITY
     if p.classification == "niched" and p.match_param:
         kind, val = p.match_param
         base = {kind: val}
         # A city level always carries the state (see compute_match_level), so
         # a prospect with no state gets no city level.
-        if p.city and p.state:
+        if city_levels:
             levels.append((1, {**base, "city": p.city, "state": p.state}))
         if p.state:
             levels.append((2, {**base, "state": p.state}))
@@ -342,16 +481,26 @@ def _levels_for(p: Prospect, *, niche_only: bool = False) -> list[tuple[int, dic
         # either all_niche or empty — never padded with off-niche leads.
         if niche_only:
             return levels
-        if p.city and p.state:
+        if city_levels:
             levels.append((4, {"city": p.city, "state": p.state}))
         if p.state:
             levels.append((5, {"state": p.state}))
     else:
-        if p.city and p.state:
+        if city_levels:
             levels.append((1, {"city": p.city, "state": p.state}))
         if p.state:
             levels.append((2, {"state": p.state}))
     return levels
+
+
+def _far_levels(p: Prospect) -> list[tuple[int, dict[str, Any]]]:
+    """Past the prospect's own state: the bordering states, then anywhere.
+    Only for a prospect in a US state (a firm in Ontario gets none)."""
+    home = norm_state(p.state)
+    if not FAR_LEVELS or home not in ADJACENT_STATES:
+        return []
+    near = sorted(ADJACENT_STATES[home])
+    return ([(LEVEL_NEARBY, {"states": near})] if near else []) + [(LEVEL_NATIONWIDE, {})]
 
 
 def _find_priority_lead(
@@ -383,6 +532,8 @@ def _find_priority_lead(
                 exclude_ids=list(excluded), **kwargs,
             )
             if lead.id not in excluded and not _off_limits(lead, prospect)
+            and giftable(lead, pack.signal_rank)
+            and not _same_company(lead, prospect.used_leads)
         ]
         if leads:
             leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank, prospect.focus))
@@ -533,8 +684,9 @@ def _licensed_elsewhere(lead: Lead, prospect: Prospect) -> bool:
 
 def _off_limits(lead: Lead, prospect: Prospect) -> bool:
     """A lead this prospect must never see: its own audit client, an
-    organization already handed to another firm in its region, or a license
-    another state issued."""
+    organization this firm was already handed (or, with
+    `config.EXCLUSIVE_PER_REGION`, one handed to another firm in its region:
+    `gift.allocation`), or a license another state issued."""
     key = lead.allocation_key
     return _audited_by(lead, prospect) or _licensed_elsewhere(lead, prospect) or (
         key is not None and key in prospect.blocked_identities)
@@ -545,31 +697,50 @@ def _pick_leads(
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
     signal_types: frozenset[str] | None = None, nationwide: bool = False,
 ) -> None:
-    """The two-round Level walk. Mutates `into` / `excluded` in place.
+    """The Level walk. Mutates `into` / `excluded` in place.
 
-    First over every lead type EXCEPT Row 8 (new businesses). Then, only if
-    places are left, Row 8 -- and only from the prospect's OWN STATE (its city,
-    then its state), never at a niche level and never in a `niche_only` build.
-    A new business is a registry filing with a NAICS code, which is too thin
-    to claim a vertical on (the second review run passed a psychiatry practice
-    and a notary as "law firms"), and a Connecticut filing means nothing to a
-    Seattle firm. The same freshness rounds, dedupe and off-limits rules apply.
+    The match levels (`_levels_for`), then -- outside a `niche_only` build --
+    the far levels (`_far_levels`: strong leads from the bordering states, then
+    from anywhere). Row 8 (new businesses) never joins that walk. With
+    `ROW8_IN_GIFTS` it may fill what is left, last, and only from the
+    prospect's OWN STATE (its city, then its state), never at a niche level
+    and never in a `niche_only` build: a new business is a registry filing
+    with a NAICS code, too thin to claim a vertical on (the second review run
+    passed a psychiatry practice and a notary as "law firms"), and a
+    Connecticut filing means nothing to a Seattle firm.
+
+    Measured 2026-10-30 over the 1,107 unsent prospects (Gate B's model call
+    stubbed): every US prospect's gift reached 3 leads inside its own state;
+    the far levels are the fallback for a thinner inventory (the original five
+    magnets alone: they replace the 42% of gifts Row 8 filled while the
+    one-organization-per-state rule was on).
 
     `signal_types` keeps only leads of those kinds (email 2 follows email 1's
     kind), and `nationwide` adds a last level with no place at all for a
-    prospect matched on geography (a niched one already has its niche-only
-    level 3)."""
+    prospect the far levels do not cover (no US state); a niched one already
+    has its niche-only level 3."""
     levels = _levels_for(prospect, niche_only=niche_only)
-    if nationwide and not (prospect.classification == "niched" and prospect.match_param):
-        levels.append((6, {}))
+    far = [] if niche_only else _far_levels(prospect)
+    levels += far
+    if nationwide and not far and not (prospect.classification == "niched"
+                                       and prospect.match_param):
+        levels.append((LEVEL_NATIONWIDE, {}))
     _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
           backup=False, signal_types=signal_types)
-    if niche_only or not prospect.state:
+    if niche_only or not prospect.state or not ROW8_IN_GIFTS:
         return
     own_state = [(lvl, kw) for lvl, kw in levels
                  if "state" in kw and set(kw) <= {"city", "state"}]
     _walk(prospect, scraper, excluded, own_state, target=target, into=into, rank=rank,
           backup=True, signal_types=signal_types)
+
+
+def _query(scraper: _Scraper, kwargs: dict[str, Any], **common: Any) -> list[Lead]:
+    """One level's leads: a `states` level asks once per state."""
+    if "states" not in kwargs:
+        return scraper.leads(**common, **kwargs)
+    rest = {k: v for k, v in kwargs.items() if k != "states"}
+    return [ld for st in kwargs["states"] for ld in scraper.leads(**common, state=st, **rest)]
 
 
 def _walk(
@@ -578,30 +749,40 @@ def _walk(
     rank: dict[str, int], backup: bool,
     signal_types: frozenset[str] | None = None,
 ) -> None:
+    # The own-state level ranks by strength band, then their city first.
+    home = (prospect.city, prospect.state) if STRENGTH_BEATS_CITY else None
     for freshness in ("fresh", "stale"):
         if len(into) >= target:
             return
-        for _level, kwargs in levels:
+        for level, kwargs in levels:
             if len(into) >= target:
                 return
+            far = level >= LEVEL_NEARBY
             leads = [
-                lead for lead in scraper.leads(
-                    freshness=freshness, exclude_ids=list(excluded), **kwargs,
-                )
+                lead for lead in _query(scraper, kwargs, freshness=freshness,
+                                        exclude_ids=list(excluded))
                 # Not added to `excluded`: the lead is fine for every other
                 # prospect, only not for this one.
                 if lead.id not in excluded and not _off_limits(lead, prospect)
                 and is_backup(lead) == backup
                 and (signal_types is None or lead.signal_type in signal_types)
+                and not (far and signal_types is None and strength_band(lead) != STRONG)
+                and giftable(lead, rank)
             ]
-            leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus))
+            own_state = home is not None and "state" in kwargs and "city" not in kwargs
+            leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus,
+                                                 home if own_state else None))
             for lead in leads:
                 if len(into) >= target:
                     break
-                if _same_company(lead, into):
+                if _same_company(lead, into) or _same_company(lead, prospect.used_leads):
                     # Skip, but do NOT mark excluded: `excluded` is the sent /
                     # already-used ledger, and this lead was never used. It stays
-                    # available for the next prospect's gift.
+                    # available for the next prospect's gift. `used_leads` is
+                    # the rest of this firm's sequence (email 1 when building
+                    # email 2): one organization never appears twice in it,
+                    # under another record or the same name (2026-10-30: 21 of
+                    # 1,076 simulated sequences repeated one).
                     log.debug("gift: skipping %s — %s already in this gift",
                               lead.company, lead.domain)
                     continue

@@ -34,8 +34,13 @@ class Prospect:
     # the PROSPECT in the opener; never to claim the gift matches it.
     client_revenue: tuple[float | None, float | None] | None = None
     sent_lead_ids: list[str] = field(default_factory=list)
-    # Organizations (Lead.identity) already handed to a DIFFERENT firm in this
-    # prospect's region -- see gift.allocation. Never shown to this prospect.
+    # The leads already in this firm's sequence (email 1's, when building email
+    # 2). No organization in them is gifted again, under any record or name.
+    used_leads: list[Lead] = field(default_factory=list)
+    # Organizations (Lead.allocation_key) this prospect must never be shown:
+    # ones this firm was already handed, and -- only with
+    # config.EXCLUSIVE_PER_REGION -- ones handed to another firm in its region.
+    # See gift.allocation.
     blocked_identities: frozenset[str] = frozenset()
     # The ONE kind of work their site is plainly about (bookkeeping |
     # accounting | cfo), only when the rung detection is high-confidence
