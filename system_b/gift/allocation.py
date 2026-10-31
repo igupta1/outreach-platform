@@ -1,11 +1,20 @@
-"""Which firm was handed which organization -- so two firms in one area never
-get the same one.
+"""Which firm was handed which organization.
 
-Two finance firms in the same market pitching the same nonprofit is the one
-collision a recipient can discover on their own (they talk, and the org tells
-them), and it makes the list look like a resold spreadsheet. So every lead a
-sequence uses is recorded against the firm and its REGION, and a later prospect
-in that region is never shown it.
+Every lead a sequence uses is recorded against the firm and its REGION
+(append-only, data/lead-allocations.csv). What that record blocks:
+
+  * ALWAYS: the same firm is never handed an organization it already got --
+    a second contact at the firm, or a LinkedIn note (`system_b.dm`) after the
+    firm was emailed, gets other organizations.
+  * Only with `config.EXCLUSIVE_PER_REGION` (off since 2026-10-30, the user:
+    "we can send the same company to multiple people as gifts"): a lead held
+    by a DIFFERENT firm in this firm's region is never shown to it. The switch
+    exists for when leads are partitioned per paying client.
+
+Why the exclusive rule existed: two finance firms in the same market pitching
+the same nonprofit is the one collision a recipient can discover on their own,
+and it makes the list look like a resold spreadsheet. It is off because at
+today's volume it only cost leads.
 
 ## Region is the STATE, deliberately
 
@@ -13,14 +22,14 @@ The rule is "one metro", but a prospect carries only Apollo's city and state,
 and mapping a city to its metro area needs a Census place-to-CBSA crosswalk
 this repo does not have. A state contains its metros, so keying on state is
 strictly STRONGER than the rule -- it can block a lead a metro key would allow,
-never the reverse -- and the inventories are deep enough (4,000+ nonprofits)
-that the extra blocking costs a swap, not a gift. A prospect with no state
-shares the empty region only with other prospects that have none.
+never the reverse. A prospect with no state shares the empty region only with
+other prospects that have none.
 
 ## Identity, not lead id
 
-Lead ids are per-emit row numbers and change every refresh. `Lead.identity`
-(an EIN, a CRD, a domain) is the organization, so that is what is recorded.
+Lead ids are per-emit row numbers and change every refresh.
+`Lead.allocation_key` (an EIN, a CRD, a domain, else the record's own stable
+id) is the organization, so that is what is recorded.
 
 The file is append-only and holds no status: whether the email was sent or
 answered lives with the sender, not here.
@@ -36,6 +45,7 @@ from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
+from system_b import config
 from system_b.gift.engine import norm_state
 
 log = logging.getLogger("system_b.gift")
@@ -60,8 +70,8 @@ class Allocations:
 
     @classmethod
     def load(cls, path: Path) -> Allocations:
-        """An unreadable or missing file is an empty ledger, logged: blocking
-        is a courtesy between prospects, and losing it must not stop a run."""
+        """An unreadable or missing file is an empty ledger, logged: losing it
+        must not stop a run."""
         a = cls()
         if not path.exists():
             return a
@@ -74,12 +84,18 @@ class Allocations:
             log.warning("allocations: could not read %s (%s) — nothing blocked", path, exc)
         return a
 
-    def blocked(self, firm: str | None, state: str | None) -> frozenset[str]:
-        """Identities already handed to a DIFFERENT firm in this firm's region."""
+    def blocked(self, firm: str | None, state: str | None, *,
+                own: bool = True) -> frozenset[str]:
+        """What this firm must not be shown: what it already holds (anywhere;
+        `own=False` skips that, for a run that re-drafts the same firms and
+        records nothing), plus -- only with `config.EXCLUSIVE_PER_REGION` --
+        what a DIFFERENT firm holds in its region."""
         me, region = _firm(firm), region_of(state)
+        exclusive = config.EXCLUSIVE_PER_REGION
         return frozenset(
             ident for ident, regions in self._held.items()
-            if regions.get(region) and regions[region] - {me}
+            if (own and me and any(me in firms for firms in regions.values()))
+            or (exclusive and regions.get(region) and regions[region] - {me})
         )
 
     def record(self, identities: Iterable[str | None], firm: str | None,

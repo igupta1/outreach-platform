@@ -9,8 +9,10 @@
 
 The same pipeline as the morning batch, for one firm: `generate_sequence`
 researches their site, picks the voice, builds the gift behind Gates A and B,
-and honours the allocation ledger (one organization per firm per state). What
-it prints is the LinkedIn version of the sequence:
+and never repeats an organization this firm was already handed (the
+allocation ledger; other firms' organizations block nothing unless
+`config.EXCLUSIVE_PER_REGION`). What it prints is the LinkedIn version of the
+sequence:
 
     connection note   the gift, <= 300 characters (copy.linkedin.build_connect_note)
     after they accept the email-2 text: one more lead of the same kind
@@ -22,7 +24,7 @@ no LinkedIn page is ever fetched (that needs a login and breaks their terms).
 writes any part of the note.
 
 Recorded unless `--dry-run`: the organizations used, in lead-allocations.csv
-(so an email prospect in the same state is never shown them), and the run, in
+(so this firm is never handed them again), and the run, in
 data/linkedin-log.csv (gitignored). The email ledger is NOT touched: nobody
 was emailed.
 """
@@ -116,7 +118,8 @@ def already_contacted(website: str, company: str, *, data: Path = DATA,
                 found.append(f"emailed already ({r.get('company')}, {name})")
                 break
     if firm and any(_firm(r.get("firm")) == firm for r in rows(allocations)):
-        found.append("already handed leads (lead-allocations.csv)")
+        found.append("already handed leads (lead-allocations.csv); "
+                     "this gift leaves those organizations out")
     for r in rows(log):
         if (dom and _domain(r.get("website") or "") == dom) or \
                 (firm and _firm(r.get("company")) == firm):
@@ -192,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {name or '(no name)'}  ·  {company}  ·  {place or '(no location)'}")
     print(f"  {website}")
     if not fields["state"]:
-        print("  warn: no state, so no local leads and no allocation region")
+        print("  warn: no state, so no local leads")
     for w in already_contacted(website, company, allocations=a.allocations, log=a.log):
         print(f"  warn: {w}")
 

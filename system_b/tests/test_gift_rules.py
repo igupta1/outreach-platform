@@ -2,15 +2,23 @@
 
 1. industry + area always take precedence (the match-level walk is unchanged);
 2. a firm's CLEAR focus is a tiebreak among leads at the SAME match level;
-3. Row 8 (new_business_*) only fills places nothing else could;
+3. Row 8 (new_business_*) only fills places nothing else could (and since
+   2026-10-30 is off: `ROW8_IN_GIFTS`);
 4. within a signal type by score, across types by strength order;
 and the standing ones: never a firm's own audit client, never an organization
-already handed to another firm in the region.
+this firm was already handed.
+
+2026-10-30: inside the own state a WEAK city lead gives way to a stronger
+lead elsewhere in the state (`STRENGTH_BEATS_CITY`), and past it come strong
+leads from the bordering states, then from anywhere (`FAR_LEVELS`).
 """
 
 from __future__ import annotations
 
+import pytest
+
 from system_b.clients.scraper_client import SnapshotScraper
+from system_b.gift import engine
 from system_b.gift.engine import TYPE_ORDER, build_gift
 from system_b.gift.models import Prospect
 from system_b.models import Lead, Signal
@@ -57,11 +65,51 @@ def geo(**kw) -> Prospect:
 # --- 1. precedence -----------------------------------------------------------
 
 
-def test_a_closer_match_level_beats_a_stronger_signal_type():
-    city_new_license = lead("City License Llc", NL)                          # L1 city
-    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")  # L2
+def test_a_closer_place_beats_a_stronger_type_within_a_band():
+    """Strong and medium leads in their city still come before any elsewhere
+    in the state: a Davis-Bacon award in Denver beats a Boulder charity audit."""
+    city_award = lead("City Award", DB)                                       # strong, city
+    city_plan = lead("City Plan Co", "plan_audit_first_due", industry="other")  # medium, city
+    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")  # strong
+    assert names(geo(), [state_audit, city_award], target=2) == ["City Award", "State Charity"]
+    assert names(geo(), [state_audit, city_plan], target=1) == ["City Plan Co"]
+
+
+def test_a_weak_city_lead_gives_way_to_a_strong_one_in_the_state():
+    """2026-10-30: a new license (or a tax lien) in their city no longer beats a
+    charity audit finding in their state. The gift then names the state."""
+    city_new_license = lead("City License Llc", NL)                          # weak, city
+    city_lien = lead("City Lien Co", "state_tax_lien", industry="other")     # weak, city
+    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
+    got = build_gift(geo(), SnapshotScraper([city_new_license, city_lien, state_audit],
+                                            taxonomy={}), target=2)
+    assert got.leads[0].company == "State Charity" and got.geo_level == "state"
+    # Among the weak ones the city still comes first, then the strength order.
+    state_license = lead("State License Llc", NL, city="Boulder")
+    assert names(geo(), [state_license, city_new_license, city_lien], target=3) == \
+        ["City Lien Co", "City License Llc", "State License Llc"]
+
+
+def test_the_old_city_first_walk_is_one_switch_away(monkeypatch):
+    monkeypatch.setattr(engine, "STRENGTH_BEATS_CITY", False)
+    city_new_license = lead("City License Llc", NL)
+    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
     assert names(geo(), [state_audit, city_new_license], target=2) == \
         ["City License Llc", "State Charity"]
+
+
+def test_the_strength_bands_follow_the_strength_order():
+    from system_b.gift.engine import MEDIUM, STRONG, WEAK, strength_band
+    band = {t: strength_band(lead("x", t)) for t in (NP, DB, CR, FG, UP, NL, NB)}
+    assert band == {NP: STRONG, DB: STRONG, CR: STRONG, FG: WEAK, UP: WEAK, NL: WEAK, NB: WEAK}
+    assert strength_band(lead("x", "plan_audit_first_due")) == MEDIUM
+    assert strength_band(lead("x", "nonprofit_990_missed_1yr")) == MEDIUM
+    assert strength_band(lead("x", "state_tax_lien")) == WEAK
+    assert strength_band(lead("x", "a_type_nobody_ranked")) == WEAK
+    # Monotone in TYPE_ORDER, so a band never reorders the strength order.
+    ordered = sorted(TYPE_ORDER, key=TYPE_ORDER.__getitem__)
+    bands = [strength_band(lead("x", t)) for t in ordered]
+    assert bands == sorted(bands)
 
 
 def test_the_industry_levels_come_before_any_geography():
@@ -88,6 +136,10 @@ def test_focus_never_crosses_a_match_level():
     contract_state = lead("Contract Labs", CR, city="Boulder")       # L2, suited
     assert names(geo(focus="cfo"), [contract_state, award_here], target=1) == \
         ["Award Builders"]
+    # Nor the strength band: a suited weak lead does not jump a strong one.
+    grant_here = lead("Grant Labs", FG, tags=["fractional_cfo"])
+    assert names(geo(focus="cfo"), [grant_here, contract_state], target=1) == \
+        ["Contract Labs"]
 
 
 def test_focus_never_limits_the_gift():
@@ -119,7 +171,43 @@ def test_the_focus_reaches_the_prospect_from_research():
 # --- 3. Row 8 only as fill ---------------------------------------------------
 
 
-def test_new_businesses_only_fill_places_nothing_else_could():
+@pytest.fixture
+def row8_on(monkeypatch):
+    """Row 8 is off since 2026-10-30; these pin how it fills when switched on."""
+    monkeypatch.setattr(engine, "ROW8_IN_GIFTS", True)
+
+
+def test_row_8_is_off_and_far_strong_leads_fill_instead():
+    """2026-10-30: no new business enters a gift. A place the own state cannot
+    fill goes to a strong lead from a bordering state, then from anywhere, and
+    the gift then names no place."""
+    new_here = [lead(f"New {i} Llc", NB, industry="other", score=99) for i in range(3)]
+    ne_audit = lead("Omaha Charity", NP, city="Omaha", state="NE", industry="nonprofit")
+    ma_audit = lead("Boston Charity", NP, city="Boston", state="MA", industry="nonprofit")
+    ne_lien = lead("Omaha Lien Co", "state_tax_lien", city="Omaha", state="NE",
+                   industry="other")
+    gift = build_gift(geo(), SnapshotScraper([*new_here, ma_audit, ne_lien, ne_audit],
+                                             taxonomy={}))
+    assert [ld.company for ld in gift.leads] == ["Omaha Charity", "Boston Charity"]
+    assert gift.geo_level == "none" and not gift.all_niche
+
+
+def test_the_far_levels_are_for_us_states_only():
+    ma_audit = lead("Boston Charity", NP, city="Boston", state="MA", industry="nonprofit")
+    toronto = Prospect(firm_name="Maple Books", city="Toronto", state="Ontario")
+    assert names(toronto, [ma_audit]) == []
+    assert names(Prospect(firm_name="No State"), [ma_audit]) == []
+
+
+def test_the_bordering_states_are_symmetric():
+    from system_b.gift.engine import ADJACENT_STATES
+    assert ADJACENT_STATES["co"] == {"az", "ks", "ne", "nm", "ok", "ut", "wy"}
+    assert ADJACENT_STATES["hi"] == ADJACENT_STATES["ak"] == frozenset()
+    for a, near in ADJACENT_STATES.items():
+        assert all(a in ADJACENT_STATES[b] for b in near), a
+
+
+def test_new_businesses_only_fill_places_nothing_else_could(row8_on):
     new_here = [lead(f"New {i} Llc", NB, industry="other", score=99) for i in range(3)]
     charity_far = lead("Far Charity", NP, city="Boulder", industry="nonprofit", score=1)
     got = names(geo(), [*new_here, charity_far])
@@ -127,14 +215,14 @@ def test_new_businesses_only_fill_places_nothing_else_could():
     assert len(got) == 3 and all(n.startswith("New ") for n in got[1:])
 
 
-def test_no_new_business_when_other_leads_can_fill_the_gift():
+def test_no_new_business_when_other_leads_can_fill_the_gift(row8_on):
     others = [lead("A Builders", NL), lead("B Labs", CR, city="Boulder"),
               lead("C Charity", NP, city="Aurora", state="CO", industry="nonprofit")]
     new = lead("New Llc", NB, industry="other", score=100)
     assert "New Llc" not in names(geo(), [new, *others])
 
 
-def test_row_8_never_claims_a_niche():
+def test_row_8_never_claims_a_niche(row8_on):
     """A psychiatry practice and a notary passed Gate B as "law firms" off a
     NAICS code. A niche_only build (Gate B's) never sees a new business."""
     p = geo(classification="niched", match_param=("industry", "real_estate"))
@@ -165,7 +253,7 @@ def test_gate_b_never_passes_a_niche_on_new_businesses():
     assert seen == [] and prospect.classification == "generalist"
 
 
-def test_a_seattle_firm_never_gets_connecticut_new_businesses():
+def test_a_seattle_firm_never_gets_connecticut_new_businesses(row8_on):
     ct = [lead(f"Ct New {i}", NB, city="Hartford", state="CT", industry="other")
           for i in range(3)]
     wa = lead("Seattle New Llc", NB, city="Seattle", state="WA", industry="other")
@@ -175,7 +263,7 @@ def test_a_seattle_firm_never_gets_connecticut_new_businesses():
     assert names(nowhere, [*ct, wa]) == []
 
 
-def test_the_fill_keeps_the_off_limits_rules():
+def test_the_fill_keeps_the_off_limits_rules(row8_on):
     blocked = lead("Taken Llc", NB, industry="other")
     free = lead("Free Llc", NB, industry="other")
     p = geo(blocked_identities=frozenset({"uei:taken llc"}))
@@ -228,10 +316,12 @@ def test_an_active_v2_lead_is_current_whatever_its_document_date():
     assert adapt_leadgen_lead(v1, today=date(2026, 10, 18)).freshness == "stale"
 
 
-def test_a_lead_with_no_id_still_goes_to_one_firm_per_state():
+def test_a_lead_with_no_id_still_goes_to_one_firm_per_state(monkeypatch):
     from datetime import date
 
+    from system_b import config
     from system_b.gift.allocation import Allocations
+    monkeypatch.setattr(config, "EXCLUSIVE_PER_REGION", True)   # the old rule
     no_id = Lead(id="fl:ravello construction:33301", company="Ravello Construction Llc",
                  city="Fort Lauderdale", state="FL", industry="construction",
                  signal_type=NL, freshness="fresh")
@@ -251,9 +341,11 @@ def test_a_city_matches_only_in_the_same_state():
     wa_lead = lead("Arlington Wa Llc", NP, city="Arlington", state="WA", industry="nonprofit")
     assert compute_match_level(tx_lead, wa) is None
     assert compute_match_level(wa_lead, wa) == 1
+    # The Texas charity can only be a far lead (strong, from anywhere): never
+    # "in arlington".
     gift = build_gift(wa, SnapshotScraper([tx_lead], taxonomy={}))
-    assert gift is None
-    gift = build_gift(wa, SnapshotScraper([tx_lead, wa_lead], taxonomy={}))
+    assert gift.geo_level == "none"
+    gift = build_gift(wa, SnapshotScraper([tx_lead, wa_lead], taxonomy={}), target=1)
     assert [ld.company for ld in gift.leads] == ["Arlington Wa Llc"] and gift.geo_level == "city"
 
 
@@ -267,9 +359,25 @@ def test_a_follow_up_can_be_held_to_email_ones_kind_and_look_nationwide():
     far_charity = lead("Far Charity", NP, city="Boston", state="MA", industry="nonprofit")
     leads = [here_builder, far_charity]
     assert names(geo(), leads, target=1) == ["Here Builder"]
-    assert names(geo(), leads, target=1, signal_types=frozenset({NP})) == []
+    # Past their own state the walk looks further (the far levels; before
+    # 2026-10-30 only with `nationwide`).
+    assert names(geo(), leads, target=1, signal_types=frozenset({NP})) == ["Far Charity"]
     assert names(geo(), leads, target=1, signal_types=frozenset({NP}),
                  nationwide=True) == ["Far Charity"]
+    # A prospect the far levels do not cover still gets `nationwide`.
+    toronto = Prospect(firm_name="Maple Books", city="Toronto", state="Ontario")
+    assert names(toronto, leads, target=1, signal_types=frozenset({NP})) == []
+    assert names(toronto, leads, target=1, signal_types=frozenset({NP}),
+                 nationwide=True) == ["Far Charity"]
+
+
+def test_a_far_lead_of_email_ones_kind_may_be_any_band():
+    """Far levels take only strong leads, except when email 2 follows email 1's
+    kind: the kind already decides."""
+    far_license = lead("Far License Llc", NL, city="Boston", state="MA")
+    assert names(geo(), [far_license], target=1) == []
+    assert names(geo(), [far_license], target=1, signal_types=frozenset({NL})) == \
+        ["Far License Llc"]
 
 
 def test_a_license_reaches_only_firms_in_the_state_that_issued_it():

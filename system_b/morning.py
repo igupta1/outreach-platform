@@ -39,10 +39,12 @@ import os
 import subprocess
 import sys
 import webbrowser
+from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 from system_b.clients.inventory import CORE_MAGNETS, MAGNET_MAX_AGE_DAYS, MAGNETS
+from system_b.gift.engine import giftable_type
 
 ROOT = Path(__file__).resolve().parent.parent
 # The lead inventory repo and the folder its `publish` writes. Overridable so a
@@ -123,6 +125,17 @@ def check(today: date | None = None) -> tuple[list[str], list[str]]:
             (problems if key in CORE_MAGNETS else warnings).append(
                 f"{key}: inventory has ZERO leads")
             continue
+        # A type the inventory publishes that outreach has no approved words
+        # for (held, or a source wired upstream first) never enters a gift
+        # (`gift.engine.giftable`); say so rather than lose it silently.
+        unworded = Counter(t for t in (str(r.get("signal_type") or "")
+                                       for r in data.get("leads") or [])
+                           if t and not giftable_type(t))
+        if unworded:
+            warnings.append(
+                f"{key}: {sum(unworded.values()):,} lead(s) never enter a gift "
+                "(held, or no wording yet): "
+                + ", ".join(f"{t} {n:,}" for t, n in unworded.most_common()))
         gen = str(data.get("generated_at") or "")[:10]
         try:
             age = (today - date.fromisoformat(gen)).days

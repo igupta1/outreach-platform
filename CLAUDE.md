@@ -257,7 +257,8 @@ never a word, and is None when not even one lead fits. `--paste` lets a model
 EXTRACT name/firm/place from copied profile text, never write copy; no
 LinkedIn page is ever fetched. It warns (never blocks) when the firm is
 already in the email ledger, the history sheet, the allocations or the
-LinkedIn log. Unless `--dry-run` it records the organizations in
+LinkedIn log; organizations the firm was already handed are left out of its
+gift. Unless `--dry-run` it records the organizations in
 lead-allocations.csv and the run in `system_b/data/linkedin-log.csv`
 (gitignored); it never touches the email ledger. Tests:
 `tests/test_connect_note.py`.
@@ -369,7 +370,19 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
 
 1. **Industry + area first.** The match-level walk (niche+city, niche+state,
    niche, city, state) and Gates A/B are unchanged; nothing below crosses a
-   level.
+   level, with ONE exception since 2026-10-30 (`STRENGTH_BEATS_CITY`): inside
+   the prospect's own state a WEAK lead (`strength_band`: tax debts,
+   self-reported problems, grants, licenses, new orgs) in their city no longer
+   beats a strong or medium one elsewhere in the state; within a band the
+   city still comes first, and `_honesty` then says "state". Measured over
+   the 1,107 unsent prospects: generalist gifts with a weak lead 20% -> 0%,
+   gifts naming the city 90% -> 73%. `CITY_YIELDS_FROM = MEDIUM` would let a
+   strong state lead beat a medium city one too (100% strong, 47% city).
+   Past the own state (`FAR_LEVELS`, US states only, never `niche_only`):
+   STRONG leads from the bordering states (`ADJACENT_STATES`), then from
+   anywhere; such a gift has geo_level "none", so no copy names their place
+   (each line names its lead's city). Unreached by email 1 on today's
+   inventory; with only the original five magnets they fill what Row 8 did.
 2. **Firm focus, a tiebreak only.** When the prospect's site is PLAINLY one
    kind of work (`research.rung.clear_focus`: >= 3 of one rung's terms and no
    other rung at `MIN_TERMS`; stricter than `detect_rung`, which always picks
@@ -378,7 +391,12 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    bookkeeping; accounting -> construction / govcon / grant accounting,
    controls_remediation; cfo -> fractional_cfo, controls_remediation,
    govcon_accounting). Otherwise no preference. Never a filter.
-3. **Row 8 is a backup, in the prospect's own state, never a niche.**
+3. **Row 8 is OFF** (`ROW8_IN_GIFTS = False`, 2026-10-30; the user dislikes
+   it). Measured: 0 of 1,076 simulated gifts used one, with or without the
+   allocation rule, and every US prospect's gift still reached 3 leads; it
+   filled 42% of gifts only while the inventory was the original five magnets
+   AND the one-organization-per-state rule was on. Switched on, it is the very
+   last round: a backup, in the prospect's own state, never a niche.
    `_pick_leads` walks every type except `new_business_*` first, then lets
    Row 8 fill only the places left, and only at the prospect's own city /
    state levels: never in a `niche_only` build (so Gate B never sees one and
@@ -398,7 +416,9 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    business. Every type has its own rank, so a gift fills from one kind first
    and the record opener says it once. Within a type, the lead's `score` (the
    inventory's 0-100 strength). `_best_lead` (the subject's lead) follows the
-   same order.
+   same order. A type with no approved words (HELD, or published upstream
+   before outreach wires it) never enters a gift (`giftable`, logged once);
+   the morning check lists such leads per file.
 
 **A city matches only in the same state** (`compute_match_level`, the city
 levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
@@ -412,9 +432,16 @@ a Clovis, CA roofer's new FLORIDA license reached a California firm,
 Washington prevailing-wage filing, New York's Medicaid audits, California's
 tax-credit and top-500 lists) apply to every pass. **Any firm may get
 any lead** (the user, 2026-10-25: "we are not big enough where prospects will
-compare notes"): the old one-organization-per-state rule is gone from `run.py`,
-and `lead-allocations.csv` is now only a log of who got what. A firm's own
-sequence still never repeats an organization.
+compare notes"; 2026-10-30: "we can send the same company to multiple people
+as gifts"): the one-organization-per-state rule is `config.EXCLUSIVE_PER_REGION
+= False` (one switch, for when leads are partitioned per paying client), and
+`lead-allocations.csv` still records who got what. What it still blocks: an
+organization THIS firm already got (a second contact at the firm, a LinkedIn
+note after an email; not under `--ignore-ledger`). A firm's own sequence never
+repeats an organization: email 2 skips email 1's organizations by identity
+AND name (`Prospect.used_leads`; 21 of 1,076 simulated sequences repeated one
+under another record or the same name). Cost, measured: 64% of gifts are the
+same three organizations as another firm's (one reaches 44 firms).
 
 **Location-only firms are drafted last** (`run.py`, with `--target`): a firm
 whose email claims a place, not an industry (review `niche` empty), is held
@@ -547,8 +574,9 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   with no claimed vertical calls them "nonprofits", not "companies"
   (`copy.subject.lead_noun`).
 - **Two firms may get the same organization** (since 2026-10-25, the user's
-  call). `system_b/data/lead-allocations.csv` (gitignored) only logs who got
-  what; `gift/allocation.py` can still block by state if the rule comes back.
+  call). `system_b/data/lead-allocations.csv` (gitignored) records who got
+  what and stops the SAME firm getting one twice;
+  `config.EXCLUSIVE_PER_REGION = True` brings back one per firm per state.
 - **Contract v2 leads past their own `expires_at` (or `status: stale`) are
   dropped at load** (`inventory._past_expiry`); v1 rows keep the older rules.
 - Nothing is ever sent — the tool only writes a CSV for you to review.
