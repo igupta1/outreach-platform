@@ -77,7 +77,8 @@ def body(g: Gift, p: Prospect = DANA, pack: str = "cfo") -> str:
 def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
-    assert len(DUTIES) == 74      # + 2 Startups, 5 Cannabis (2026-10-30)
+    # 74 + 27 wired in 2026-11-02 + 2 Healthcare (the Inventory's APPROVED_SIGNALS has the same)
+    assert len(DUTIES) == 103      # + 2 Healthcare new practices
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t

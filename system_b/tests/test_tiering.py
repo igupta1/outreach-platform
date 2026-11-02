@@ -358,5 +358,5 @@ def test_a_generic_phrase_never_borrows_the_models_guess():
                    "clients of all sizes", "companies"):
         assert map_industry_candidates(phrase, "nonprofit", TAXONOMY) == [], phrase
     # A phrase that names something still falls back to the guess.
-    assert map_industry_candidates("churches and ministries", "nonprofit", TAXONOMY) == [
+    assert map_industry_candidates("shelters and soup kitchens", "nonprofit", TAXONOMY) == [
         ("industry", "nonprofit")]

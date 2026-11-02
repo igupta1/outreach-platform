@@ -55,14 +55,16 @@
       "general_contractor",
       "specialty_trades",
       "homebuilder_developer",
-      "civil_infrastructure"
+      "civil_infrastructure",
+      "building_contractor"
     ],
     "home_services": [
       "hvac_plumbing_electrical",
       "cleaning_janitorial",
       "landscaping",
       "pest_control",
-      "security_services"
+      "security_services",
+      "pool_services"
     ],
     "real_estate": [
       "property_management",
@@ -81,7 +83,8 @@
       "hotel_lodging",
       "catering_events",
       "bar_brewery",
-      "food_service"
+      "food_service",
+      "amusement_recreation"
     ],
     "fitness_wellness": [
       "gym_studio",
@@ -99,7 +102,8 @@
       "k12_school",
       "higher_ed",
       "edtech",
-      "training_bootcamp"
+      "training_bootcamp",
+      "childcare_early_ed"
     ],
     "energy": [
       "oil_gas",
@@ -110,7 +114,8 @@
     "agriculture": [
       "farming",
       "agtech",
-      "food_production"
+      "food_production",
+      "forestry"
     ],
     "investment_management": [
       "private_funds",

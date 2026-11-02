@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
-from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations
+from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations, bare_gift
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
     city_display,
@@ -650,7 +650,9 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
     level, where = place
     niche = niche_claim(gift, prospect)
     one = 0 if n != 1 else 1
-    noun = "" if niche else lead_noun(gift, n)
+    # A bare type (Restaurants) prints no noun at all, the prospect's niche word
+    # included: the record proves a licence, not a business type.
+    noun = "" if niche or bare_gift(gift.leads) else lead_noun(gift, n)
     at = f"in {where}" if where else ""
     duty = DUTIES.get(kind)
     if duty is not None:

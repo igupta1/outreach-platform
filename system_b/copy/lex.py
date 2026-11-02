@@ -89,6 +89,10 @@ NICHE_DISPLAY: dict[str, str] = {
     "farming": "farming", "agtech": "agtech", "food_production": "food production",
     "charity_foundation": "nonprofit", "religious": "faith-based",
     "membership_association": "membership", "social_services": "social services",
+    # Added 2026-11-02 with the HomeServices / Community sources (taxonomy.json).
+    "pool_services": "pool services", "amusement_recreation": "amusement & recreation",
+    "forestry": "forestry", "building_contractor": "building contractor",
+    "childcare_early_ed": "child care",
 }
 
 # What to CALL companies in a niche. The copy is built as "{label} companies",
@@ -116,6 +120,11 @@ NICHE_NOUNS: dict[str, tuple[str, str]] = {
     "behavioral health": ("behavioral health practice", "behavioral health practices"),
     "restaurant": ("restaurant", "restaurants"),
     "k-12 education": ("school", "schools"),
+    # 2026-11-02: children whose default "{label} company" reads wrong.
+    "pool services": ("pool company", "pool companies"),
+    "amusement & recreation": ("recreation business", "recreation businesses"),
+    "building contractor": ("building contractor", "building contractors"),
+    "child care": ("child care provider", "child care providers"),
     # Schools and colleges are not companies (the duty leads, 2026-10-27).
     "education": ("education organization", "education organizations"),
     "higher education": ("college", "colleges"),

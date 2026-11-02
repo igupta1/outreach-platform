@@ -7,7 +7,7 @@ level. `an` before a vowel sound (4c only — plural WHOs take no article).
 
 from __future__ import annotations
 
-from system_b.copy.duty import DUTIES, all_organizations, shared_noun
+from system_b.copy.duty import DUTIES, all_organizations, bare_gift, shared_noun
 from system_b.copy.lex import (
     apply_article,
     city_display,
@@ -257,6 +257,11 @@ def short_subject(gift: Gift, prospect: Prospect) -> str | None:
     what = (_SHORT_WHAT_ONE if n == 1 else _SHORT_WHAT)[kind]
     if kind in DUTIES:                  # its own words for THESE leads (warrant vs lien)
         what = DUTIES[kind].short_for(gift.leads)
+    if bare_gift(gift.leads):
+        # No business noun (Restaurants): "3 in houston with new liquor licenses".
+        where = f"in {place}" if place else ""
+        count = " ".join(w for w in ("one" if n == 1 else str(n), where) if w)
+        return f"{count} {what}".lower()
     head = " ".join(w for w in (place, noun) if w)
     count = apply_article(f"a {head}") if n == 1 else f"{n} {head}"
     return f"{count} {what}".lower()

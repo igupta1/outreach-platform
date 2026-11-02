@@ -44,7 +44,59 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
     "legal": ("professional_services", "law_firm"),
     "accounting": ("professional_services", "accounting_bookkeeping"),
     "bookkeeping": ("professional_services", "accounting_bookkeeping"),
+    # 2026-11-02, for the sources wired in that day (Restaurants, TexasPermits,
+    # Regulated, HomeServices, Community, Professional, church 990-Ts). The
+    # niche words the verticals/ folders carry ("faith-based", "catering",
+    # "it-services", ...) came from the model's one-word `guess` or a verbatim
+    # phrase; every one must reach the taxonomy key the new leads carry
+    # (`test_new_niche_words`). Keys are STEMMED words (see `_stem`).
+    "faith": ("nonprofit", "religious"), "church": ("nonprofit", "religious"),
+    "churche": ("nonprofit", "religious"), "congregation": ("nonprofit", "religious"),
+    "ministry": ("nonprofit", "religious"), "ministrie": ("nonprofit", "religious"),
+    "synagogue": ("nonprofit", "religious"), "mosque": ("nonprofit", "religious"),
+    "catering": ("hospitality_food", "catering_events"),
+    "caterer": ("hospitality_food", "catering_events"),
+    "fitness": ("fitness_wellness", None), "wellness": ("fitness_wellness", None),
+    "gym": ("fitness_wellness", "gym_studio"), "gyms": ("fitness_wellness", "gym_studio"),
+    "yoga": ("fitness_wellness", "gym_studio"), "pilates": ("fitness_wellness", "gym_studio"),
+    "lender": ("fintech", "lending"), "mortgage": ("fintech", "lending"),
+    "blockchain": ("fintech", "crypto_web3"), "bitcoin": ("fintech", "crypto_web3"),
+    "attorney": ("professional_services", "law_firm"),
+    "lawyer": ("professional_services", "law_firm"),
+    "cpa": ("professional_services", "accounting_bookkeeping"),
+    "cpas": ("professional_services", "accounting_bookkeeping"),
+    "consultant": ("professional_services", "consulting"),
+    "msps": ("professional_services", "it_msp"),
+    "landscaper": ("home_services", "landscaping"), "lawn": ("home_services", "landscaping"),
+    "farm": ("agriculture", None), "farming": ("agriculture", "farming"),
+    "agribusiness": ("agriculture", None), "ranch": ("agriculture", None),
+    "hoa": ("real_estate", "property_management"), "hoas": ("real_estate", "property_management"),
+    "condo": ("real_estate", "property_management"),
+    "pool": ("home_services", "pool_services"),
+    "childcare": ("education", "childcare_early_ed"), "daycare": ("education", "childcare_early_ed"),
 }
+
+# Multi-word names for a CHILD that no single alias word can say: "it" is not
+# a word to alias, "direct to consumer" is three. Same fallback role as
+# `_ALIASES` (only when the phrase mapped to nothing), so a real vertical the
+# phrase states is never overridden.
+_PHRASE_CHILDREN: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    (re.compile(r"\bit[\s-]+(?:services?|companies|firms|providers?|support|consulting)\b"
+                r"|\bmanaged\s+(?:it\s+)?service\s+providers?\b|\bmsps?\b",
+                re.IGNORECASE), "professional_services", "it_msp"),
+    (re.compile(r"\bdirect[\s-]to[\s-]consumer\b", re.IGNORECASE),
+     "ecommerce_retail", "dtc_brand"),
+    (re.compile(r"\bconsumer\s+packaged?\s+goods\b", re.IGNORECASE),
+     "ecommerce_retail", "cpg_food_beverage"),
+    (re.compile(r"\bfaith[\s-]based\b|\bhouses?\s+of\s+worship\b|\breligious\b",
+                re.IGNORECASE), "nonprofit", "religious"),
+    (re.compile(r"\bfinancial\s+technology\b", re.IGNORECASE), "fintech", ""),
+    (re.compile(r"\b(?:homeowners?|condo(?:minium)?|community)\s+associations?\b"
+                r"|\bproperty\s+managers?\b", re.IGNORECASE),
+     "real_estate", "property_management"),
+    (re.compile(r"\b(?:digital\s+assets?|crypto\s*currenc(?:y|ies))\b", re.IGNORECASE),
+     "fintech", "crypto_web3"),
+)
 
 
 # Multi-word names for a parent that has NO children. Government contractors
@@ -139,6 +191,13 @@ def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str 
     # accounting for dental practices" -> dental, never accounting).
     if not found:
         portfolio_co = bool(_PORTFOLIO_CO_RE.search(phrase or ""))
+        for rx, parent, child in _PHRASE_CHILDREN:
+            if parent in taxonomy and rx.search(phrase or ""):
+                if child and child in taxonomy.get(parent, []):
+                    if found.get(parent) is None:
+                        found[parent] = child
+                else:
+                    found.setdefault(parent, None)
         for word in pw:
             if portfolio_co and word in _FUND_SIDE_ALIASES:
                 continue

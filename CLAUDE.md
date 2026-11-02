@@ -845,6 +845,55 @@ age limits 45 / 45 / 21 / 21 days). Tests:
   that is another plus a tail, the shorter two words or more), since WA
   publishes trade names that repeat across UBIs.
 
+## Seven more sources and Healthcare's new practices (2026-11-02)
+
+29 more duty types are live (103 in `DUTIES`, equal to the Inventory's
+`APPROVED_SIGNALS`; a test checks it) and 25 more are worded and HELD
+(`gift.engine._HELD`): the Inventory's `sources.py` says why each is held.
+Magnets `nonprofitchurch`, `restaurants`, `texaspermits`, `regulated`,
+`homeservices`, `community`, `professional` (healthcare is the existing one).
+Every type has a `TYPE_ORDER` rank by strength (hookup groups). Tests:
+`tests/test_nov2_sources.py`.
+
+- **`Duty.bare`** (Restaurants): the record proves a licence, not a business
+  type, so the opener and the short subject print NO noun, not even the
+  prospect's niche: "these 3 in houston changed hands, each with its liquor
+  license now in the new owner's name:", "3 in houston under new owners".
+  `copy.duty.bare_gift`; the previous licensee shows as "(was X)" unless the
+  name looks like a person.
+- **House rules the hookups broke, kept**: no `$` in any sent text (VA Class
+  A/B net worth, FL $25,000 bond and the church $1,000 line lost their
+  figures), no "hiring" (H-2B), predicate + why <= 118 characters, a `line`
+  <= 8 words and a short subject <= 34 characters. Where a licence is another
+  state's the predicate names that state ("virginia class A", "florida
+  health studios", "connecticut health club"). TexasPermits never says
+  owe / penalty / back taxes (a test scans); the late-registration clause is
+  "months after the state lists them as liable, so each has earlier returns to
+  cover". `new_practice_npi` has NO "so each" clause (record only); the
+  Medicare enrollment one keeps "so each now bills medicare under its own
+  group number". The H-2B opener says "seasonal employers" for construction
+  and similar niches (an application carries an occupation, not a business
+  type); churches say "churches" only when the IRS codes every one a church.
+  Regulated says "companies in california got new florida ..." (no
+  "mortgage lenders" twice); the three gym registries say "fitness
+  businesses".
+- **Texas RRC types**: no wording, no rank; the Inventory never ingests them.
+- **Taxonomy** gained `pool_services`, `amusement_recreation`, `forestry`,
+  `building_contractor`, `childcare_early_ed` (labels in `copy.lex`).
+  Prospect-side aliases (`gift.taxonomy._ALIASES`, `_PHRASE_CHILDREN`) now
+  carry "faith", "church", "catering", "it services" / "msp", "lender",
+  "attorney", "cpa", "hoa", "direct to consumer", "consumer packaged goods"...
+  `test_new_niche_words` pins each verticals/ folder word (fitness-wellness,
+  faith-based, landscaping, ecommerce, dtc, cpg, catering, agriculture, legal,
+  accounting, fintech, lending, crypto, restaurant, it-services, consulting,
+  property-management) to its taxonomy key AND to >= 1 published lead; the
+  words with none (creator, aerospace-defense, veterinary, oil-gas, video
+  games) are listed as uncovered.
+- Names: a SHOUTING name keeps "of / the / and / for" lower case ("Agudath
+  Israel of IL"); the Florida Bar rows lose their "(attorney)" tag. Note the
+  FL Bar type names individual lawyers (3 leads, enabled by decision): the
+  "never gift a person's name" rule (`clients/people.py`) does not catch them.
+
 ## Forbidden without explicit instruction
 
 - Committing `.env` or `apollo-contacts-export.csv` (or any `sequences*.csv`).

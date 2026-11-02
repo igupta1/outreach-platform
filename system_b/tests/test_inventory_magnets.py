@@ -55,6 +55,11 @@ def test_the_inventory_magnets_are_the_published_files():
         "funds": "fund-leads.json", "fundsduty": "fund-duty-leads.json",
         # Startups and Cannabis (2026-10-30).
         "startups": "startup-leads.json", "cannabis": "cannabis-leads.json",
+        # 2026-11-02 (Inventory APPROVED_SIGNALS 101).
+        "nonprofitchurch": "nonprofit-church-leads.json",
+        "restaurants": "restaurant-leads.json", "texaspermits": "texas-permit-leads.json",
+        "regulated": "regulated-leads.json", "homeservices": "homeservices-leads.json",
+        "community": "community-leads.json", "professional": "professional-leads.json",
     }
     from system_b.clients.inventory import CORE_MAGNETS, MAGNET_MAX_AGE_DAYS
     assert CORE_MAGNETS == {"nonprofit", "construction", "govcon", "grant", "newbusiness"}

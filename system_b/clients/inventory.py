@@ -123,6 +123,15 @@ MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "fundsduty": 45,
     "startups": 21,       # weekly refresh + one missed run
     "cannabis": 21,
+    # 2026-11-02: each source's own cadence (weekly) plus one missed run; the
+    # church 990-T file follows the nonprofit duty file (45 days).
+    "nonprofitchurch": 45,
+    "restaurants": 21,
+    "texaspermits": 21,
+    "regulated": 21,
+    "homeservices": 21,
+    "community": 21,
+    "professional": 21,
     "ecommerce": 180,     # refreshed when a new Apollo export is bought (off upstream)
 }
 
@@ -230,8 +239,16 @@ _KEEP_UPPER = frozenset({
 _ALPHA_RE = re.compile(r"[A-Za-z]")
 
 
+# Small words that are never initials in a SHOUTING name: "AGUDATH ISRAEL OF IL"
+# is "Agudath Israel of IL", not "... OF IL" (2026-11-02, USAspending and DPOR
+# print every name upper case).
+_SMALL_WORDS = frozenset({"of", "the", "and", "for", "at", "to", "by", "or"})
+
+
 def _decap_token(token: str) -> str:
     core = "".join(ch for ch in token if ch.isalnum())
+    if core.lower() in _SMALL_WORDS:
+        return token.lower()
     if len(core) <= 2 or core.lower() in _KEEP_UPPER:
         return token                     # "GP", "LLC", "US" — leave them alone
     return token[:1] + token[1:].lower()
@@ -253,7 +270,9 @@ def _fix_shouting(name: str) -> str:
     tokens = name.split()
     if len(tokens) == 1 and len(tokens[0]) <= 6:
         return name                      # NACDD, MAPS, SISU — acronym, not shouting
-    return " ".join(_decap_token(t) for t in tokens)
+    out = [_decap_token(t) for t in tokens]
+    out[0] = out[0][:1].upper() + out[0][1:]      # "THE ..." keeps its capital
+    return " ".join(out)
 
 
 # --- title-cased names: acronyms and registry abbreviations -----------------
@@ -440,6 +459,9 @@ def _clean_company_name(name: str) -> str:
     # "Ioos Association, Inc. A/K/A Ioos Association": the alias repeats the
     # name, and a slash-acronym in an email reads as a filing.
     name = _AKA_RE.split(name, maxsplit=1)[0].rstrip(" ,")
+    # Professional's Florida Bar rows are printed "Jane Doe (attorney)": the
+    # lawyers noun in the opener already says it (2026-11-02).
+    name = re.sub(r"\s*\(attorney\)\s*$", "", name, flags=re.IGNORECASE)
     name = front_the(name.replace(" / ", " ").strip(" /|-"))
     name = _MULTISPACE_RE.sub(" ", name).strip()
     return _fix_title_tokens(_fix_shouting(name))
@@ -1013,6 +1035,14 @@ MAGNETS: dict[str, str] = {
     "fundsduty": "fund-duty-leads.json",                # Form ADV annual amendment
     "startups": "startup-leads.json",                   # SEC Form D, US tech companies
     "cannabis": "cannabis-leads.json",                  # state cannabis licensees + citations
+    # 2026-11-02 (Inventory APPROVED_SIGNALS 101): only the approved types of each.
+    "nonprofitchurch": "nonprofit-church-leads.json",   # churches' Form 990-T (first, no preparer)
+    "restaurants": "restaurant-leads.json",             # liquor-license takeovers (CA, TX)
+    "texaspermits": "texas-permit-leads.json",          # TX sales-tax permits, new and late
+    "regulated": "regulated-leads.json",                # FL OFR new lenders / money transmitters
+    "homeservices": "homeservices-leads.json",          # H-2B employers + VA contractor licences
+    "community": "community-leads.json",                # gyms, CACFP, HOAs, FEMA NSGP
+    "professional": "professional-leads.json",          # CPA / law firms, PEOs, DIR vendors
 }
 # The original five: a run that finds one of THESE empty stops (morning);
 # a duty family may legitimately publish nothing for a week.
@@ -1046,6 +1076,13 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "fundsduty": "investment_management",
     "startups": "software_saas",            # niche tech_startup -> _SOURCE_NICHES
     "cannabis": "cannabis",
+    "nonprofitchurch": "nonprofit",
+    "restaurants": None,          # per slice: hospitality_food on the two ENABLED slices only
+    "texaspermits": None,         # per lead, from the outlet's NAICS (taxonomy words)
+    "regulated": None,            # fintech on Florida's licensees; energy on NM's (held)
+    "homeservices": None,         # per lead (taxonomy words)
+    "community": None,            # per record: fitness_wellness / education / real_estate / nonprofit
+    "professional": "professional_services",
 }
 
 # A duty source's own (industry, niche) words, by niche, mapped onto the

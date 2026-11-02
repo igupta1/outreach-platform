@@ -26,6 +26,7 @@ Each entry fills the same slots the six original record signals have in
   noun                what the leads are (singular, plural); None keeps
                       `lead_noun`'s default ("nonprofits" / "companies").
   org                 the engineer line says "organizations", not "companies".
+  bare                the opener prints no business noun at all (Restaurants).
 
 Every claim is the record's own words: "reported ... on its latest form
 5500" (a Yes can be carried over a year), "doesn't have ... on edgar yet"
@@ -35,9 +36,11 @@ Every claim is the record's own words: "reported ... on its latest form
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from system_b.clients.people import looks_like_person
 from system_b.gift.engine import HELD_TYPES
 from system_b.models import Lead
 
@@ -77,6 +80,10 @@ class Duty:
     followup: Callable[[Lead], str] | None = None
     noun: tuple[str, str] | Callable[[Lead], tuple[str, str] | None] | None = None
     org: bool = False
+    # `bare`: the record proves a licence, not what the business is, so the
+    # opener prints NO business noun ("these 3 in houston got ...": not
+    # "restaurants", not "companies"), whatever the prospect's niche. Restaurants.
+    bare: bool = False
     dm: str = ""
     need: str = ""
     extra: dict = field(default_factory=dict)
@@ -1004,6 +1011,629 @@ HELD_DUTIES["adv_annual_amendment_overdue"] = Duty(
     short=("without their form adv update", "without its form adv update"),
     noun=("fund manager", "fund managers"),
     dm="with no annual form adv update on file")
+
+# ======================================================================================
+# 2026-11-02: Restaurants, TexasPermits, Regulated, HomeServices, Community,
+# Professional and the church 990-T types. Wording from each source's
+# INVENTORY_HOOKUP.md / CHURCH_HOOKUP.md. The ENABLED types go in `DUTIES`, the
+# HELD ones in `HELD_DUTIES` (worded, not used until approved: delete the type
+# from `gift.engine._HELD` AND add it to the Inventory's APPROVED_SIGNALS).
+# The Texas Railroad Commission types have no wording on purpose: the
+# Inventory never ingests them (RRC terms allow noncommercial use only).
+# ======================================================================================
+
+def _title_if_shouted(name: str) -> str:
+    return name.title() if name and name.isupper() else name
+
+
+# --- Restaurants -------------------------------------------------------------------
+# The record proves a LICENCE, not a business type, so no opener prints a noun
+# (`bare`). Never "restaurant", never "company". No "why" on either wording:
+# a restaurant that only added liquor would make "now files sales tax" untrue,
+# and the record shows nothing about what a takeover changes in the books.
+def _was(lead: Lead) -> str:
+    """"was Himalayan Hub" when the record names the previous licensee at the
+    premises (never a person: the source drops people's names, and a name that
+    looks like one is left out here too)."""
+    prior = _payload(lead).get("prior_licensee") or {}
+    name = prior.get("trade_name") or prior.get("dba") or prior.get("legal_name") or ""
+    name = _title_if_shouted(" ".join(str(name).split()))
+    if not name or looks_like_person(name):
+        return ""
+    return f"was {name}"
+
+
+_NEW_OWNER = Duty(
+    plural="changed hands, each with its liquor license now in the new owner's name",
+    singular="changed hands, with its liquor license now in the new owner's name",
+    detail=_was,
+    line="new owner, liquor license in its name",
+    short=("under new owners", "under a new owner"), bare=True, dm="changing hands")
+_NEW_LICENSE = Duty(
+    plural="got new liquor licenses", singular="got a new liquor license",
+    line="new liquor license",
+    short=("with new liquor licenses", "with a new liquor license"), bare=True,
+    dm="getting new liquor licenses")
+
+DUTIES.update({                        # ENABLED (hand checks 7% and 8% false positives)
+    "liquor_license_new_owner_ca": _NEW_OWNER,
+    "liquor_license_new_owner_tx": _NEW_OWNER,
+})
+HELD_DUTIES.update({                   # HELD (wording ready)
+    "tx_new_mixed_beverage_permit": Duty(
+        plural="got new mixed beverage permits from the state",
+        singular="got a new mixed beverage permit from the state",
+        why=("so each now files monthly mixed beverage tax reports",
+             "so it now files monthly mixed beverage tax reports"),
+        line="new texas mixed beverage permit, monthly tax reports",
+        short=("with new liquor permits", "with a new liquor permit"), bare=True,
+        dm="getting new texas mixed beverage permits"),
+    **{t: _NEW_LICENSE for t in ("liquor_license_new_tx", "liquor_license_new_ca",
+                                 "liquor_license_new_ny", "liquor_license_new_fl",
+                                 "liquor_license_new_co", "liquor_license_new_chicago")},
+    **{t: _NEW_OWNER for t in ("liquor_license_new_owner_ny",
+                               "liquor_license_new_owner_chicago")},
+    "chicago_new_food_license": Duty(
+        plural="got new city food licenses", singular="got a new city food license",
+        line="new chicago food license",
+        short=("with new food licenses", "with a new food license"), bare=True,
+        dm="getting new city food licenses"),
+})
+
+# --- TexasPermits ------------------------------------------------------------------
+# The record shows a permit date and the date the Comptroller lists the outlet as
+# first liable for sales tax (the dataset's own definition of
+# `outlet_first_sales_date`). Never "owe", "penalty" or "back taxes": sales through
+# a marketplace are excluded from the seller's own report (Tax Code 151.0242(d)),
+# so a late registrant may owe no tax, only the returns; and the $50-per-late-return
+# rule would imply an assessment the record does not show. A test scans for them.
+_TX_GROUP_NOUN = {
+    "ecommerce": ("online seller", "online sellers"),
+    "manufacturing": ("manufacturer", "manufacturers"),
+    "food_beverage": ("food and beverage maker", "food and beverage makers"),
+    "caterer": ("caterer", "caterers"),
+    "farm": ("agriculture business", "agriculture businesses"),   # 111/112 + 115 support
+}
+
+
+def _tx_noun(lead: Lead) -> tuple[str, str] | None:
+    """By the outlet's NAICS slice; None (the generic noun) for any other."""
+    return _TX_GROUP_NOUN.get(str(_payload(lead).get("niche_group") or ""))
+
+
+def _tx_late_months(lead: Lead) -> str:
+    m = _payload(lead).get("months_first_sale_to_permit")
+    return f"liable {m} months before the permit" if isinstance(m, int) and m > 1 else ""
+
+
+def _brewer_noun(lead: Lead) -> tuple[str, str]:
+    return ("brewpub", "brewpubs") if _payload(lead).get("brewpub") \
+        else ("brewery", "breweries")
+
+
+DUTIES.update({
+    "tx_late_sales_tax_registration": Duty(
+        plural="got texas sales tax permits months after the state lists them as liable",
+        singular="got a texas sales tax permit months after the state lists it as liable",
+        why=("so each has earlier returns to cover", "so it has earlier returns to cover"),
+        detail=_tx_late_months,
+        line="sales tax permit issued months after liable date",
+        short=("registered late for sales tax", "registered late for sales tax"),
+        noun=_tx_noun, dm="registering late for texas sales tax"),
+    "tx_new_sales_tax_permit": Duty(
+        plural="got new texas sales tax permits",
+        singular="got a new texas sales tax permit",
+        why=("so each now files sales tax returns, even in months with no sales",
+             "so it now files sales tax returns, even in months with no sales"),
+        line="new texas sales tax permit, returns start",
+        short=("with new sales tax permits", "with a new sales tax permit"),
+        noun=_tx_noun, dm="getting new texas sales tax permits"),
+})
+HELD_DUTIES.update({
+    "tx_new_brewer_license": Duty(
+        plural="got new brewer's licenses from the state",
+        singular="got a new brewer's license from the state",
+        why=("so each now files federal beer excise returns",
+             "so it now files federal beer excise returns"),
+        line="new texas brewer's license, federal excise returns start",
+        short=("with new brewer's licenses", "with a new brewer's license"),
+        noun=_brewer_noun, dm="getting new texas brewer's licenses"),
+})
+
+# --- Regulated (Florida OFR; out-of-state licensees kept) -----------------------------
+# Only duties verified in rule text appear in a "why" (Inventory/Regulated hookup, 8).
+# No dollar figure; no "audit" for mortgage lenders (Florida has no annual audit duty
+# for them after licensing); no noun: the licence is in the predicate already
+# ("these 3 mortgage lenders ... got new florida mortgage lender licenses" said it
+# twice), and the place is each lead's own HQ state, so a Florida licence held by a
+# California firm reads "these 3 companies in california got new florida ...".
+DUTIES.update({
+    "fl_new_money_transmitter": Duty(
+        plural="got new florida money transmitter licenses",
+        singular="got a new florida money transmitter license",
+        why=("so each files an audited statement every year and a report every quarter",
+             "so it files an audited statement every year and a report every quarter"),
+        line="new florida money transmitter license, yearly audit",
+        short=("with money transmitter licenses", "with a money transmitter license"),
+        dm="getting new florida money transmitter licenses"),
+    "fl_new_mortgage_lender": Duty(
+        plural="got new florida mortgage lender licenses",
+        singular="got a new florida mortgage lender license",
+        why=("so each must keep its required net worth and report its condition quarterly",
+             "so it must keep its required net worth and report its condition quarterly"),
+        line="new florida mortgage lender license",
+        short=("with new lender licenses", "with a new lender license"),
+        dm="getting new florida mortgage lender licenses"),
+    "fl_new_consumer_finance_lender": Duty(
+        plural="got new florida consumer finance licenses",
+        singular="got a new florida consumer finance license",
+        why=("so each now files an annual report with the state by march 15",
+             "so it now files an annual report with the state by march 15"),
+        line="new florida consumer finance license",
+        short=("with consumer finance licenses", "with a consumer finance license"),
+        dm="getting new florida consumer finance licenses"),
+})
+_OPERATOR = ("oil and gas operator", "oil and gas operators")
+HELD_DUTIES.update({
+    "nm_ocd_new_operator": Duty(
+        plural="registered with new mexico's oil conservation division as new well operators",
+        singular="registered with new mexico's oil conservation division as a new well operator",
+        why=("so each now files a monthly production report (form c-115) for every well",
+             "so it now files a monthly production report (form c-115) for every well"),
+        line="new new mexico well operator",
+        short=("new nm well operators", "a new nm well operator"),
+        noun=_OPERATOR, dm="registering as new new mexico well operators"),
+    "fcc_499a_missed": Duty(
+        plural="have no fcc form 499-a on file for this year (due april 1)",
+        singular="has no fcc form 499-a on file for this year (due april 1)",
+        line="fcc form 499-a not filed this year",
+        short=("missing this year's form 499-a", "missing this year's form 499-a"),
+        noun=("telecom provider", "telecom providers"),
+        dm="missing this year's fcc form 499-a"),
+    "fcc_499_new_registrant": Duty(
+        plural="registered with the fcc as new telecom providers",
+        singular="registered with the fcc as a new telecom provider",
+        why=("so each now files an fcc form 499-a revenue report every april 1",
+             "so it now files an fcc form 499-a revenue report every april 1"),
+        line="new fcc 499 registrant",
+        short=("new telecom providers", "a new telecom provider"),
+        noun=("telecom provider", "telecom providers"),
+        dm="registering as new telecom providers"),
+})
+
+# --- HomeServices -----------------------------------------------------------------
+# "Accepted", never "approved" / "certified" (the feed is the Notice of Acceptance
+# list); the why is "has agreed to" (20 CFR 655.20), never "now owes"; "or post a
+# bond" always rides with the Virginia net-worth claim; no "$1 million" on Class A.
+_H2B_NOUN = {
+    "landscaping": ("landscaper", "landscapers"),
+    "hvac_plumbing_electrical": ("trades company", "trades companies"),
+    "cleaning_janitorial": ("cleaning company", "cleaning companies"),
+    "pest_control": ("pest control company", "pest control companies"),
+    "pool_services": ("pool company", "pool companies"),
+    "security_services": ("security company", "security companies"),
+    # No "contractors", "builders", "hotels" or "restaurants": an H-2B application
+    # carries an occupation and a NAICS code, not a business type (the hookup's own
+    # residual risk: first-timers named "Ale Trucks" and "Arcol Consulting" filed as
+    # construction laborers). Those read "seasonal employers".
+}
+
+
+def _seasonal_noun(lead: Lead) -> tuple[str, str]:
+    """By the lead's own niche; anything else is a 'seasonal employer'."""
+    return _H2B_NOUN.get(lead.niche or "", ("seasonal employer", "seasonal employers"))
+
+
+def _va_noun(lead: Lead) -> tuple[str, str]:
+    n = lead.niche or ""
+    if n == "hvac_plumbing_electrical":
+        return ("trades contractor", "trades contractors")
+    if n == "landscaping":
+        return ("landscaping contractor", "landscaping contractors")
+    if n == "pool_services":
+        return ("pool contractor", "pool contractors")
+    return ("contractor", "contractors")
+
+
+_H2B_WHY = ("so each agreed to prevailing wage and pay-record rules",
+            "so it agreed to prevailing wage and pay-record rules")
+# The hookup's figures ($45,000 / $15,000 of net worth) are left out: no sent text
+# carries a dollar figure (the amounts are in the insight and the payload).
+_VA_A_WHY = ("so each had to show virginia its net worth on a financial statement "
+             "(or a bond)",
+             "so it had to show virginia its net worth on a financial statement "
+             "(or a bond)")
+_VA_B_WHY = _VA_A_WHY
+
+DUTIES.update({
+    "h2b_first_time_employer": Duty(
+        plural="had their first H-2B applications accepted by the labor dept",
+        singular="had its first H-2B application accepted by the labor dept",
+        why=_H2B_WHY,
+        line="first H-2B application, accepted by labor dept",
+        short=("with first H-2B applications", "with a first H-2B application"),
+        noun=_seasonal_noun, dm="filing their first H-2B seasonal worker applications"),
+    "h2b_seasonal_employer": Duty(
+        plural="had H-2B applications accepted by the labor dept",
+        singular="had an H-2B application accepted by the labor dept",
+        why=_H2B_WHY,
+        line="H-2B application accepted by labor dept",
+        short=("with H-2B worker applications", "with an H-2B worker application"),
+        noun=_seasonal_noun, dm="filing H-2B seasonal worker applications"),
+    "va_new_class_a_contractor": Duty(
+        plural="got new virginia class A licenses",
+        singular="got a new virginia class A license",
+        why=_VA_A_WHY,
+        line="new virginia class A contractor license",
+        short=("with new class A licenses", "with a new class A license"),
+        noun=_va_noun, dm="getting new virginia class A contractor licenses"),
+})
+HELD_DUTIES.update({
+    "h2b_seasonal_employer_other_industry": Duty(
+        plural="had H-2B applications accepted by the labor dept",
+        singular="had an H-2B application accepted by the labor dept",
+        why=_H2B_WHY,
+        line="H-2B application accepted by labor dept",
+        short=("with H-2B worker applications", "with an H-2B worker application"),
+        noun=_seasonal_noun, dm="filing H-2B seasonal worker applications"),
+    "va_new_class_b_contractor": Duty(
+        plural="got new virginia class B licenses",
+        singular="got a new virginia class B license",
+        why=_VA_B_WHY,
+        line="new virginia class B contractor license",
+        short=("with new class B licenses", "with a new class B license"),
+        noun=_va_noun, dm="getting new virginia class B contractor licenses"),
+    "va_contractor_upgraded_class_a": Duty(
+        plural="moved up to virginia class A contractor licenses",
+        singular="moved up to a virginia class A contractor license",
+        why=_VA_A_WHY,
+        line="moved up to a virginia class A contractor license",
+        short=("moving up to class A licenses", "moving up to a class A license"),
+        noun=_va_noun, dm="moving up to virginia class A contractor licenses"),
+})
+
+# --- Community --------------------------------------------------------------------
+# The predicate is only what the record shows; a "why" only where the statute text
+# was read; no dollar figure in the opener; never "new business", "sworn
+# statement", "single audit", "failed" or "missing". Display names (VA and
+# USAspending print upper case) are title-cased by the inventory client.
+# One name per email: a management company's inbox can be the contact on several
+# VA associations, and franchisees share brand names (HOTWORX): a gift lists each
+# `name` once (`gift.engine._same_company`).
+# The three gym registries say "fitness business", not "gym": Florida's health
+# studios include Pilates, yoga and martial arts, and the record does not say which.
+_FITNESS = ("fitness business", "fitness businesses")
+_SPONSOR = ("child care program", "child care programs")
+_ASSN = ("community association", "community associations")
+_CONG = ("congregation", "congregations")
+_SCHOOL = ("career school", "career schools")
+
+DUTIES.update({
+    "tx_health_spa_new": Duty(       # Occ. Code 702.101, 702.151, 702.201-.202
+        plural="just registered as texas health spas",
+        singular="just registered as a texas health spa",
+        why=("so each had to post security or get an exemption before selling memberships",
+             "so it had to post security or get an exemption before selling memberships"),
+        line="new texas health spa registration",
+        short=("just registered as health spas", "just registered as a health spa"),
+        noun=_FITNESS, dm="just registering as health spas in texas"),
+    "fl_health_studio_new": Duty(    # Fla. Stat. 501.015(1)-(2), 501.016(1)-(2), (5)
+        plural="just registered as florida health studios",
+        singular="just registered as a florida health studio",
+        why=("so each needs a bond or an exemption and re-registers every year",
+             "so it needs a bond or an exemption and re-registers every year"),
+        line="new florida health studio registration",
+        short=("just registered as health studios", "just registered as a health studio"),
+        noun=_FITNESS, dm="just registering as health studios in florida"),
+    "ct_health_club_new": Duty(      # Conn. Gen. Stat. 21a-223(a), 21a-226(b)
+        plural="just got connecticut health club licenses",
+        singular="just got a connecticut health club license",
+        why=("so each now renews yearly and pays into the state's guaranty fund",
+             "so it now renews yearly and pays into the state's guaranty fund"),
+        line="new connecticut health club license",
+        short=("with new club licenses", "with a new club license"),
+        noun=_FITNESS, dm="just getting connecticut health club licenses"),
+    "tx_cacfp_new_sponsor": Duty(    # 7 CFR 226.10(c)-(d), 226.15(e)
+        plural="were just approved to run the federal child care food program",
+        singular="was just approved to run the federal child care food program",
+        why=("so each now files monthly meal reimbursement claims",
+             "so it now files monthly meal reimbursement claims"),
+        line="new federal child care food program sponsor",
+        short=("approved for the food program", "approved for the food program"),
+        noun=_SPONSOR, dm="just approved for the federal child care food program"),
+    "va_hoa_new_registration": Duty( # Va. Code 55.1-1835; 18VAC48-60-15
+        plural="just registered with virginia's common interest community board",
+        singular="just registered with virginia's common interest community board",
+        why=("so each files an annual report and fee every year",
+             "so it files an annual report and fee every year"),
+        line="new virginia hoa / condo association registration",
+        short=("with new state registrations", "with a new state registration"),
+        noun=_ASSN, dm="just registering with virginia's cic board"),
+    "nsgp_security_grant_subaward": Duty(  # 2 CFR 200.302, 200.318, 200.334
+        plural="recently received FEMA security grants",
+        singular="recently received a FEMA security grant",
+        why=("so each now has federal grant rules on how it spends and records the money",
+             "so it now has federal grant rules on how it spends and records the money"),
+        line="fema nonprofit security grant subaward",
+        short=("with FEMA security grants", "with a FEMA security grant"),
+        noun=_CONG, org=True, dm="receiving fema nonprofit security grants"),
+})
+HELD_DUTIES.update({
+    "ct_health_club_lapsed": Duty(
+        plural="let their state health club licenses lapse on 9/30",
+        singular="let its state health club license lapse on 9/30",
+        line="connecticut health club license lapsed",
+        short=("with lapsed club licenses", "with a lapsed club license"),
+        noun=_FITNESS, dm="with lapsed connecticut health club licenses"),
+    "tx_career_school_fs_penalty": Duty(     # 40 TAC 807.35
+        plural="were fined by the state for turning in their yearly career school "
+               "financial statements late",
+        singular="was fined by the state for turning in its yearly career school "
+                 "financial statements late",
+        line="texas career school fined over late financial statements",
+        short=("fined over late statements", "fined over late statements"),
+        noun=_SCHOOL, dm="fined over late career school financial statements"),
+    "tx_career_school_new": Duty(            # 40 TAC 807.35
+        plural="just got licensed as career schools",
+        singular="just got licensed as a career school",
+        why=("so each now owes the state yearly financial statements, the first ones "
+             "audited or compiled by a CPA",
+             "so it now owes the state yearly financial statements, the first ones "
+             "audited or compiled by a CPA"),
+        line="new texas career school",
+        short=("newly licensed schools", "a newly licensed school"),
+        noun=_SCHOOL, dm="just licensed as texas career schools"),
+    "ca_bppe_annual_report_missing": Duty(   # 5 CCR 74110, 74115
+        plural="have no 2024 annual report on the state school bureau's list; it was due "
+               "in december and includes GAAP financial statements",
+        singular="has no 2024 annual report on the state school bureau's list; it was due "
+                 "in december and includes GAAP financial statements",
+        line="california school with no annual report on file",
+        short=("with no annual report on file", "with no annual report on file"),
+        noun=_SCHOOL, dm="with no annual report on california's list"),
+    "ca_bppe_first_annual_report": Duty(
+        plural="filed their first annual report with the state school bureau",
+        singular="filed its first annual report with the state school bureau",
+        why=("so each now owes GAAP financial statements every year",
+             "so it now owes GAAP financial statements every year"),
+        line="california school's first annual report",
+        short=("with a first annual report", "with a first annual report"),
+        noun=_SCHOOL, dm="filing first annual reports in california"),
+    "va_hoa_registration_lapsed": Duty(      # 18VAC48-60-17 D
+        plural="dropped off the state's association registration list more than a year "
+               "after it expired",
+        singular="dropped off the state's association registration list more than a year "
+                 "after it expired",
+        line="virginia association registration lapsed over 12 months",
+        short=("with lapsed registrations", "with a lapsed registration"),
+        noun=_ASSN, dm="with lapsed virginia association registrations"),
+})
+
+# --- Professional -----------------------------------------------------------------
+# The predicate is only what the record shows; a "why" only where a statute or
+# regulator text ties a duty to that record. Never "can't practice",
+# "noncompliant" or "must open an escrow account" (none is proven by the record).
+# One name per email: a TX PEO and the same company's FL employee leasing licence
+# are two leads of two types (PLG PEO LLC): a gift lists a `name` once.
+_CPA_FIRMS = ("cpa firm", "cpa firms")
+_LAWYERS = ("lawyer", "lawyers")
+_PEOS = ("peo", "peos")
+_VENDORS = ("tech vendor", "tech vendors")
+_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+def _month_day(iso: str) -> str:
+    """"2026-12-13" -> "dec 13"; "" when it is not a date."""
+    try:
+        y, m, d = (int(x) for x in iso[:10].split("-"))
+        return f"{_MONTHS[m - 1]} {d}"
+    except (ValueError, IndexError):
+        return ""
+
+
+def _bar_detail(lead: Lead) -> str:
+    p = _payload(lead)
+    return "quarterly cpa trust reports required" if p.get("cpa_condition") else \
+        (p.get("sanction") or "")
+
+
+def _peo_expiry(lead: Lead) -> str:          # "expires dec 13"
+    d = _month_day(str(_payload(lead).get("expiration_date") or ""))
+    return f"expires {d}" if d else ""
+
+
+def _cpeo_list(leads: list[Lead]) -> str:
+    kinds = {_payload(ld).get("list") for ld in leads}
+    word = "revoked" if kinds == {"revoked"} else "suspended" if kinds == {"suspended"} \
+        else "revoked or suspended"
+    return f"are on the irs's list of {word} certified peos"
+
+
+DUTIES.update({
+    "cpa_firm_license_delinquent": Duty(
+        plural="have firm licenses their state board of accountancy lists as delinquent",
+        singular="has a firm license its state board of accountancy lists as delinquent",
+        line="firm license listed as delinquent",
+        short=("with delinquent firm licenses", "with a delinquent firm license"),
+        noun=_CPA_FIRMS, dm="with firm licenses their state board lists as delinquent"),
+    "cpa_firm_license_expired": Duty(
+        plural="had their washington cpa firm licenses expire",
+        singular="had its washington cpa firm license expire",
+        line="washington cpa firm license expired",
+        short=("with expired firm licenses", "with an expired firm license"),
+        noun=_CPA_FIRMS, dm="whose washington cpa firm licenses expired"),
+    "ny_new_cpa_firm": Duty(
+        plural="registered as new cpa firms with new york state",
+        singular="registered as a new cpa firm with new york state",
+        line="new cpa firm registered in new york",
+        short=("just registered as cpa firms", "just registered as a cpa firm"),
+        dm="registering as new cpa firms"),
+    "ny_new_law_firm": Duty(
+        plural="registered as new law firms with new york state",
+        singular="registered as a new law firm with new york state",
+        line="new law firm registered in new york",
+        short=("just registered as law firms", "just registered as a law firm"),
+        dm="registering as new law firms"),
+    "fl_bar_trust_account_discipline": Duty(
+        plural="were disciplined by the florida supreme court over trust-account rules",
+        singular="was disciplined by the florida supreme court over trust-account rules",
+        detail=_bar_detail,
+        line="disciplined over trust-account rules",
+        short=("disciplined over trust accounts", "disciplined over trust accounts"),
+        noun=_LAWYERS, dm="disciplined over trust-account rules"),
+    "tx_peo_license_renewal_due": Duty(
+        plural="have texas peo licenses up for renewal in the next three months",
+        singular="has a texas peo license up for renewal in the next three months",
+        why=("and each renewal needs cpa-audited statements",
+             "and the renewal needs cpa-audited statements"),
+        detail=_peo_expiry,
+        line="texas peo license renewal due, audited statements",
+        short=("with peo license renewals due", "with a peo license renewal due"),
+        noun=_PEOS, dm="with texas peo license renewals coming up"),
+    "fl_employee_leasing_new_license": Duty(
+        plural="got new florida employee leasing licenses",
+        singular="got a new florida employee leasing license",
+        why=("so each files cpa-audited statements within 120 days of year end",
+             "so it files cpa-audited statements within 120 days of year end"),
+        line="new florida employee leasing license",
+        short=("with employee leasing licenses", "with an employee leasing license"),
+        noun=_PEOS, dm="getting new florida employee leasing licenses"),
+    "cpeo_newly_certified": Duty(
+        plural="were newly certified by the irs as peos",
+        singular="was newly certified by the irs as a peo",
+        why=("so each files cpa-audited statements and cpa-examined quarterly reports",
+             "so it files cpa-audited statements and cpa-examined quarterly reports"),
+        line="newly irs-certified peo",
+        short=("newly irs-certified", "newly irs-certified"),
+        noun=_PEOS, dm="newly certified by the irs"),
+    "tx_dir_first_contract": Duty(
+        plural="got their first texas dir technology contracts",
+        singular="got its first texas dir technology contract",
+        why=("so each files a monthly sales report with dir, even with no sales",
+             "so it files a monthly sales report with dir, even with no sales"),
+        line="first texas dir contract, monthly sales reports",
+        short=("with first state tech contracts", "with a first state tech contract"),
+        noun=_VENDORS, dm="getting first texas dir contracts"),
+})
+HELD_DUTIES.update({
+    "tx_peo_new_license": Duty(
+        plural="got new texas peo licenses this year",
+        singular="got a new texas peo license this year",
+        why=("so each renewal needs cpa-audited financial statements",
+             "so its renewal needs cpa-audited financial statements"),
+        line="new texas peo license",
+        short=("with new peo licenses", "with a new peo license"),
+        noun=_PEOS, dm="getting new texas peo licenses"),
+    "cpeo_revoked_or_suspended": Duty(
+        plural=_cpeo_list,
+        singular=lambda ld: _cpeo_list([ld]).replace("are on", "is on"),
+        line="on the irs revoked / suspended cpeo list",
+        short=("off the irs's cpeo list", "off the irs's cpeo list"),
+        noun=_PEOS, dm="on the irs's revoked or suspended cpeo lists"),
+})
+
+# --- Churches / religious organizations: Form 990-T (Nonprofit CHURCH_HOOKUP.md) ----
+# Churches file no Form 990, but the 990-T (business income) is the one federal
+# return they do file. "Side income" is the return's unrelated business income;
+# never "owes", "late", "failed", or a dollar figure in the opener (the figures
+# are in `evidence_text` for the click-through).
+_CHURCH = ("church", "churches")
+_FAITH_ORG = ("faith-based organization", "faith-based organizations")
+
+
+def _church_noun(lead: Lead) -> tuple[str, str]:
+    """"churches" only when the IRS codes the filer a church (BMF foundation code
+    10); any other religious filer is a "faith-based organization". A gift that
+    mixes the two falls back to `noun_mixed`."""
+    return _CHURCH if _payload(lead).get("religious_basis") == "church" else _FAITH_ORG
+
+
+_ENTITY_WORD = re.compile(r"\b(?:llc|l\.l\.c|inc|corp|corporation|ltd|llp|lp|pllc|trust|"
+                          r"foundation|ministries|church)\b|,")
+
+
+def _church_990t_detail(lead: Lead) -> str:      # "(parking lot rental, fy2025)"
+    """The trade in the filer's words; some filers type the NAME of the business
+    that earns the income ("imagine enterprises, llc"), which says nothing about
+    the trade and is left out."""
+    p = _payload(lead)
+    act = " ".join(str(p.get("activity") or "").lower().split())
+    if _ENTITY_WORD.search(act):
+        act = ""
+    year = p.get("tax_year")
+    return ", ".join(x for x in (act if 0 < len(act) <= 40 else "",
+                                 f"fy{year}" if year else "") if x)
+
+
+DUTIES.update({
+    "church_990t_first": Duty(
+        plural="filed their first form 990-t (business-income tax return)",
+        singular="filed its first form 990-t (business-income tax return)",
+        why=("so each has one due any year side income passes the minimum",
+             "so it has one due any year side income passes the minimum"),
+        detail=_church_990t_detail,
+        line="first form 990-t (business-income tax return)",
+        short=("filing their first 990-ts", "filing its first 990-t"),
+        noun=_church_noun, org=True, extra={"noun_mixed": _FAITH_ORG},
+        dm="filing their first business-income tax returns"),
+    "church_990t_no_preparer": Duty(
+        plural="filed their own form 990-t with no paid preparer listed",
+        singular="filed its own form 990-t with no paid preparer listed",
+        # The record shows one return with no paid preparer, not a habit: the
+        # "why" states only the verified duty (Treas. Reg. 1.6012-2(e)).
+        why=("so each has one due any year side income passes the minimum",
+             "so it has one due any year side income passes the minimum"),
+        detail=_church_990t_detail,
+        line="filed its own 990-t, no paid preparer listed",
+        short=("filing their own 990-ts", "filing its own 990-t"),
+        noun=_church_noun, org=True, extra={"noun_mixed": _FAITH_ORG},
+        dm="filing their own 990-t business-income tax returns"),
+})
+
+
+# --- Healthcare: new practices (NPPES weekly files + NPI Registry, 2026-11-02) ---------
+# `new_practice_npi`: a practice whose FIRST organization NPI was issued in the last
+# 90 days; `new_practice_medicare_enrollment`: the same, and CMS approved a Medicare
+# organization enrollment in the window. The NPI opener is RECORD-ONLY (user): it says
+# what the registry shows and nothing about billing ("so each is new to billing
+# insurance" was an inference). Never "opened" / "just started": ~5% are established
+# clinicians' new entities. The Medicare one keeps its clause: an approved group
+# enrollment is what lets it bill Medicare as a group. The noun is the practice kind
+# (`provider_type`); a mixed gift says "practices".
+_PRACTICE_NOUN = {
+    "medical": ("medical practice", "medical practices"),
+    "dental": ("dental practice", "dental practices"),
+    "therapy": ("therapy practice", "therapy practices"),
+    "chiropractic": ("chiropractic practice", "chiropractic practices"),
+    "optometry": ("optometry practice", "optometry practices"),
+    "behavioral": ("behavioral health practice", "behavioral health practices"),
+}
+_PRACTICES = ("practice", "practices")
+
+
+def _practice_noun(lead: Lead) -> tuple[str, str]:
+    return _PRACTICE_NOUN.get(str(_payload(lead).get("provider_type") or ""), _PRACTICES)
+
+
+DUTIES.update({
+    "new_practice_npi": Duty(
+        plural="registered with the federal npi registry as new organizations",
+        singular="registered with the federal npi registry as a new organization",
+        line="new practice entity, first organization npi",
+        short=("with new npi registrations", "with a new npi registration"),
+        noun=_practice_noun, extra={"noun_mixed": _PRACTICES},
+        dm="setting up new practice entities"),
+    "new_practice_medicare_enrollment": Duty(
+        plural="enrolled in medicare as new group practices",
+        singular="enrolled in medicare as a new group practice",
+        why=("so each now bills medicare under its own group number",
+             "so it now bills medicare under its own group number"),
+        line="new practice, newly enrolled in medicare",
+        short=("newly enrolled in medicare", "newly enrolled in medicare"),
+        noun=_practice_noun, extra={"noun_mixed": _PRACTICES},
+        dm="opening new practices that bill medicare"),
+})
+
 # Every type above is approved (2026-10-30); `gift.engine.HELD_TYPES` still
 # names any type whose wording is written but not yet approved.
 DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
@@ -1032,6 +1662,13 @@ def shared_noun(leads: list[Lead], n: int) -> str | None:
         if fall:
             return fall[0] if n == 1 else fall[1]
     return None
+
+
+def bare_gift(leads: list[Lead]) -> bool:
+    """Every lead's duty prints no business noun (Restaurants: the record proves a
+    licence, not what the business is)."""
+    return bool(leads) and all(ld.signal_type in DUTIES and DUTIES[ld.signal_type].bare
+                               for ld in leads)
 
 
 def all_organizations(leads: list[Lead]) -> bool:

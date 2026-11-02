@@ -95,6 +95,8 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "plan_audit_opinion_modified", "college_heightened_cash_monitoring",
     "ny_omig_final_audit", "nonprofit_asset_diversion", "plan_fraud_loss",
     "ca_dre_trust_fund_discipline", "nc_rec_trust_account_discipline",
+    # a Florida Supreme Court order over trust-account misconduct (2026-11-02)
+    "fl_bar_trust_account_discipline",
     "ca_dre_audit_discipline", "union_funds_shortage",
     # 2. the original strong pair
     "construction_federal_award_davis_bacon",       # federal construction award
@@ -102,20 +104,43 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     # 3. a duty just switched on
     "plan_audit_first_due", "welfare_plan_audit_threshold", "medicare_new_part_a_provider",
     "snf_change_of_ownership", "hospital_change_of_ownership", "hrsa_new_health_center",
+    "nsgp_security_grant_subaward",     # federal grant rules start with the award
     "cu_over_500m_no_fs_audit", "cu_stale_audit", "wi_choice_school_new",
+    "tx_career_school_new", "tx_cacfp_new_sponsor",
     "construction_first_prevailing_wage_intent", "hud_new_owner",
     "ttb_new_distillery_permit", "ttb_new_winery_permit",
+    # 2026-11-02: federal excise returns start with a brewer's licence (the
+    # same duty as TTB's), a Texas mixed beverage permit starts monthly tax
+    # reports (held), and the PEO / employee-leasing / CPEO licences each carry
+    # a CPA-audited financial-statement duty that starts with the licence.
+    "tx_new_brewer_license", "tx_new_mixed_beverage_permit",
+    "cpeo_newly_certified", "fl_employee_leasing_new_license", "tx_peo_new_license",
+    "tx_peo_license_renewal_due", "tx_dir_first_contract",
     "cannabis_new_license", "cannabis_began_operations",
+    # 2026-11-02, by what the record proves: a Florida money transmitter is the
+    # only one with an annual audit duty, so it leads; H-2B's first application
+    # is an agreement to wage, hours and pay-record rules; health clubs (FL
+    # first: bond + issue date + email; TX's date is inferred).
+    "fl_new_money_transmitter", "fl_new_mortgage_lender", "fl_new_consumer_finance_lender",
+    "nm_ocd_new_operator", "fcc_499_new_registrant",
+    "h2b_first_time_employer",
+    "fl_health_studio_new", "tx_health_spa_new", "ct_health_club_new",
     "nv_casino_new_nonrestricted_license", "film_ca_credit_allocated",
     "film_nj_credit_approved", "ae_caltrans_first_icr_acceptance",
-    "fl_condo_new_association", "plan_audit_first_filed",
+    "fl_condo_new_association", "va_hoa_new_registration", "plan_audit_first_filed",
     # 4. a required report late or missing (a charity two years without a 990
     # first: one more year and its exemption is revoked by law)
-    "nonprofit_990_missed_2yr", "nonprofit_single_audit_late", "nonprofit_990_missed_1yr", "local_gov_single_audit_late", "late_filing_notice",
+    "nonprofit_990_missed_2yr", "nonprofit_single_audit_late", "nonprofit_990_missed_1yr",
+    # months of sales-tax returns due before the permit existed (2026-11-02)
+    "tx_late_sales_tax_registration",
+    "local_gov_single_audit_late", "late_filing_notice",
     "nasdaq_late_filing_deficiency", "rega_tier2_1k_missing", "adv_annual_amendment_overdue",
-    "bd_annual_audit_late",
-    "charter_audit_missing", "water_ca_annual_report_missing", "union_lm_report_late",
+    "bd_annual_audit_late", "tx_career_school_fs_penalty",
+    "charter_audit_missing", "ca_bppe_annual_report_missing",
+    "water_ca_annual_report_missing", "va_hoa_registration_lapsed",
+    "union_lm_report_late", "fcc_499a_missed",
     "local_gov_financial_report_late", "ae_txdot_overhead_approval_lapsed",
+    "ct_health_club_lapsed", "cpa_firm_license_delinquent", "cpa_firm_license_expired",
     "proprietary_90_10_near_limit", "auditor_change", "cu_approaching_fs_audit",
     # 5. tax debts and self-reported plan or 990 problems
     "federal_tax_lien", "state_tax_lien", "unemployment_tax_lien", "top_tax_delinquent",
@@ -126,15 +151,37 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "plan_prohibited_transaction", "nonprofit_ubi_no_990t", "nonprofit_excess_benefit",
     "nonprofit_exemption_revoked", "nonprofit_state_audit_line_no_audit",
     "plan_late_contributions", "plan_termination_pending",
+    "cpeo_revoked_or_suspended",        # no reason on the IRS list (2026-11-02)
     # 6. the original weaker rows (Funds' absence first: re-added 2026-10-30)
     "adv_no_fund_administrator",
     "federal_first_time_grant", "govcon_first_sbir_phase2", "tcac_placed_in_service",
+    "va_contractor_upgraded_class_a",
     "construction_license_upgrade", "construction_nv_license_limit",
+    # licence / registration rows (2026-11-02): a new filing duty, but the
+    # softest kind. Restaurants' takeovers first, then its new licences.
+    "liquor_license_new_owner_ca", "liquor_license_new_owner_tx",
+    "liquor_license_new_owner_ny", "liquor_license_new_owner_chicago",
+    "liquor_license_new_tx", "liquor_license_new_ca", "liquor_license_new_ny",
+    "liquor_license_new_fl", "liquor_license_new_co", "liquor_license_new_chicago",
+    "chicago_new_food_license",
+    # Healthcare (2026-11-02): an approved Medicare group enrollment is stated by
+    # the record itself, so it ranks with the licence rows; a first organization
+    # NPI is the softest event of all (last, after the Form D rows).
+    "new_practice_medicare_enrollment",
+    "va_new_class_a_contractor", "h2b_seasonal_employer", "va_new_class_b_contractor",
+    "h2b_seasonal_employer_other_industry", "tx_new_sales_tax_permit",
     "construction_new_licensed_business",
+    "ny_new_law_firm", "ny_new_cpa_firm",
+    # a first 990-T is a duty that just switched on (above the first 990, the
+    # same kind of event with no tax attached); no preparer is an ongoing duty
+    # the church handles itself (below the new-org rows). Churches file no 990.
+    "church_990t_first",
     # a new nonprofit: its first annual return, then a new 501(c)(3)
     "nonprofit_first_990", "nonprofit_new_501c3",
+    "church_990t_no_preparer", "ca_bppe_first_annual_report",
     # a tech company's new Form D (2026-10-30): an event, no duty
     "startup_first_form_d", "startup_new_form_d",
+    "new_practice_npi",
 )
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 
@@ -149,9 +196,40 @@ TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 # (`nonprofit_new_501c3`, `nonprofit_first_990`) were approved.
 # 2026-10-30: Funds' `adv_annual_amendment_overdue` (wording drafted, not approved).
 # Cannabis traceability citations and suspensions (2026-10-30): held by decision.
+# 2026-11-02: the wired-in sources' held slices (Inventory sources.py says why
+# each is held): Restaurants' new-licence slices, mixed beverage permits,
+# Chicago food licences and the NY / Chicago takeovers; TexasPermits' brewer;
+# Regulated's NM operators and both FCC types; HomeServices' Class B, repeat
+# H-2B outside home services / construction and Class A upgrades; Community's
+# CT lapsed clubs, career schools, BPPE and VA lapsed registrations;
+# Professional's TX PEO new licences and CPEO revocations. The Texas RRC types
+# are not here at all: the Inventory never ingests them (terms allow
+# noncommercial use only).
 _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "cannabis_traceability_violation",
-                                   "cannabis_license_suspended"})
+                                   "cannabis_license_suspended",
+                                   # Restaurants
+                                   "tx_new_mixed_beverage_permit", "liquor_license_new_tx",
+                                   "liquor_license_new_ca", "liquor_license_new_ny",
+                                   "liquor_license_new_owner_ny", "liquor_license_new_fl",
+                                   "liquor_license_new_co", "liquor_license_new_chicago",
+                                   "liquor_license_new_owner_chicago",
+                                   "chicago_new_food_license",
+                                   # TexasPermits
+                                   "tx_new_brewer_license",
+                                   # Regulated
+                                   "nm_ocd_new_operator", "fcc_499a_missed",
+                                   "fcc_499_new_registrant",
+                                   # HomeServices
+                                   "va_new_class_b_contractor",
+                                   "h2b_seasonal_employer_other_industry",
+                                   "va_contractor_upgraded_class_a",
+                                   # Community
+                                   "ct_health_club_lapsed", "tx_career_school_fs_penalty",
+                                   "tx_career_school_new", "ca_bppe_annual_report_missing",
+                                   "ca_bppe_first_annual_report", "va_hoa_registration_lapsed",
+                                   # Professional
+                                   "tx_peo_new_license", "cpeo_revoked_or_suspended"})
 HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else _HELD
 _OTHER_TYPE = len(_TYPE_STRENGTH)
 TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
