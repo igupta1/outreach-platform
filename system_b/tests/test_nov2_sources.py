@@ -39,7 +39,7 @@ ENABLED = {
     "tx_cacfp_new_sponsor", "va_hoa_new_registration", "nsgp_security_grant_subaward",
     "church_990t_first", "church_990t_no_preparer",
     "cpa_firm_license_delinquent", "cpa_firm_license_expired", "ny_new_cpa_firm",
-    "ny_new_law_firm", "fl_bar_trust_account_discipline", "tx_peo_license_renewal_due",
+    "ny_new_law_firm", "tx_peo_license_renewal_due",
     "fl_employee_leasing_new_license", "cpeo_newly_certified", "tx_dir_first_contract",
     "new_practice_npi", "new_practice_medicare_enrollment",
 }
@@ -54,6 +54,7 @@ HELD = {
     "ct_health_club_lapsed", "tx_career_school_fs_penalty", "tx_career_school_new",
     "ca_bppe_annual_report_missing", "ca_bppe_first_annual_report",
     "va_hoa_registration_lapsed", "tx_peo_new_license", "cpeo_revoked_or_suspended",
+    "fl_bar_trust_account_discipline",  # individual lawyers: never gift a person
 }
 
 

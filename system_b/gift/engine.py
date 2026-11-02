@@ -217,6 +217,8 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "chicago_new_food_license",
                                    # TexasPermits
                                    "tx_new_brewer_license",
+                                   # Professional: leads are individual lawyers
+                                   "fl_bar_trust_account_discipline",
                                    # Regulated
                                    "nm_ocd_new_operator", "fcc_499a_missed",
                                    "fcc_499_new_registrant",

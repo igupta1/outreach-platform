@@ -1638,6 +1638,10 @@ DUTIES.update({
 # names any type whose wording is written but not yet approved.
 DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
 
+# The FL Bar trust-account leads are individual lawyers (2026-11-02): held,
+# because a gift never names a person. Its wording stays ready.
+HELD_DUTIES["fl_bar_trust_account_discipline"] = DUTIES.pop("fl_bar_trust_account_discipline")
+
 DUTY_SIGNALS = frozenset(DUTIES)
 
 
