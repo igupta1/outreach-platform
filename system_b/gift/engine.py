@@ -150,6 +150,9 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "construction_fl_stop_work_order", "pension_unpaid_min_contribution",
     "plan_prohibited_transaction", "nonprofit_ubi_no_990t", "nonprofit_excess_benefit",
     "nonprofit_exemption_revoked", "nonprofit_state_audit_line_no_audit",
+    # a deficit two years running with under a month of cash, from the 990 itself
+    # (2026-11-03): the org's own admission, so it sits with the 990 problems
+    "nonprofit_deficit_low_cash",
     "plan_late_contributions", "plan_termination_pending",
     "cpeo_revoked_or_suspended",        # no reason on the IRS list (2026-11-02)
     # 6. the original weaker rows (Funds' absence first: re-added 2026-10-30)

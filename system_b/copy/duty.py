@@ -385,6 +385,16 @@ DUTIES: dict[str, Duty] = {
         line="reported an insider excess benefit on their 990",
         short=("with excess benefit transactions", "with an excess benefit transaction"),
         dm="reporting excess benefit transactions with insiders"),
+    # 2026-11-03: the org's own Form 990 (Nonprofit `budget.severe_deficit_low_cash`):
+    # expenses 5%+ over revenue in the current AND the prior-year column, cash and
+    # savings under a month of expenses. Says only what the return says: no
+    # "struggling", no "running out", no dollar figure.
+    "nonprofit_deficit_low_cash": Duty(
+        plural="reported spending more than they took in two years running, with under a month of cash left",
+        singular="reported spending more than it took in two years running, with under a month of cash left",
+        line="two years of deficits, little cash left",
+        short=("with 2 years of deficits", "with 2 years of deficits"),
+        dm="reporting two years of deficits and little cash"),
     "nonprofit_state_audit_line_no_audit": Duty(
         plural="reported no audit on their 990s, with revenue over a state audit line",
         singular="reported no audit on its 990, with revenue over a state audit line",
