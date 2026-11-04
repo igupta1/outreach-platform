@@ -123,6 +123,7 @@ MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "fundsduty": 45,
     "startups": 21,       # weekly refresh + one missed run
     "cannabis": 21,
+    "sbaloans": 21,       # SBA FOIA is quarterly; the weekly check re-stamps it
     # 2026-11-02: each source's own cadence (weekly) plus one missed run; the
     # church 990-T file follows the nonprofit duty file (45 days).
     "nonprofitchurch": 45,
@@ -1046,6 +1047,7 @@ MAGNETS: dict[str, str] = {
     "fundsduty": "fund-duty-leads.json",                # Form ADV annual amendment
     "startups": "startup-leads.json",                   # SEC Form D, US tech companies
     "cannabis": "cannabis-leads.json",                  # state cannabis licensees + citations
+    "sbaloans": "sba-loan-leads.json",                  # SBA 7(a) / 504 loan approvals (2026-11-04)
     # 2026-11-02 (Inventory APPROVED_SIGNALS 101): only the approved types of each.
     "nonprofitchurch": "nonprofit-church-leads.json",   # churches' Form 990-T (first, no preparer)
     "restaurants": "restaurant-leads.json",             # liquor-license takeovers (CA, TX)
@@ -1087,6 +1089,7 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "fundsduty": "investment_management",
     "startups": "software_saas",            # niche tech_startup -> _SOURCE_NICHES
     "cannabis": "cannabis",
+    "sbaloans": None,             # per lead, from its NAICS niche word (`sba_*` in _SOURCE_NICHES)
     "nonprofitchurch": "nonprofit",
     "restaurants": None,          # per slice: hospitality_food on the two ENABLED slices only
     "texaspermits": None,         # per lead, from the outlet's NAICS (taxonomy words)
@@ -1141,6 +1144,13 @@ _SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
     # Startups: Form D says "technology", never b2b vs consumer vs hardware,
     # so no child is guessed (hardware / deep tech stay under software_saas).
     "tech_startup": ("software_saas", None),
+    # SBALoans (2026-11-04): the borrower's NAICS niche, in the taxonomy's words.
+    "sba_manufacturing": ("manufacturing", None), "sba_software": ("software_saas", None),
+    "sba_dental": ("healthcare", "dental"), "sba_veterinary": ("healthcare", "veterinary"),
+    "sba_healthcare": ("healthcare", None), "sba_fitness": ("fitness_wellness", "gym_studio"),
+    "sba_landscaping": ("home_services", "landscaping"),
+    "sba_consulting": ("professional_services", "consulting"),
+    "sba_restaurants": ("hospitality_food", "restaurant"), "sba_construction": ("construction", None),
 }
 
 

@@ -922,6 +922,34 @@ DUTIES.update({
         extra={"noun_mixed": _TECH_CO}),
 })
 
+# --- SBALoans (2026-11-04): SBA FOIA 7(a) / 504 approvals -----------------------------
+# The record is an APPROVAL (some are not yet disbursed): never "funded". The lender
+# is never named and neither is a person. SBA's servicing rules have the lender
+# monitor the loan through periodic borrower financial statements (SOP 50 57), and
+# a loan authorization sets the borrower's own reporting terms; the file does not
+# show a given loan's terms, so the why-clause says "will likely owe", not "owes".
+# No dollar figure, no date. The noun is the generic "business": NAICS niches ride
+# the lead's own `niche` (see `_SOURCE_NICHES`), not the wording.
+_SBA_WHY = ("so each will likely owe its lender periodic financial statements",
+            "so it will likely owe its lender periodic financial statements")
+
+DUTIES.update({
+    "sba_7a_loan_approved": Duty(
+        plural="were approved for an sba 7(a) loan",
+        singular="was approved for an sba 7(a) loan",
+        why=_SBA_WHY,
+        line="approved for an sba 7(a) loan",
+        short=("approved for sba 7(a) loans", "approved for an sba 7(a) loan"),
+        noun=("business", "businesses"), dm="getting approved for sba 7(a) loans"),
+    "sba_504_loan_approved": Duty(
+        plural="were approved for an sba 504 loan",
+        singular="was approved for an sba 504 loan",
+        why=_SBA_WHY,
+        line="approved for an sba 504 loan",
+        short=("approved for sba 504 loans", "approved for an sba 504 loan"),
+        noun=("business", "businesses"), dm="getting approved for sba 504 loans"),
+})
+
 # --- Cannabis (Row 8c, 2026-10-30): state cannabis licensees ------------------------
 # The predicate is only what the state's record shows. A "why" only where the
 # license class collects the state cannabis tax (`collects_state_cannabis_tax`

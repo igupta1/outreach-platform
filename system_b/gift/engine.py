@@ -184,6 +184,9 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "church_990t_no_preparer", "ca_bppe_first_annual_report",
     # a tech company's new Form D (2026-10-30): an event, no duty
     "startup_first_form_d", "startup_new_form_d",
+    # an SBA loan approval (2026-11-04): a growth event with a likely lender
+    # reporting duty; 7(a) (working capital) before 504 (real estate / equipment)
+    "sba_7a_loan_approved", "sba_504_loan_approved",
     "new_practice_npi",
 )
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
