@@ -237,7 +237,7 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "tx_career_school_new", "ca_bppe_annual_report_missing",
                                    "ca_bppe_first_annual_report", "va_hoa_registration_lapsed",
                                    # Professional
-                                   "tx_peo_new_license", "cpeo_revoked_or_suspended"})
+                                   "cpeo_revoked_or_suspended"})
 HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else _HELD
 _OTHER_TYPE = len(_TYPE_STRENGTH)
 TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,

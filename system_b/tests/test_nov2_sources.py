@@ -41,6 +41,7 @@ ENABLED = {
     "cpa_firm_license_delinquent", "cpa_firm_license_expired", "ny_new_cpa_firm",
     "ny_new_law_firm", "tx_peo_license_renewal_due",
     "fl_employee_leasing_new_license", "cpeo_newly_certified", "tx_dir_first_contract",
+    "tx_peo_new_license",  # approved 2026-11-03
     "new_practice_npi", "new_practice_medicare_enrollment",
 }
 HELD = {
@@ -53,7 +54,7 @@ HELD = {
     "va_contractor_upgraded_class_a",
     "ct_health_club_lapsed", "tx_career_school_fs_penalty", "tx_career_school_new",
     "ca_bppe_annual_report_missing", "ca_bppe_first_annual_report",
-    "va_hoa_registration_lapsed", "tx_peo_new_license", "cpeo_revoked_or_suspended",
+    "va_hoa_registration_lapsed", "cpeo_revoked_or_suspended",
     "fl_bar_trust_account_discipline",  # individual lawyers: never gift a person
 }
 
