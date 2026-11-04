@@ -213,8 +213,9 @@ true until the finding is resolved is that the next audit must report it fixed
 of the record's as-of date, `gift.engine.audit_is_recent`) come before every
 other charity lead in the walk; below them old findings and late filings
 compete on `strength` (score, minus `OLD_AUDIT_PENALTY` = 20 for an old
-audit), so a weak late filing never jumps a strong old finding (a hard "newer
-first" rule did exactly that the day it shipped). `strongest_first` then lists
+audit; since 2026-11-03 the lead's pain score when published, no penalty), so
+a weak late filing never jumps a strong old finding (a hard "newer first" rule
+did exactly that the day it shipped). `strongest_first` then lists
 the email's leads in that same order.
 
 **Short subjects; the greeting stays** (2026-10-25). The outbound guide says
@@ -415,10 +416,29 @@ The user's rules, in precedence order (tests: `tests/test_gift_rules.py`):
    license upgrade, Nevada license, new license; (anything else); new
    business. Every type has its own rank, so a gift fills from one kind first
    and the record opener says it once. Within a type, the lead's `score` (the
-   inventory's 0-100 strength). `_best_lead` (the subject's lead) follows the
-   same order. A type with no approved words (HELD, or published upstream
-   before outreach wires it) never enters a gift (`giftable`, logged once);
-   the morning check lists such leads per file.
+   inventory's 0-100 strength), or its `pain_score` when the file has one
+   (below). `_best_lead` (the subject's lead) follows the same order. A
+   type with no approved words (HELD, or published upstream before outreach
+   wires it) never enters a gift (`giftable`, logged once); the morning check
+   lists such leads per file.
+5. **Pain inside a band** (2026-11-03, `Lead.pain_score`, the inventory's
+   0-100 per-organization pain score, `leadinv/pain.py`). Inside a strength
+   band, never across one and never across a level or the city-first rule,
+   the KIND in most pain at that level comes first (`kind_pain`: the sum of
+   its 3 most painful leads / 3, in `NEAR_TIE_POINTS` bands), TYPE_ORDER
+   breaking ties; within a type pain replaces `score` as `strength` (no
+   `OLD_AUDIT_PENALTY`: pain's recency part already ages an audit), so the
+   near-tie rotation runs on 5-point pain bands. `_best_lead`: band, pain
+   band, then TYPE_ORDER. Kind first, not lead first: ranking single leads by
+   pain across kinds cut single-kind gifts (one record opener) from 47 to 6
+   of 100 simulated prospects; by kind it is 41. Measured over 100 unsent
+   prospects (Gate B stubbed, `build_gift` before = pain cleared): 81 gifts
+   changed, mean pain of gifted leads 53 -> 63. Outreach reads `pain_score`
+   directly; the published `score` is still the strength percentile
+   (`strength_score` repeats it), so anything else reading `score` is
+   unchanged, and a file without `pain_score` orders exactly as before.
+   `pain_reasons` reach the Lead for review only; no copy prints them.
+   Tests: `tests/test_gift_pain.py`.
 
 **A city matches only in the same state** (`compute_match_level`, the city
 levels' queries, `_honesty`, the follow-up qualifier): "arlington" WA is not
@@ -588,8 +608,13 @@ each source repo feeds one SQLite store, refreshed by hand for the MVP, and
 `leadinv.run publish` writes one file per lead type into `exports/magnets/`.
 Each file is the source's own contract-v2 records with the inventory laid over
 them: SAM.gov websites (`domain`), its chosen contact when the source named
-nobody, `score` = the inventory's 0-100 strength, `status`/`expires_at`, and
-every strong ID in the signal payload.
+nobody, `score` = the inventory's 0-100 strength, `pain_score` /
+`pain_reasons` (2026-11-03, the organization's pain, read into
+`Lead.pain_score`), `status`/`expires_at`, and every strong ID in the signal
+payload. Since 2026-11-03 no published contact carries a generic inbox
+(info@, office@, finance@, an org-named inbox) or a guessed address; outreach
+reads no lead contact at all (`clients/inventory.py` maps none), so nothing
+here changed for it.
 
 | magnet key | file | source | id | taxonomy tag |
 |---|---|---|---|---|

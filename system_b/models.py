@@ -61,6 +61,14 @@ class Lead(BaseModel):
     finance_grade: str | None = None          # not in live API -> None
     freshness: str | None = None              # fresh | stale
     score: float | None = None                # not in live API -> None
+    # The inventory's 0-100 PAIN score (2026-11-03): how badly the ORGANIZATION
+    # needs finance help, from all its signals (Inventory `leadinv/pain.py`).
+    # `score` stays the strength percentile within the signal type. Orders
+    # leads inside a strength band (`gift.engine.sort_key`); None for job posts
+    # and older files, which then order exactly as before.
+    pain_score: float | None = None
+    # 2-4 plain-English phrases that built it. Review only: no copy prints them.
+    pain_reasons: list[str] = Field(default_factory=list)
     date_confidence: str | None = None        # spec lead-level; live is per-signal
     signals: list[Signal] = Field(default_factory=list)
     # A stable PUBLIC identifier for this company, when its source has one:

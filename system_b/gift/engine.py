@@ -436,9 +436,36 @@ def _recent_finding(lead: Lead) -> bool:
 
 
 def strength(lead: Lead) -> float:
-    """The lead's score with the old-audit penalty: the order the walk uses
-    within a type, and the order an email lists its leads in."""
+    """The order the walk uses inside a band and a type, and the order an email
+    lists its leads in: the inventory's pain score where the file has one
+    (2026-11-03; its recency part already ages an old audit), else the lead's
+    score with the old-audit penalty."""
+    if lead.pain_score is not None:
+        return lead.pain_score
     return (lead.score or 0.0) - (OLD_AUDIT_PENALTY if audit_is_recent(lead) is False else 0)
+
+
+def _pain_band(lead: Lead) -> int:
+    """Pain in `config.NEAR_TIE_POINTS` bands (higher = more), 0 without a pain
+    score (so a file or a test without one orders exactly as before)."""
+    if lead.pain_score is None:
+        return 0
+    width = config.NEAR_TIE_POINTS
+    return int(lead.pain_score // width) + 1 if width > 0 else int(lead.pain_score) + 1
+
+
+def kind_pain(leads: list[Lead], target: int = GIFT_TARGET) -> dict[str, int]:
+    """Each signal type's pain at one level (2026-11-03): the sum of its
+    `target` most painful leads over `target` (a kind that can fill the gift
+    beats one painful lead alone), in `config.NEAR_TIE_POINTS` bands. Empty
+    when no lead carries a pain score, so the old order holds."""
+    by: dict[str, list[float]] = {}
+    for ld in leads:
+        if ld.pain_score is not None:
+            by.setdefault(ld.signal_type or "", []).append(ld.pain_score)
+    width = config.NEAR_TIE_POINTS or 1
+    return {t: int(sum(sorted(v, reverse=True)[:target]) / target // width) + 1
+            for t, v in by.items()}
 
 
 def strongest_first(gift: Gift) -> None:
@@ -486,10 +513,19 @@ def _near_tie_band(lead: Lead) -> float:
     return float(int(s // width))
 
 
+def _unfindable(lead: Lead) -> int:
+    return 0 if lead.is_findable else 1
+
+
+def _flagged(lead: Lead) -> int:
+    return 1 if (lead.name_cut_off or lead.name_glued) else 0
+
+
 def sort_key(lead: Lead, rank: dict[str, int] | None = None,
              focus: str | None = None,
              home: tuple[str | None, str | None] | None = None,
-             salt: str | None = None) -> tuple:
+             salt: str | None = None,
+             kinds: dict[str, int] | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
     area always take precedence). Strongest signal per the active pack's
     `signal_rank`, then -- when the firm plainly does ONE kind of work -- a
@@ -514,7 +550,17 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
 
     `salt` (the prospect's firm) rotates record leads whose scores share a
     `config.NEAR_TIE_POINTS` band (`rotation`); the exact score, then the
-    document date, break what is left."""
+    document date, break what is left.
+
+    Pain (2026-11-03): inside a strength band (STRONG / MEDIUM / WEAK, never
+    across one) the KIND in most pain at this level comes first (`kinds`,
+    from `kind_pain`: its three most painful organizations), then the type
+    order breaks ties; within a type the lead's pain score is the strength
+    (`strength`), so the near-tie rotation works on pain bands exactly as it
+    did on score bands. Choosing the kind first keeps a gift filling from one
+    kind (one record opener): ranking single leads by pain across kinds cut
+    single-kind gifts from 47 to 6 of 100 simulated prospects. Without pain
+    scores (`kinds` empty / None) the old order exactly."""
     rank = rank if rank is not None else SIGNAL_RANK
     return (
         rank.get(lead.signal_type, 9),
@@ -524,11 +570,16 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         0 if home is None or _in_city(lead, home) else 1,
         # No focus -> 0 for everyone, so no preference at all.
         0 if focus is None or suits_focus(lead, focus) else 1,
+        # The strength band (TYPE_ORDER is monotone in it, so on its own this
+        # changes nothing), then the kind in most pain at this level before
+        # the type order (0 without pain scores): pain never crosses a band.
+        strength_band(lead),
+        -(kinds or {}).get(lead.signal_type or "", 0),
         TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
-        0 if lead.is_findable else 1,
+        _unfindable(lead),
         # A name the source cut off or glued together reaches the email only
         # when nothing else can fill the place: the review flags it either way.
-        1 if (lead.name_cut_off or lead.name_glued) else 0,
+        _flagged(lead),
         # This year's audit findings before every other charity lead (the
         # user, 2026-10-25). Below them, old findings and late filings compete
         # on score with the old-audit penalty, so a weak late filing never jumps
@@ -916,9 +967,10 @@ def _walk(
                 and giftable(lead, rank)
             ]
             own_state = home is not None and "state" in kwargs and "city" not in kwargs
+            kinds = kind_pain(leads)
             leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus,
                                                  home if own_state else None,
-                                                 salt=prospect.firm_name))
+                                                 salt=prospect.firm_name, kinds=kinds))
             for lead in leads:
                 if len(into) >= target:
                     break
@@ -1002,11 +1054,14 @@ def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None
             # The same strength order the gift was built in, so the subject
             # speaks for its strongest lead (a charity audit finding before a
             # new license, never a Row 8 fill before either).
+            # Pain inside a band first (2026-11-03; 0 without pain scores).
+            strength_band(lead),
+            -_pain_band(lead),
             TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
             # A domainless lead is the likeliest to read as invented, so it
             # must not be the one the subject line is built from.
             0 if lead.domain else 1,
-            -(lead.score or 0.0),
+            -strength(lead) if lead.pain_score is not None else -(lead.score or 0.0),
             0 if lead.freshness == "fresh" else 1,
             compute_match_level(lead, prospect) or 99,
         )

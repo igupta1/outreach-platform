@@ -696,12 +696,23 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         # magnets DO score — it is how a repeat material-weakness finding
         # outranks an ordinary grant-funded nonprofit — so it is read here.
         score=row.get("score"),
+        # The inventory's pain score (2026-11-03), read beside `score`, never
+        # instead of it: within a strength band the walk prefers more pain.
+        pain_score=_pain(row.get("pain_score")),
+        pain_reasons=[str(r) for r in (row.get("pain_reasons") or [])][:4],
         role_qualifier=qualifier,
         service_tags=[str(t) for t in (row.get("service_tags") or [])],
         signal_type=signal_type,
         freshness=freshness,
         signals=signals,
     )
+
+
+def _pain(v: Any) -> float | None:
+    """A published `pain_score` (0-100), else None."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(min(100.0, max(0.0, v)))
 
 
 def _validate_niche(niche_key: str) -> None:
