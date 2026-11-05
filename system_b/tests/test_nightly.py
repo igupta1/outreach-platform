@@ -130,3 +130,11 @@ def test_the_batch_summary_counts_matches():
                                  "skipped": [["F", "no_gift"]]})
     assert result["summary"] == {"prospects": 2, "industry_match": 1, "location_only": 1,
                                  "no_gift": 1, "fix": 0, "look": 0}
+
+
+def test_a_cut_off_name_or_a_dba_is_a_fix():
+    items = checks.check_card(_card(
+        email_1_head="hey dana,\n\n1. JRSK DBA Away\n2. Hope House\n3. Urban League of Greater",
+        flags=['name cut off by the source (Urban League of Greater: "Greater") — check it']))
+    whats = [i["what"] for i in items if i["kind"] == "fix"]
+    assert any("DBA" in w for w in whats) and any("cut off" in w for w in whats)

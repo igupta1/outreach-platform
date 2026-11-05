@@ -224,7 +224,12 @@ def _primary_signal(row: dict[str, Any]) -> dict[str, Any]:
 
 _REG_ARTIFACT_RE = re.compile(r"\s*/\s*[A-Za-z]{2}\s*/\s*$")   # "Intermezzo Inc. / DE /"
 _MULTISPACE_RE = re.compile(r"\s{2,}")
-_AKA_RE = re.compile(r"\s+(?:a/k/a|aka|f/k/a|fka)\s+", re.IGNORECASE)
+_AKA_RE = re.compile(r"\s+(?:a/k/a|aka|f/k/a|fka)(?:\s+|$)", re.IGNORECASE)
+# "JRSK, Inc. DBA Away", "TPMB, LLC DBA Taxman, Pollock, Murray and Bekkerman,
+# LLC": the trade name after DBA is the name people know (2026-11-04).
+_DBA_RE = re.compile(r"\s+(?:d/b/a|dba|d\.b\.a\.?)\s+", re.IGNORECASE)
+# A trust's instrument date: "Chen Frame Foundation DTD December 30 2009".
+_TRUST_DATE_RE = re.compile(r"[\s,]+(?:u/?a\s+)?(?:dtd|dated)\b.*$", re.IGNORECASE)
 
 
 # Tokens that stay uppercase when a SHOUTING name is calmed down. Legal forms
@@ -404,6 +409,56 @@ _WHOLE_WORDS = frozenset({
 })
 
 
+# The IRS business master file keeps 35 characters of a name, so a long
+# charity name arrives cut at a word boundary: "Urban League Of Greater",
+# "Cincinnati-Hamilton County Community", "Broward Community and Family
+# Health" (2026-11-04: 10 such names reached a 200-email batch; their full
+# names are on the FAC record, not in the inventory). A name ending on a word
+# that cannot end a name, or a long one ending on a word that usually goes on,
+# or on a stray letter, is treated as cut off: ranked last and flagged.
+_NEVER_LAST = frozenset({"of", "for", "and", "&", "greater"})
+_USUALLY_CONTINUES = frozenset({
+    "community", "health", "development", "educational", "housing", "family",
+    "families", "american", "national", "area", "child", "children", "early",
+    "regional", "economic", "human", "public", "mental", "senior", "youth",
+    "affordable", "rural", "urban"})
+
+
+def irs_cut_name(name: str, raw_length: int | None = None) -> str | None:
+    """The last word of a name a source cut off, or None.
+
+    A name ending on a word that cannot end one ("of", "for", "&",
+    "greater") is cut whatever its source. The softer test, a word that
+    usually goes on ("community", "health") or a stray letter, applies only
+    to an IRS name at its field limit (35 or 40 characters, by file): pass `raw_length`, the length of the
+    name as the IRS file wrote it, for a charity record (33-40 counts)."""
+    words = re.findall(r"[A-Za-z0-9&']+", name or "")
+    if len(words) < 2:
+        return None
+    last = words[-1].lower()
+    # "Habitat For Humanity Of The": a trailing "The" after "of" / "for" / "and"
+    # (a lone trailing "The" is the registry's ", The", moved to the front).
+    # "Paris, City of" / "Stockbridge, Town of" is a registry's reversed name.
+    if re.search(r",\s*(?:city|town|village|county|borough|township)\s+of\s*$", name or "", re.I):
+        return None
+    if last in _NEVER_LAST or (last == "the" and words[-2].lower() in _NEVER_LAST):
+        return words[-1]
+    at_limit = raw_length is not None and 33 <= raw_length <= 40
+    if at_limit and (last in _USUALLY_CONTINUES
+                     or (len(last) == 1 and last.isalpha() and last not in {"i", "a"})):
+        return words[-1]
+    return None
+
+
+def _clean_city(city: str | None) -> str | None:
+    """"suite 906 los angeles" -> "los angeles": an address line in the city
+    field reached an email (2026-11-04)."""
+    if not city:
+        return city
+    return re.sub(r"^(?:suite|ste\.?|unit|apt\.?|#)\s*[\w-]+\s+", "", city.strip(),
+                  flags=re.IGNORECASE) or city
+
+
 def cut_off_word(name: str) -> str | None:
     """The fragment of a word the source cut off ("Conservati"), or None."""
     for word in re.findall(r"[A-Za-z]+", name or ""):
@@ -460,6 +515,10 @@ def _clean_company_name(name: str) -> str:
     # "Ioos Association, Inc. A/K/A Ioos Association": the alias repeats the
     # name, and a slash-acronym in an email reads as a filing.
     name = _AKA_RE.split(name, maxsplit=1)[0].rstrip(" ,")
+    parts = _DBA_RE.split(name, maxsplit=1)
+    if len(parts) == 2 and parts[1].strip(" ,"):
+        name = parts[1].strip(" ,")
+    name = _TRUST_DATE_RE.sub("", name).rstrip(" ,")
     # Professional's Florida Bar rows are printed "Jane Doe (attorney)": the
     # lawyers noun in the opener already says it (2026-11-02).
     name = re.sub(r"\s*\(attorney\)\s*$", "", name, flags=re.IGNORECASE)
@@ -682,9 +741,12 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         entity_id=_entity_id(row),
         company=company,
         name_glued=glued_word(company),
-        name_cut_off=cut_off_word(company),
+        name_cut_off=cut_off_word(company) or irs_cut_name(
+            company,
+            len((row.get("name") or "").strip())
+            if str(row.get("signal_type") or "").startswith("nonprofit") else None),
         domain=row.get("domain"),
-        city=row.get("city"),
+        city=_clean_city(row.get("city")),
         state=row.get("state"),
         industry=industry,
         niche=niche,

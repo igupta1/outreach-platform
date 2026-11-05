@@ -637,6 +637,19 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   abbreviated states ("For Tex" -> "for Texas") and an obviously cut-off last
   word ("Center Pro" -> "Center Program"); `PROMPT_VERSION` re-asks names an
   older prompt left unchanged.
+- **Names from the 2026-11-04 review** (`clients/inventory.py`): "X DBA Y"
+  prints Y ("JRSK, Inc. DBA Away" -> "Away"); a trust's "DTD <date>" is
+  dropped; a city field's leading suite / unit is dropped ("suite 906 los
+  angeles"); `irs_cut_name` flags a name the source cut off (the IRS file
+  keeps 35-40 characters: "Urban League Of Greater", "Cincinnati-Hamilton
+  County Community") as `name_cut_off`, so it ranks last and the card and the
+  checks say "write the full name": a name ending on of / for / and / & /
+  greater from any source, or an IRS charity name at the limit ending on a
+  word that usually goes on (community, health, development...) or a stray
+  letter. ~500 of 222k published leads flagged. `spoken_name` drops dotted
+  professional forms after a comma (", P.A.", ", S.C.") and keeps "Corp" on a
+  one-word name ("News Corp", not "News"); the name guard reads "P.A." as
+  "pa" and lets "Corp" be spelled out as "Corporation", never changed.
 - **A client list must SHOW the industry** (`research.classifier`, 2026-10-25):
   besides being verbatim on the site, at least `MIN_CLIENTS` (2) names must be
   judged clearly in the claimed industry by `research.llm.client_names_fit`,

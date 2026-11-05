@@ -12,6 +12,8 @@ cards. Each is something that reached a review in October / November 2026:
   * a registry name the tidier left alone: a trailing ", The", a missing
     apostrophe ("Childrens"), a legal form in a lead line ("P.A.", "Corp");
   * a name fix the guard refused (the card's own note);
+  * a name the source cut off (the IRS keeps 35 characters), a DBA, a trust
+    date or a suite number in the copy;
   * a subject past SUBJECT_MAX characters (it truncates on a phone);
   * a location-only email that opens on the firm's client revenue
     ("saw you work with $100m+ companies. here are 3 nonprofits...");
@@ -88,8 +90,12 @@ def check_card(card: dict[str, Any], row: dict[str, str] | None = None) -> list[
                            + ("; the leads are nonprofits, so cut that sentence" if small else "")))
     if (card.get("gift_size") or len(card.get("leads") or []) or 3) < 3:
         items.append(_item("look", card, "fewer than 3 leads in the gift"))
+    if re.search(r"\b(?:DBA|D/B/A|DTD)\b|\bsuite \d", head + "\n" + (row.get("email_2") or card.get("email_2") or "")):
+        items.append(_item("fix", card, "a DBA, trust date or suite number in the copy"))
     for flag in card.get("flags") or []:
-        if flag.startswith("name kept as the registry wrote it"):
+        if flag.startswith("name cut off by the source"):
+            items.append(_item("fix", card, flag.split(" — ")[0] + ": write the full name"))
+        elif flag.startswith("name kept as the registry wrote it"):
             items.append(_item("look", card, flag))
         elif flag.startswith("client-list niche is presence-only"):
             items.append(_item("look", card, "industry read from a client list: confirm they are clients"))

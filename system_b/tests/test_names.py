@@ -198,3 +198,59 @@ def test_a_cached_fix_the_guard_now_refuses_is_undone(tmp_path):
         _lead("San Francisco Housing Accelerator Fund, The")
     fixer.tidy([a, b])
     assert a.company == b.company == "The San Francisco Housing Accelerator Fund"
+
+
+# --- 2026-11-04 review: names that reached the batch -------------------------
+
+
+def test_dba_and_trust_dates_print_the_name_people_know():
+    from system_b.clients.inventory import _clean_company_name
+    assert _clean_company_name("JRSK, Inc. DBA Away") == "Away"
+    assert _clean_company_name(
+        "TPMB, LLC DBA Taxman, Pollock, Murray and Bekkerman, LLC").startswith(
+        "Taxman, Pollock, Murray and Bekkerman")
+    assert _clean_company_name("Universal Navigation Inc. D/B/A Uniswap Labs") == "Uniswap Labs"
+    assert _clean_company_name("Chen Frame Foundation DTD December 30 2009") == \
+        "Chen Frame Foundation"
+
+
+def test_names_cut_at_the_irs_limit_are_flagged():
+    from system_b.clients.inventory import irs_cut_name
+    for cut in ["Urban League Of Greater", "Choanoke Area Development Association Of",
+                "Global Foundation For Democracy &"]:
+        assert irs_cut_name(cut), cut
+    for cut in ["Cincinnati-Hamilton County Community", "Broward Community and Family Health",
+                "Garrett County Maryland Community", "United Piedmont Center for Educational E"]:
+        assert irs_cut_name(cut, raw_length=len(cut)), cut      # an IRS name at the limit
+        assert irs_cut_name(cut) is None, cut                  # any other source: whole
+    for whole in ["Astronomical Society Of The Pacific", "Hutchinson Regional Medical Center",
+                  "Hope Community", "Boulder Shelter For The Homeless"]:
+        assert irs_cut_name(whole, raw_length=len(whole)) is None, whole
+
+
+def test_a_city_never_carries_a_suite():
+    from system_b.clients.inventory import _clean_city
+    assert _clean_city("suite 906 los angeles") == "los angeles"
+    assert _clean_city("Ste. 200 Dallas") == "Dallas"
+    assert _clean_city("Sun City Center") == "Sun City Center"
+
+
+def test_spoken_names_drop_dotted_forms_but_keep_a_one_word_corp():
+    from system_b.copy.lex import spoken_name
+    assert spoken_name("Rainwater, Holt & Sexton, P.A.") == "Rainwater, Holt & Sexton"
+    assert spoken_name("Prairie Clinic, S.C.") == "Prairie Clinic"
+    assert spoken_name("Colliers International SC") == "Colliers International SC"
+    assert spoken_name("News Corp") == "News Corp"
+    assert spoken_name("Abriss Corp Inc") == "Abriss Corp"
+    assert spoken_name("Acme Holdings Corp") == "Acme Holdings"
+    assert spoken_name("Bent LLC") == "Bent"
+
+
+def test_the_guard_accepts_dotted_and_spelled_out_legal_forms():
+    assert same_name("E.K. Management, L.L.C.", "EK Management")
+    assert same_name("Rainwater, Holt & Sexton, P.A.", "Rainwater, Holt & Sexton")
+    assert same_name("Prairie Clinic, S.C.", "Prairie Clinic")
+    assert same_name("Abriss Corp Inc", "Abriss Corporation")
+    assert same_name("Waldon Adelman Castilla Mcnamara & Prout, LLLP",
+                     "Waldon Adelman Castilla McNamara & Prout")
+    assert not same_name("Acme Roofing Inc", "Acme Roofing Corporation")   # still never changed

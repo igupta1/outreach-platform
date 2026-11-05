@@ -172,11 +172,27 @@ _LEGAL_SUFFIX_RE = re.compile(
 )
 
 
+# Professional-corporation forms, only in their dotted form after a comma:
+# "Rainwater, Holt & Sexton, P.A.", "Prairie Clinic, S.C." ("Colliers
+# International SC" is South Carolina, and stays).
+_DOTTED_FORM_RE = re.compile(r",\s*(?:p\.\s?a|p\.\s?c|s\.\s?c|l\.\s?l\.\s?l\.\s?p|lllp)\.?\s*$",
+                             re.IGNORECASE)
+_CORP_RE = re.compile(r"[,\s]+(?:corp|corporation)\.?\s*$", re.IGNORECASE)
+
+
 def spoken_name(name: str | None) -> str:
     """A company name as a person would say it aloud: `Antilles Power Depot,
     Inc.` -> `Antilles Power Depot`. A name that is ONLY a suffix is returned
-    unchanged rather than emptied."""
-    stripped = _LEGAL_SUFFIX_RE.sub("", (name or "").strip()).strip().rstrip(",")
+    unchanged rather than emptied, and "Corp" stays on a one-word name: "News
+    Corp" is not "News" (2026-11-04)."""
+    full = (name or "").strip()
+    stripped = _DOTTED_FORM_RE.sub("", full).strip()
+    before = stripped
+    stripped = _LEGAL_SUFFIX_RE.sub("", stripped).strip().rstrip(",")
+    if len(stripped.split()) == 1 and _CORP_RE.search(before):
+        stripped = _LEGAL_SUFFIX_RE.sub("", _CORP_RE.sub("", before).strip()).strip() + \
+            " " + _CORP_RE.search(before).group(0).strip(" ,").rstrip(".")
+        stripped = stripped.strip()
     return stripped or (name or "")
 
 

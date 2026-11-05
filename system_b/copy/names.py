@@ -48,11 +48,11 @@ _CHUNK = 40
 # Words a name may lose without becoming another name.
 _FILLER = frozenset({"the", "a", "an", "of", "and", "inc", "incorporated", "llc", "l",
                      "c", "co", "corp", "corporation", "company", "ltd", "limited",
-                     "pllc", "pc", "org", "llp", "lp", "pa", "plc"})
+                     "pllc", "pc", "org", "llp", "lp", "pa", "plc", "sc", "lllp"})
 # A trailing run of words is a legal tail when it holds one of these.
 _LEGAL = frozenset({"inc", "incorporated", "llc", "co", "corp", "corporation", "company",
                     "ltd", "limited", "liability", "nonprofit", "org", "pllc", "pc",
-                    "llp", "lp", "pa", "plc"})
+                    "llp", "lp", "pa", "plc", "sc", "lllp"})
 
 _SYSTEM = (
     "You tidy organization names for a cold email. Each name is a real "
@@ -93,9 +93,20 @@ def front_the(name: str) -> str:
     return f"The {name[:m.start()].strip()}" if m and name[:m.start()].strip() else name
 
 
+_DOTTED_RE = re.compile(r"\b((?:[a-z]\.\s?){2,})")
+
+
 def _words(name: str) -> list[str]:
     # An apostrophe joins: "Children's" is the word "childrens", not "children" + "s".
-    return re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", (name or "").lower()))
+    # Dotted initials join too: "P.A." is "pa", "L.L.C." is "llc", "E.K." is "ek".
+    low = re.sub(r"['\u2019]", "", (name or "").lower())
+    low = _DOTTED_RE.sub(lambda m: re.sub(r"[.\s]", "", m.group(1)) + " ", low)
+    return re.findall(r"[a-z0-9]+", low)
+
+
+# A legal form may be spelled out ("Corp" -> "Corporation"), never changed.
+_SAME_FORM = {"corporation": "corp", "incorporated": "inc", "company": "co",
+              "limited": "ltd"}
 
 
 def _subseq(short: str, long: str) -> bool:
@@ -113,7 +124,8 @@ def same_name(original: str, fixed: str) -> bool:
     if not fixed or not fixed.strip():
         return False
     # A legal form may be dropped, never invented ("Inc" -> "LLC").
-    if {w for w in _words(fixed) if w in _LEGAL} - set(_words(original)):
+    had = {_SAME_FORM.get(w, w) for w in _words(original)}
+    if {_SAME_FORM.get(w, w) for w in _words(fixed) if w in _LEGAL} - had:
         return False
     # The same letters, once legal forms are set aside: "12Angels Construction
     # LLC" -> "12 Angels Construction", "Of Thecarolinas Inc" -> "of the Carolinas".
