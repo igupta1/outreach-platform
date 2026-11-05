@@ -126,10 +126,10 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
 
     from openai import OpenAI
 
-    from system_b import config
+    from system_b import config, openai_client
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+    client = openai_client.client()
 
     items = [
         {"id": lead.id, "company": lead.company,
@@ -194,10 +194,10 @@ def claim_check(phrase: str, niche_label: str, listed: tuple[str, ...] = (), *,
     try:
         from openai import OpenAI
 
-        from system_b import config
+        from system_b import config, openai_client
 
         config.require("OPENAI_API_KEY")
-        client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+        client = openai_client.client()
         resp = client.chat.completions.create(
             model=model, temperature=0, response_format={"type": "json_object"},
             messages=[{"role": "system", "content": _CLAIM_SYSTEM},

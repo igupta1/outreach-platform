@@ -6,6 +6,9 @@
 # already built (ops/com.outreach.nightly.plist). By hand: ops/nightly.sh
 # [--dry-run]; any argument skips the already-built check.
 set -u
+# The whole script is one { } block, read in full before it runs: zsh reads a
+# script as it goes, so an edit to this file mid-run broke the 2026-11-05 run.
+{
 HOME_REPO="${OUTREACH_HOME:-$HOME/Developer/outreach-platform}"
 CODE="${OUTREACH_NIGHTLY_CODE:-$HOME/Developer/outreach-nightly}"
 PY="$HOME_REPO/system_b/.venv/bin/python"
@@ -58,3 +61,5 @@ else
 fi
 "$PY" -u -m system_b.nightly --home "$HOME_REPO" "$@"
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') nightly end (exit $?)"
+exit
+}

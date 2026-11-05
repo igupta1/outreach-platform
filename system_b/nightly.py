@@ -256,6 +256,13 @@ def _run(a: argparse.Namespace, home: Path, started: datetime | None = None) -> 
     if a.dry_run:
         return finish(0)
 
+    from system_b import openai_client
+
+    why = openai_client.preflight()
+    if why:
+        say(f"    STOP {why}")
+        return finish(1, why)
+
     out = home / "sequences.csv"
     cmd = [sys.executable, "-m", "system_b.run", "--pack", "cfo", "--in", str(prospects),
            "--out", str(out), "--target", str(a.target), "--ledger", str(ledger),
@@ -267,6 +274,9 @@ def _run(a: argparse.Namespace, home: Path, started: datetime | None = None) -> 
     review_path = home / "sequences.review.json"
     if proc.returncode != 0 or not review_path.exists():
         say(f"    generation failed (exit {proc.returncode}); see logs/nightly.log")
+        if proc.returncode == openai_client.EXIT_CODE:
+            return finish(1, "OpenAI stopped answering partway (out of credits?): add credits at "
+                             "platform.openai.com/settings/organization/billing")
         return finish(1, f"building the emails failed (exit {proc.returncode}); see logs/nightly.log")
 
     review = json.loads(review_path.read_text())

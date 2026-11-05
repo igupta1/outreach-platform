@@ -157,10 +157,10 @@ def openai_fix(names: list[str]) -> dict[str, str]:
     keeps the originals)."""
     from openai import OpenAI
 
-    from system_b import config
+    from system_b import config, openai_client
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+    client = openai_client.client()
     resp = client.chat.completions.create(
         model=MODEL,
         temperature=0,

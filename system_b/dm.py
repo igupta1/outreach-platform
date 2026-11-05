@@ -68,10 +68,10 @@ def extract_profile(text: str, *, model: str = "gpt-4o-mini") -> dict[str, str |
     """Name, firm and place from pasted profile text. Extraction only."""
     from openai import OpenAI
 
-    from system_b import config
+    from system_b import config, openai_client
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    client = openai_client.client(timeout=600)
     resp = client.chat.completions.create(
         model=model,
         temperature=0,

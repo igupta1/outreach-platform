@@ -212,12 +212,10 @@ def main(argv: list[str] | None = None) -> None:
     paths = [Path(p).resolve() for p in args.review]
     missing = [p for p in paths if not p.exists()]
     if missing:
-        raise SystemExit(
-            "review file(s) not found:\n"
-            + "\n".join(f"  {p}" for p in missing)
-            + "\n\ngenerate them first, e.g.:\n"
-              "  python -m system_b.run --in FractionalCFO.csv --out cfo.out.csv --pack cfo"
-        )
+        # Serve anyway: the always-on gate (ops/com.outreach.review.plist) must
+        # be up while the nightly batch is being built, to say so.
+        print("[review] not there yet (the page says why):\n"
+              + "\n".join(f"  {p}" for p in missing))
 
     handler = partial(Handler, review_paths=paths)
     server = ThreadingHTTPServer((args.host, args.port), handler)

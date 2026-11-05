@@ -50,10 +50,10 @@ def classify_site(site: dict[str, str], *, model: str = "gpt-4o-mini") -> dict[s
     """Return the raw proposal dict for classifier.classify()."""
     from openai import OpenAI
 
-    from system_b import config
+    from system_b import config, openai_client
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+    client = openai_client.client()
 
     pages = "\n\n".join(f"URL: {url}\n{text[:6000]}" for url, text in site.items())
     user = (
@@ -90,10 +90,10 @@ def client_names_fit(names: list[str], industry: str, *, model: str = "gpt-4o") 
 
     from openai import OpenAI
 
-    from system_b import config
+    from system_b import config, openai_client
 
     config.require("OPENAI_API_KEY")
-    client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+    client = openai_client.client()
     resp = client.chat.completions.create(
         model=model,
         temperature=0,

@@ -110,10 +110,10 @@ def check_naturalness(text: str, *, model: str = "gpt-4o-mini") -> list[dict[str
     try:
         from openai import OpenAI
 
-        from system_b import config
+        from system_b import config, openai_client
 
         config.require("OPENAI_API_KEY")
-        client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+        client = openai_client.client()
         resp = client.chat.completions.create(
             model=model,
             temperature=0,

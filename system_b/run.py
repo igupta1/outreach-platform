@@ -517,4 +517,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from system_b.openai_client import EXIT_CODE, ModelUnavailable
+
+    try:
+        main()
+    except ModelUnavailable as exc:
+        # Nothing was written: the batch, the review JSON and the ledger are
+        # all written after the last prospect (system_b/openai_client.py).
+        print(f"\n[stop] {exc}. No batch written; no prospect recorded.", flush=True)
+        raise SystemExit(EXIT_CODE) from None

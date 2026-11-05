@@ -82,6 +82,18 @@ script) and runs as `ProcessType Interactive`: on 2026-11-05 it started in a
 screen-off dark wake and a one-minute publish took 4.5 hours. The Mac is set
 to never sleep on the charger (`sudo pmset -c sleep 0`, run by the user).
 
+Out of credits (2026-11-05): the OpenAI credits ran out 182 firms into the
+batch, and because every model call fails open the run went on through ~900
+more, turning niche firms into location-only drafts (stopped by hand before
+it wrote the ledger). Every batch model call now goes through
+`system_b/openai_client.client()`, whose response hook raises
+`ModelUnavailable` (a BaseException, so the fail-open `except Exception`
+guards cannot swallow it) on no credits / a refused key; `run.py` exits 3
+having written nothing, and `system_b.nightly` makes one tiny `preflight()`
+call before generating. Both land in the status line with what to do. The
+gate now starts even with no batch on disk, so it can say "Not ready".
+`nightly.sh` is one `{ }` block so an edit mid-run cannot break the run.
+
 `ops/com.outreach.review.plist` keeps the gate served on
 http://127.0.0.1:8000 (KeepAlive; it re-reads the file on every request).
 Install both with `ops/install-nightly.sh`. The Mac must be awake at 02:00
