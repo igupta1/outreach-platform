@@ -229,7 +229,6 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "nm_ocd_new_operator", "fcc_499a_missed",
                                    "fcc_499_new_registrant",
                                    # HomeServices
-                                   "va_new_class_b_contractor",
                                    "h2b_seasonal_employer_other_industry",
                                    "va_contractor_upgraded_class_a",
                                    # Community

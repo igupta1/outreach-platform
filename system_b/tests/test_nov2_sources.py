@@ -42,6 +42,7 @@ ENABLED = {
     "ny_new_law_firm", "tx_peo_license_renewal_due",
     "fl_employee_leasing_new_license", "cpeo_newly_certified", "tx_dir_first_contract",
     "tx_peo_new_license",  # approved 2026-11-03
+    "va_new_class_b_contractor",  # approved 2026-11-05
     "new_practice_npi", "new_practice_medicare_enrollment",
 }
 HELD = {
@@ -50,7 +51,7 @@ HELD = {
     "liquor_license_new_co", "liquor_license_new_chicago", "liquor_license_new_owner_chicago",
     "chicago_new_food_license", "tx_new_brewer_license",
     "nm_ocd_new_operator", "fcc_499a_missed", "fcc_499_new_registrant",
-    "va_new_class_b_contractor", "h2b_seasonal_employer_other_industry",
+    "h2b_seasonal_employer_other_industry",
     "va_contractor_upgraded_class_a",
     "ct_health_club_lapsed", "tx_career_school_fs_penalty", "tx_career_school_new",
     "ca_bppe_annual_report_missing", "ca_bppe_first_annual_report",
