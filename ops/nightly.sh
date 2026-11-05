@@ -16,6 +16,13 @@ if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK")" 2>/dev/null; then
   echo "another nightly run is going (pid $(cat "$LOCK")); exiting"; exit 0
 fi
 echo $$ >"$LOCK"; trap 'rm -f "$LOCK"' EXIT
+# Whole night awake, at full speed. launchd starts the job on the first wake
+# after 02:00, often a screen-off "dark wake" (the Mac idle-sleeps after a
+# minute even on the charger): 2026-11-05 the run sat there 02:12-06:44 and
+# a one-minute publish took 4.5 hours. -u declares the user active, which
+# turns that into a full wake; -i -s -w then hold it until this script ends.
+caffeinate -u -t 10 &
+caffeinate -i -s -w $$ &
 
 git -C "$HOME_REPO" fetch -q origin lead-inventory || echo "fetch failed: using the last fetched commit"
 TARGET=$(git -C "$HOME_REPO" rev-parse origin/lead-inventory)
@@ -42,5 +49,5 @@ else
   fi
   git -C "$CODE" checkout -q --detach "$LAST"; echo "using the last good commit $LAST"
 fi
-caffeinate -i -s "$PY" -u -m system_b.nightly --home "$HOME_REPO" "$@"
+"$PY" -u -m system_b.nightly --home "$HOME_REPO" "$@"
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') nightly end (exit $?)"

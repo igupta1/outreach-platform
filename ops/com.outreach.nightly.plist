@@ -8,6 +8,8 @@
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
   <key>RunAtLoad</key><false/>
+  <!-- not the default background throttling: the batch is the job -->
+  <key>ProcessType</key><string>Interactive</string>
   <key>StandardOutPath</key><string>/Users/ishaangupta/Developer/outreach-platform/logs/launchd.log</string>
   <key>StandardErrorPath</key><string>/Users/ishaangupta/Developer/outreach-platform/logs/launchd.log</string>
 </dict>
