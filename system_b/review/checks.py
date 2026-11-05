@@ -64,7 +64,7 @@ def check_card(card: dict[str, Any], row: dict[str, str] | None = None) -> list[
     items: list[dict[str, str]] = []
 
     first = (row.get("first_name") or card.get("first_name") or "").strip()
-    if not first or head.lower().startswith("hey there"):
+    if not first or re.match(r"hey there\b", head.lower()):
         items.append(_item("fix", card, "no first name: the email opens \"hey there,\""))
     elif not head.lower().startswith("hey "):
         items.append(_item("fix", card, "no greeting"))
@@ -80,8 +80,12 @@ def check_card(card: dict[str, Any], row: dict[str, str] | None = None) -> list[
     if len(subject) > SUBJECT_MAX:
         items.append(_item("look", card, f"subject is {len(subject)} characters: \"{subject}\""))
     if not card.get("niche") and re.search(r"saw you work with \$", head):
-        items.append(_item("fix", card, "location-only email opens on client revenue; the leads "
-                                        "are not in their industry, so cut that sentence"))
+        # "$100m+ companies. here are 3 nonprofits" reads as a mismatch; a
+        # revenue line over nearby companies is only worth a glance.
+        small = re.search(r"\bnonprofits?\b", head)
+        items.append(_item("fix" if small else "look", card,
+                           "location-only email opens on client revenue"
+                           + ("; the leads are nonprofits, so cut that sentence" if small else "")))
     if (card.get("gift_size") or len(card.get("leads") or []) or 3) < 3:
         items.append(_item("look", card, "fewer than 3 leads in the gift"))
     for flag in card.get("flags") or []:

@@ -106,6 +106,9 @@ def _card(**kw):
 
 def test_a_clean_card_has_nothing_to_fix():
     assert checks.check_card(_card()) == []
+    # "hey theresa," is a first name, not "hey there,"
+    assert checks.check_card(_card(first_name="Theresa",
+                                   email_1_head="hey theresa,\n\n1. Hope House")) == []
 
 
 def test_the_checks_catch_what_the_hand_reviews_caught():
@@ -118,7 +121,7 @@ def test_the_checks_catch_what_the_hand_reviews_caught():
         flags=['name kept as the registry wrote it ("X P.C.")']))}
     assert {"no first name", "a name ends in \", The\"", "missing apostrophe",
             "legal form left in a lead name", "subject is 62 characters",
-            "location-only email opens on client revenue; the leads are not in their industry, so cut that sentence",
+            "location-only email opens on client revenue; the leads are nonprofits, so cut that sentence",
             "fewer than 3 leads in the gift", "name kept as the registry wrote it (\"X P.C.\")"} <= found
 
 
