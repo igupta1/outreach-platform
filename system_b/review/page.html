@@ -102,6 +102,12 @@
   #removed { color:var(--muted); font-size:13px; }
   button.undo { font-size:13px; font-weight:600; padding:4px 10px; background:#f1f1f4; color:#111; }
   button.undo:hover { background:#e4e4e8; }
+  .checks { margin:12px 0 20px; padding:12px 16px; border:1px solid #e6d9a8; background:#fffbea; border-radius:8px; font-size:14px; }
+  .checks h2 { font-size:15px; margin:0 0 6px; }
+  .checks ul { margin:4px 0 8px 18px; padding:0; }
+  .checks li { margin:2px 0; }
+  .checks .look { color:var(--muted); }
+  .checks details summary { cursor:pointer; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -110,6 +116,7 @@
   <div class="sub" id="meta"></div>
 </header>
 <div class="errs" id="errs" hidden></div>
+<section class="checks" id="checks" hidden></section>
 <main id="rows"></main>
 <footer>
   <span class="foot-note" id="foot-email"></span>
@@ -563,7 +570,48 @@ function buildCsv(columns, packIndex) {
   return lines.join("\r\n") + "\r\n";
 }
 
+// The addresses a download carries, for the nightly job: a batch you never
+// download goes back on the queue the next night. Best effort; the nightly
+// job also reads the CSV from ~/Downloads.
+function recordDownload(packIndex) {
+  const sel = packIndex === null || packIndex === undefined
+    ? ".card:not(.removed)" : '.card[data-pack="' + packIndex + '"]:not(.removed)';
+  const emails = [...document.querySelectorAll(sel)].map(cardEl =>
+    PACKS[+cardEl.getAttribute("data-pack")].prospects[+cardEl.getAttribute("data-idx")].email);
+  try {
+    fetch("/downloaded", {method:"POST", headers:{"Content-Type":"application/json"},
+                          body: JSON.stringify({emails})}).catch(() => {});
+  } catch (e) {}
+}
+
+function renderChecks() {
+  const box = document.getElementById("checks");
+  const all = PACKS.flatMap(pk => (pk.checks && pk.checks.items) || []);
+  const sums = PACKS.map(pk => pk.checks && pk.checks.summary).filter(Boolean);
+  if (!sums.length) return;
+  const fix = all.filter(i => i.kind === "fix"), look = all.filter(i => i.kind === "look");
+  const s = sums[0];
+  const h = document.createElement("h2");
+  h.textContent = "Checks: " + fix.length + " to fix, " + look.length + " to look at  ·  "
+    + s.industry_match + " industry match, " + s.location_only + " location only";
+  box.append(h);
+  const list = (items, cls) => {
+    const ul = document.createElement("ul");
+    items.forEach(i => { const li = document.createElement("li"); li.className = cls;
+      li.textContent = i.company + ": " + i.what; ul.append(li); });
+    return ul;
+  };
+  if (fix.length) box.append(list(fix, "fix"));
+  if (look.length) {
+    const d = document.createElement("details");
+    const sm = document.createElement("summary"); sm.textContent = "show " + look.length + " to look at";
+    d.append(sm, list(look, "look")); box.append(d);
+  }
+  box.hidden = false;
+}
+
 function download(name, columns, packIndex) {
+  recordDownload(packIndex);
   const blob = new Blob([buildCsv(columns, packIndex)], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -576,6 +624,7 @@ document.getElementById("download-all")
   .addEventListener("click", () => download("all-emails.csv", EMAIL_COLUMNS, null));
 
 render();
+renderChecks();
 </script>
 </body>
 </html>

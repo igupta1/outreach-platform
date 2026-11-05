@@ -4,8 +4,10 @@
         --review cfo.review.json acct.review.json book.review.json
 
 Open the printed URL, read each prospect's evidence, edit any copy that looks
-off, then download. Everything after load is client-side; this server only
-serves the page. It is read-only and send-free — no CRM, no Airtable, no send.
+off, then download. Everything after load is client-side; this server serves
+the page and records which addresses a download carried (POST /downloaded,
+a local file beside the batch, read by the nightly job so a batch you never
+download goes back on the queue). It is send-free — no CRM, no Airtable, no send.
 
 ## Why one page for every pack
 
@@ -54,6 +56,7 @@ def load_packs(paths: list[Path]) -> dict[str, Any]:
             "generated_at": doc.get("generated_at") or "",
             "skipped": doc.get("skipped") or [],
             "prospects": doc.get("prospects") or [],
+            "checks": doc.get("checks") or None,
             "source": path.name,
         })
     return {"packs": packs, "errors": errors}
@@ -68,6 +71,25 @@ def render(review_paths: list[Path]) -> bytes:
     blob = json.dumps(data).replace("<", "\\u003c")
     html = _PAGE.read_text(encoding="utf-8")
     return html.replace("__REVIEW_DATA__", blob).encode("utf-8")
+
+
+def downloaded_path(review_path: Path) -> Path:
+    """sequences.review.json -> sequences.downloaded.json"""
+    return review_path.with_name(review_path.name.replace(".review.json", "") + ".downloaded.json")
+
+
+def record_download(review_path: Path, emails: list[str]) -> None:
+    """Add these addresses to the batch's download record (a union: several
+    downloads, or one per pack, all count)."""
+    path = downloaded_path(review_path)
+    seen: list[str] = []
+    if path.exists():
+        try:
+            seen = list(json.loads(path.read_text()).get("emails") or [])
+        except (OSError, ValueError):
+            seen = []
+    merged = list(dict.fromkeys(seen + [e.strip().lower() for e in emails if e.strip()]))
+    path.write_text(json.dumps({"emails": merged}, indent=1))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -92,6 +114,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, body, "text/html; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain; charset=utf-8")
+
+    def do_POST(self) -> None:  # noqa: N802
+        """The one write: which addresses a download carried, so the nightly
+        job knows which prospects were sent (`system_b.nightly`). Local file
+        beside the batch; no send, no CRM. Anything else is a 404."""
+        if self.path.split("?", 1)[0] != "/downloaded":
+            self._send(404, b"not found", "text/plain; charset=utf-8")
+            return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            emails = json.loads(self.rfile.read(min(n, 2_000_000)) or b"{}").get("emails") or []
+            record_download(self.review_paths[0], [str(e) for e in emails])
+        except (ValueError, OSError):
+            self._send(400, b"bad request", "text/plain; charset=utf-8")
+            return
+        self._send(204, b"", "text/plain; charset=utf-8")
 
     def log_message(self, *args) -> None:  # keep the console clean
         pass

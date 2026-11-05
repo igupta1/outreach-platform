@@ -11,6 +11,7 @@
 .env
 **/.env
 system_b/logs/
+logs/
 system_b/apollo-contacts-export.csv
 
 # OS junk

@@ -41,6 +41,45 @@ N valid sequences so a 200-row export is not paid for in full.
 The ledger stores NO status. Who accepted and who replied lives in the
 hand-maintained history sheet, so no tool can race the human editing it.
 
+## The nightly batch (2026-11-04)
+
+The user's ask: open the review gate in the morning and find the day's 200
+ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
+02:00 local = Pacific) runs `ops/nightly.sh`, which:
+
+- checks out the last PUSHED commit (`origin/lead-inventory`) into a separate
+  worktree, `~/Developer/outreach-nightly` (never the working tree: another
+  session's half-finished edit broke the morning command more than once),
+  links the main checkout's gitignored files into it, and runs the tests;
+  failing tests fall back to the last commit that passed
+  (`logs/nightly-last-good`), or skip the night when none has;
+- runs `system_b.nightly --home ~/Developer/outreach-platform` under
+  `caffeinate`: (1) the previous batch's prospects that were never
+  downloaded go back on the queue (off the ledger). Downloaded = the gate's
+  record (`sequences.downloaded.json`, written by `POST /downloaded` when any
+  Download button is pressed) OR any CSV in ~/Downloads written after the
+  batch that carries the address; only an address with NEITHER goes back
+  (emailing someone twice is worse than losing a draft). (2) archives the
+  previous batch as `sequences-<date>.*`; (3) publishes the inventory unless
+  its weekly refresh holds `logs/.refresh.lock` (Wednesdays, also 02:00);
+  (4) `morning.check` (a blocking problem stops the night) and the prospect
+  runway (under 600 unsent: "pull a new Apollo list"); (5) `run.py --target
+  200`; (6) `review.checks` into the review JSON's `checks`, which the gate
+  lists at the top ("to fix" / "to look at"), and a summary in
+  `logs/nightly-latest.txt`.
+
+`ops/com.outreach.review.plist` keeps the gate served on
+http://127.0.0.1:8000 (KeepAlive; it re-reads the file on every request).
+Install both with `ops/install-nightly.sh`. The Mac must be awake at 02:00
+(plugged in, lid open; `sudo pmset repeat wakeorpoweron MTWRFSU 01:55:00`
+wakes it); launchd runs a missed job when the Mac next wakes. Logs:
+`logs/nightly.log`, `logs/nightly-tests.log` (gitignored). The checks are
+`system_b/review/checks.py` (the ones run by hand on every October / November
+batch); `python -m system_b.review.checks --review sequences.review.json`
+runs them on any batch. No push notification: notifications were removed on
+purpose (Forbidden, below) and the user has not asked for one back. Tests:
+`tests/test_nightly.py`.
+
 ## The review gate is email-only (2026-10-24)
 
 The batch's prospects get email only. LinkedIn is a separate, on-demand
