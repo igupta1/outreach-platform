@@ -96,6 +96,9 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
 # as a served industry only alone (an industries list: "Accounting") or beside
 # a word naming the firms that do it ("accounting firms").
 _SERVICE_ALIAS_WORDS = frozenset({"accounting", "bookkeeping"})
+_CONSULTING_AS_CLIENT_RE = re.compile(
+    r"\bconsult(?:ants?|anc(?:y|ies)|ing\s+(?:firms?|companies|businesses|practices|agencies))\b",
+    re.IGNORECASE)
 _SERVICE_AS_CLIENT_RE = re.compile(
     r"\b(?:accounting|bookkeeping)\s+(?:firms?|practices?|offices?|companies|businesses|professionals)\b",
     re.IGNORECASE)
@@ -306,6 +309,13 @@ def map_industry_candidates(
     when the phrase itself maps to nothing, and never when the phrase names
     nothing ("organizations")."""
     found = _industry_map(phrase, taxonomy)
+    # "Restaurant Accounting and Consulting" names the firm's own services
+    # after the industry it serves: consulting is a served industry only as
+    # consulting firms / consultants (2026-11-04, Napolitano was drafted
+    # "you work with consulting firms").
+    if (found.get("professional_services") == "consulting"
+            and not _CONSULTING_AS_CLIENT_RE.search(phrase or "")):
+        del found["professional_services"]
     out = [_mp_for(parent, child) for parent, child in found.items()]
     if out:
         out.sort(key=lambda mp: 0 if mp[0] == "niche" else 1)   # children first

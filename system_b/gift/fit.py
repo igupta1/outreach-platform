@@ -149,3 +149,64 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
         if isinstance(v, dict) and v.get("id") is not None:
             by_id[str(v["id"])] = bool(v.get("fits"))
     return [by_id.get(lead.id, False) for lead in leads]
+
+
+_CLAIM_SYSTEM = (
+    "A cold email is about to tell a bookkeeping / accounting / CFO firm "
+    "\"noticed you work with <industry>\". You get the exact phrase from the "
+    "firm's own website that the claim rests on. Such phrases are usually an "
+    "item from an \"industries we serve\" list (\"Construction & Contractors\", "
+    "\"Mass Tort\", \"Biotech Startup\") or a line about who the firm helps "
+    "(\"Real Estate Accounting\" = accounting FOR real estate; \"construction "
+    "bookkeeping\" = bookkeeping FOR construction). Answer serves=true when the "
+    "phrase names that industry (or a clear part of it) as who the firm works "
+    "for. Answer false only if the phrase is about the firm's OWN services with "
+    "no client industry (\"Specialized consulting for investors\" does not "
+    "make its clients consulting firms), its background or a past employer "
+    "(\"advisory and audit firm BDO\"), software it sells or uses, a different "
+    "industry that shares a word (insurance brokerage is not real estate "
+    "brokerage), or names no industry at all (\"deal structuring\", \"cultural "
+    "leaders\"). The other phrases the site lists are context: a phrase among "
+    "several industries (\"Construction\", \"Restaurants\", \"CPA & Tax Firms\") "
+    "is an industry the firm serves. "
+    'Return JSON {"serves": true|false}.'
+)
+_CLAIMS: dict[tuple[str, str, str], bool] = {}
+
+
+def claim_check(phrase: str, niche_label: str, listed: tuple[str, ...] = (), *,
+                model: str = "gpt-4o") -> bool:
+    """Does the firm's own phrase say it serves `niche_label` clients?
+
+    Gate B checked only the LEADS; nothing checked the claim against the
+    words it rests on. Mapping is keyword matching, so on 2026-11-04 it drafted
+    "you work with real estate brokerage companies" off "Commercial Insurance
+    Brokerage", "professional services" off "advisory and audit firm BDO" (a
+    past employer) and "consulting firms" off "Specialized consulting for
+    investors" (the firm's own service). False on any failure: no answer, no
+    claim."""
+    key = ((phrase or "").strip().lower(), (niche_label or "").strip().lower(),
+           "|".join(x.strip().lower() for x in listed))
+    if not all(key[:2]):
+        return False
+    if key in _CLAIMS:
+        return _CLAIMS[key]
+    try:
+        from openai import OpenAI
+
+        from system_b import config
+
+        config.require("OPENAI_API_KEY")
+        client = OpenAI(api_key=config.OPENAI_API_KEY, timeout=60)
+        resp = client.chat.completions.create(
+            model=model, temperature=0, response_format={"type": "json_object"},
+            messages=[{"role": "system", "content": _CLAIM_SYSTEM},
+                      {"role": "user", "content": json.dumps(
+                          {"industry": niche_label, "phrase": phrase,
+                           "every_phrase_the_site_lists": list(listed)})}],
+        )
+        ok = bool(json.loads(resp.choices[0].message.content or "{}").get("serves"))
+    except Exception:  # noqa: BLE001 — no answer, no claim
+        return False
+    _CLAIMS[key] = ok
+    return ok

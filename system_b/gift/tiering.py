@@ -24,7 +24,7 @@ from typing import Any
 
 from system_b.copy.lex import niche_display
 from system_b.gift.engine import build_gift
-from system_b.gift.fit import fit_check
+from system_b.gift.fit import claim_check, fit_check
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
@@ -33,6 +33,9 @@ from system_b.research.models import ResearchResult
 # Gate B fit-check: (niche_label, leads) -> per-lead booleans. Injectable so
 # tests run offline; production passes the real LLM check.
 FitFn = Callable[[str, list[Lead]], list[bool]]
+# (verbatim phrase, niche label, every phrase the site lists) -> does the
+# phrase say the firm serves that industry?
+ClaimFn = Callable[[str, str, tuple[str, ...]], bool]
 
 
 class _Scraper:  # structural: anything with .leads(**params)
@@ -123,6 +126,7 @@ def _fitting_niche_gift(
 def resolve_gift(
     research: ResearchResult, row: dict[str, Any], scraper: _Scraper,
     *, fit: FitFn | None = None, pack: NichePack | None = None,
+    claim: ClaimFn | None = None,
 ) -> tuple[Prospect, Gift | None]:
     """Pick the tier and build the gift. Returns (final_prospect, gift). A niche
     is claimed only if it passes BOTH gates:
@@ -133,6 +137,10 @@ def resolve_gift(
     Among candidates that pass both, claim the best-supplied one; otherwise drop
     to an honest generalist geo gift. The claimed candidate's own phrase is set
     on the prospect so the review card can't contradict itself."""
+    # The claim check runs with the real fit check; a test that injects its
+    # own `fit` judges leads only, unless it injects `claim` too.
+    claim = claim or (claim_check if fit is None else (lambda phrase, label, listed: True))
+    listed = tuple(dict.fromkeys(research.candidate_phrases or []))
     fit = fit or fit_check
     pack = pack or default_pack()
     rank = dict(pack.signal_rank)
@@ -167,6 +175,10 @@ def resolve_gift(
         # gift does not use up a candidate place.
         supply = build_gift(trial, scraper, niche_only=True, pack=pack)
         if supply is None or not supply.all_niche:
+            continue
+        # The firm's own words must say it serves this industry.
+        if not claim(phrase, label, listed):
+            log.info("gift: %r does not say the firm serves %s", phrase, label)
             continue
         candidates_tried += 1
         # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):

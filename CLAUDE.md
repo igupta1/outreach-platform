@@ -528,6 +528,19 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   firms. "Non-profit" / "not-for-profit" map to nonprofit (they split into
   two words and mapped to nothing, so the guess "accounting" told five
   nonprofit accountants "you work with accounting firms").
+- **Claim check (2026-11-04, `gift.fit.claim_check`, gpt-4o).** Gate B judged
+  only the leads; nothing judged the claim against the words it rests on, and
+  keyword mapping drafted "you work with real estate brokerage companies" off
+  "Commercial Insurance Brokerage", "professional services" off "advisory and
+  audit firm BDO" (a past employer) and "consulting firms" off "Specialized
+  consulting for investors" (the firm's own service). `resolve_gift` now asks,
+  per candidate with local leads, whether the verbatim phrase (with every
+  phrase the site lists, as context) says the firm's CLIENTS are in that
+  industry; a no or a failed call drops the vertical. Calibrated on 24
+  phrases: every bad claim refused; it is cautious on a few true ones ("CPA &
+  Tax Firms", "Biotech Startup"), which then fall to the next vertical or a
+  location gift, the safe side. Tests that inject `fit` get a yes unless they
+  inject `claim`.
 - **The fractional word is earned, not inherited.** leadgen tags a posting
   `job_fractional_cfo` / `job_fractional_controller` off a WIDE list (fractional,
   interim, part-time, outsourced, virtual, contract, temp, consultant,

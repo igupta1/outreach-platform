@@ -828,6 +828,9 @@ def test_a_firms_own_bookkeeping_is_not_its_clients_industry():
         ("industry", "nonprofit")]
     assert map_industry_candidates("companies that have outgrown basic bookkeeping",
                                    "accounting", tax) == []
+    got = map_industry_candidates("Restaurant Accounting and Consulting", "restaurant", tax)
+    assert ("niche", "consulting") not in got and ("niche", "restaurant") in got
+    assert ("niche", "consulting") in map_industry_candidates("consulting firms", "", tax)
 
 
 def test_the_fit_check_sees_what_the_business_is():
@@ -870,3 +873,37 @@ def test_every_stated_industry_with_local_leads_gets_tried(monkeypatch):
     prospect, _ = t.resolve_gift(res, {"firm_name": "F"}, None, fit=fit)
     assert prospect.match_param == ("niche", "n4")
     assert "n3" in tried and len(tried) <= t.MAX_FIT_CALLS
+
+
+def test_a_claim_the_firms_own_words_do_not_support_is_dropped(monkeypatch):
+    """"Commercial Insurance Brokerage" mapped to real estate brokerage
+    (2026-11-04). The claim check reads the phrase; a no drops that vertical."""
+    import system_b.gift.tiering as t
+    from system_b.research.models import ResearchResult
+
+    mps = [("niche", "brokerage"), ("industry", "nonprofit")]
+    res = ResearchResult("niched", mps[0], "Commercial Insurance Brokerage", "site", [], [],
+                         candidate_match_params=mps,
+                         candidate_phrases=["Commercial Insurance Brokerage", "Nonprofits"],
+                         exclusivity="multiple")
+    lead = Lead(id="L", company="Hope House", signal_type="nonprofit_grant_no_finance_officer")
+    gift = type("G", (), {"all_niche": True, "leads": [lead], "gift_size": 1,
+                          "best_lead": lead})()
+    monkeypatch.setattr(t, "build_gift", lambda p, sc, **k: gift)
+    asked: list[tuple[str, str]] = []
+
+    def claim(phrase, label, listed):
+        asked.append((phrase, label))
+        assert "Nonprofits" in listed
+        return "Insurance" not in phrase
+    prospect, _ = t.resolve_gift(res, {"firm_name": "F"}, None,
+                                 fit=lambda label, leads: [True] * len(leads), claim=claim)
+    assert prospect.match_param == ("industry", "nonprofit")
+    assert asked[0][0] == "Commercial Insurance Brokerage"
+
+
+def test_the_claim_check_says_no_when_it_cannot_ask(monkeypatch):
+    from system_b.gift import fit as f
+    monkeypatch.setattr(f, "_CLAIMS", {})
+    monkeypatch.setattr("system_b.config.require", lambda *a: (_ for _ in ()).throw(RuntimeError("no key")))
+    assert f.claim_check("Nonprofits", "nonprofit") is False
