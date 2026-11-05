@@ -523,7 +523,11 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   added for HVAC / plumbing / electrical / roofing / contractors / demolition /
   manufacturers / retailers / medical; "accounting" / "bookkeeping" count as a
   served industry only alone or beside "firms" / "practices" (a firm's own
-  service is not its clients' industry).
+  service is not its clients' industry), and the model's one-word guess may
+  not map to accounting either unless the phrase names accounting / CPA
+  firms. "Non-profit" / "not-for-profit" map to nonprofit (they split into
+  two words and mapped to nothing, so the guess "accounting" told five
+  nonprofit accountants "you work with accounting firms").
 - **The fractional word is earned, not inherited.** leadgen tags a posting
   `job_fractional_cfo` / `job_fractional_controller` off a WIDE list (fractional,
   interim, part-time, outsourced, virtual, contract, temp, consultant,

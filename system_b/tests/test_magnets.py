@@ -823,6 +823,11 @@ def test_a_firms_own_bookkeeping_is_not_its_clients_industry():
     assert ("niche", "hvac_plumbing_electrical") in got
     assert ("niche", "accounting_bookkeeping") in map_industry_candidates(
         "CPA and accounting firms", "accounting", tax)
+    # the model's guess may not stand in for the firm's own service either
+    assert map_industry_candidates("Non-Profit Accounting", "accounting", tax) == [
+        ("industry", "nonprofit")]
+    assert map_industry_candidates("companies that have outgrown basic bookkeeping",
+                                   "accounting", tax) == []
 
 
 def test_the_fit_check_sees_what_the_business_is():

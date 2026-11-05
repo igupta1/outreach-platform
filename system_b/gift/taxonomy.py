@@ -132,6 +132,11 @@ _PHRASE_CHILDREN: tuple[tuple[re.Pattern[str], str, str], ...] = (
 _PHRASE_PARENTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(?:government|federal|gov't|govt)\s+contract(?:or|ors|ing)\b"
                 r"|\bgov\s?cons?\b", re.IGNORECASE), "government_contracting"),
+    # "Non-Profit Accounting" split into "non" + "profit" and mapped to
+    # nothing, so the model's guess "accounting" stood in and five nonprofit
+    # accountants were told "you work with accounting firms" (2026-11-04).
+    (re.compile(r"\bnon[\s-]+profits?\b|\bnot[\s-]+for[\s-]+profits?\b", re.IGNORECASE),
+     "nonprofit"),
 )
 
 
@@ -308,4 +313,10 @@ def map_industry_candidates(
     if _names_nothing(phrase):
         return []
     _cls, mp = map_prospect(guess or "", taxonomy)
+    # The guess may not turn a firm's own service into its clients' industry:
+    # "companies that have outgrown basic bookkeeping" + guess "accounting"
+    # is a bookkeeper's pitch, not a firm serving CPA firms.
+    if mp == ("niche", "accounting_bookkeeping") and not (
+            _SERVICE_AS_CLIENT_RE.search(phrase or "") or re.search(r"\bcpas?\b", phrase or "", re.I)):
+        return []
     return [mp] if mp else []
