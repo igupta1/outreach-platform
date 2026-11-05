@@ -74,7 +74,31 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
     "condo": ("real_estate", "property_management"),
     "pool": ("home_services", "pool_services"),
     "childcare": ("education", "childcare_early_ed"), "daycare": ("education", "childcare_early_ed"),
+    # 2026-11-04: words firms used on their sites that mapped to nothing
+    # ("from HVAC to plumbing", "contractors", "manufacturers", "retailers",
+    # "Medical"), so those firms got location-only gifts beside work we have
+    # leads for.
+    "hvac": ("home_services", "hvac_plumbing_electrical"),
+    "plumbing": ("home_services", "hvac_plumbing_electrical"),
+    "plumber": ("home_services", "hvac_plumbing_electrical"),
+    "electrician": ("home_services", "hvac_plumbing_electrical"),
+    "electrical": ("home_services", "hvac_plumbing_electrical"),
+    "roofing": ("construction", "specialty_trades"), "roofer": ("construction", "specialty_trades"),
+    "contractor": ("construction", None), "demolition": ("construction", None),
+    "manufacturer": ("manufacturing", None), "retailer": ("ecommerce_retail", None),
+    "medical": ("healthcare", None), "physician": ("healthcare", "medical_practice"),
+    "doctor": ("healthcare", "medical_practice"),
 }
+
+# A firm's OWN service is not its clients' industry: "a plumber that needs help
+# with ongoing bookkeeping" mapped to accounting (2026-11-04, Atlas), which
+# would pair an accountant with CPA firms. "accounting" / "bookkeeping" count
+# as a served industry only alone (an industries list: "Accounting") or beside
+# a word naming the firms that do it ("accounting firms").
+_SERVICE_ALIAS_WORDS = frozenset({"accounting", "bookkeeping"})
+_SERVICE_AS_CLIENT_RE = re.compile(
+    r"\b(?:accounting|bookkeeping)\s+(?:firms?|practices?|offices?|companies|businesses|professionals)\b",
+    re.IGNORECASE)
 
 # Multi-word names for a CHILD that no single alias word can say: "it" is not
 # a word to alias, "direct to consumer" is three. Same fallback role as
@@ -203,6 +227,11 @@ def _industry_map(phrase: str, taxonomy: dict[str, list[str]]) -> dict[str, str 
                 continue
             alias = _ALIASES.get(word)
             if alias is None:
+                continue
+            # An industry list may say just "Accounting"; a sentence about
+            # the firm's own work may not.
+            if (word in _SERVICE_ALIAS_WORDS and len(pw) > 2
+                    and not _SERVICE_AS_CLIENT_RE.search(phrase or "")):
                 continue
             parent, child = alias
             if child is not None and found.get(parent) is None:

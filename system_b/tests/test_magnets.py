@@ -543,9 +543,11 @@ def test_gate_b_fit_checks_are_capped_per_prospect():
     """The fit check is the only per-prospect LLM cost, and it multiplies: one
     call per swap attempt for EVERY candidate vertical a firm states. A firm
     naming six industries could cost 24 calls before a single email is
-    written."""
-    from system_b.gift.tiering import MAX_FIT_CANDIDATES
-    assert 1 <= MAX_FIT_CANDIDATES <= 4
+    written. Since 2026-11-04 the bound is the total number of calls; a
+    candidate with no local leads costs none and takes no place."""
+    from system_b.gift.tiering import MAX_FIT_CALLS, MAX_FIT_CANDIDATES
+    assert 1 <= MAX_FIT_CANDIDATES <= 8
+    assert MAX_FIT_CALLS <= 12
 
 
 def test_the_funds_line_says_custody_when_the_filing_does():
@@ -789,3 +791,77 @@ def test_the_auditor_never_receives_its_client_in_a_gift():
     gift = build_gift(Prospect(firm_name="Ledger Bridge", state="IA"),
                       FakeScraper([client, other]))
     assert {ld.id for ld in gift.leads} == {"np1", "np2"}
+
+
+# --- 2026-11-04: firms whose site names an industry we have ----------------
+
+
+def test_trade_and_maker_words_map_to_their_industries():
+    import json
+
+    from system_b.clients.inventory import LOCAL_TAXONOMY
+    from system_b.gift.taxonomy import map_industry_candidates
+    tax = json.loads(LOCAL_TAXONOMY.read_text())["taxonomy"]
+    for phrase, parent in [("HVAC", "home_services"), ("plumbers", "home_services"),
+                           ("contractors", "construction"), ("manufacturers", "manufacturing"),
+                           ("retailers", "ecommerce_retail"), ("Medical", "healthcare")]:
+        got = map_industry_candidates(phrase, phrase, tax)
+        assert any(mp == ("industry", parent) or (mp[0] == "niche" and mp[1] in tax[parent])
+                   for mp in got), (phrase, got)
+
+
+def test_a_firms_own_bookkeeping_is_not_its_clients_industry():
+    import json
+
+    from system_b.clients.inventory import LOCAL_TAXONOMY
+    from system_b.gift.taxonomy import map_industry_candidates
+    tax = json.loads(LOCAL_TAXONOMY.read_text())["taxonomy"]
+    said = ("Are you a plumber that needs help with ongoing bookkeeping, payroll setup, "
+            "and other financial services? We're here to help.")
+    got = map_industry_candidates(said, said, tax)
+    assert ("niche", "accounting_bookkeeping") not in got
+    assert ("niche", "hvac_plumbing_electrical") in got
+    assert ("niche", "accounting_bookkeeping") in map_industry_candidates(
+        "CPA and accounting firms", "accounting", tax)
+
+
+def test_the_fit_check_sees_what_the_business_is():
+    from system_b.gift.fit import official_industry
+    from system_b.models import Signal
+    lead = Lead(id="1", company="Bronco Burgers, LLC", signal_type="plan_audit_first_due",
+                value_prop="With more than 120 participants, the plan must be audited.",
+                signals=[Signal(type="plan_audit_first_due", date="2026-10-01",
+                                payload={"naics": "722511"})])
+    assert official_industry(lead) == "NAICS 722511 (Food Services and Drinking Places)"
+    med = Lead(id="2", company="Capitol Hill LTAC Operations LLC",
+               signal_type="hospital_change_of_ownership",
+               signals=[Signal(type="hospital_change_of_ownership", date="2026-10-01",
+                               payload={"provider_type_text": "Long-term care hospital"})])
+    assert "Long-term care hospital" in official_industry(med)
+
+
+def test_every_stated_industry_with_local_leads_gets_tried(monkeypatch):
+    """Delightful Digits (2026-11-04) listed seven industries; the first three
+    failed the fit check and the cap stopped before real estate and
+    nonprofits, both of which pass. A vertical with no local leads now takes no
+    place, and up to MAX_FIT_CANDIDATES that do are tried."""
+    import system_b.gift.tiering as t
+    from system_b.research.models import ResearchResult
+
+    mps = [("niche", f"n{i}") for i in range(5)]
+    res = ResearchResult("niched", mps[0], "x", "site", [], [],
+                         candidate_match_params=mps, candidate_phrases=["x"] * 5,
+                         exclusivity="multiple")
+    lead = Lead(id="L", company="Hope House", signal_type="nonprofit_grant_no_finance_officer")
+    gift = type("G", (), {"all_niche": True, "leads": [lead], "gift_size": 1,
+                          "best_lead": lead})()
+    monkeypatch.setattr(t, "niche_display", lambda mp: mp[1])
+    monkeypatch.setattr(t, "build_gift", lambda p, sc, **k: gift)
+    tried: list[str] = []
+
+    def fit(label, leads):
+        tried.append(label)
+        return [label == "n4"]
+    prospect, _ = t.resolve_gift(res, {"firm_name": "F"}, None, fit=fit)
+    assert prospect.match_param == ("niche", "n4")
+    assert "n3" in tried and len(tried) <= t.MAX_FIT_CALLS

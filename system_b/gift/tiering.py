@@ -80,7 +80,13 @@ def _candidate_pairs(research: ResearchResult) -> list[tuple[tuple[str, str], st
 # touched, and the fourth candidate has never been the one that lands.
 log = logging.getLogger("system_b.gift")
 
-MAX_FIT_CANDIDATES = 3
+# Counted only for candidates that reach the fit check (a vertical with no
+# local leads costs nothing). Was 3 until 2026-11-04: Delightful Digits lists
+# seven industries, its first three failed, and real estate and nonprofits,
+# both of which pass, were never tried.
+MAX_FIT_CANDIDATES = 6
+# The spend bound: fit calls (each swap is one) across all candidates.
+MAX_FIT_CALLS = 12
 
 
 def _fitting_niche_gift(
@@ -105,6 +111,8 @@ def _fitting_niche_gift(
             return None
         if all(verdicts):
             return g
+        if not any(verdicts):
+            return None      # not one lead reads as the niche: swapping won't change that
         bad = [lead.id for lead, ok in zip(g.leads, verdicts) if not ok]
         if not bad:
             return None
@@ -147,15 +155,20 @@ def resolve_gift(
     best: tuple[Gift, tuple[str, str], str] | None = None
     candidates_tried = 0
     for mp, phrase in _candidate_pairs(research):
-        if candidates_tried >= MAX_FIT_CANDIDATES:
-            log.info("gift: stopping at %d candidate vertical(s) for this prospect",
-                     MAX_FIT_CANDIDATES)
+        if candidates_tried >= MAX_FIT_CANDIDATES or fit_calls >= MAX_FIT_CALLS:
+            log.info("gift: stopping at %d candidate vertical(s), %d fit check(s)",
+                     candidates_tried, fit_calls)
             break
-        candidates_tried += 1
         label = niche_display(mp)
         if not label:
             continue                                             # no clean word -> can't claim honestly
         trial = _base_prospect(row, research, classification="niched", match_param=mp)
+        # Supply first, without the model: a vertical with no local all-niche
+        # gift does not use up a candidate place.
+        supply = build_gift(trial, scraper, niche_only=True, pack=pack)
+        if supply is None or not supply.all_niche:
+            continue
+        candidates_tried += 1
         # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):
         g = _fitting_niche_gift(trial, scraper, pack, label, counting_fit)
         if g is None:

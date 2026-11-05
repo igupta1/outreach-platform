@@ -510,6 +510,20 @@ would have dropped 12 accurate cfo leads for no honesty gain.
   every run silently goes 100% generalist with no error and no flag — the
   2026-08-04 regression. A 0% niche rate means check `insight` in the blob
   FIRST. It feeds the gate only; it must never reach rendered copy.
+  Since 2026-11-04 the check also gets each lead's official industry from its
+  own record (`gift.fit.official_industry`: NAICS / SIC / NTEE titles,
+  Medicare provider type, license type; bare NAICS codes get their official
+  title from `NAICS_TITLES`), is told the note may describe a filing rather
+  than the business, and runs on gpt-4o (gpt-4o-mini rejected "Offices of
+  Physicians" as healthcare). The legal-duty leads' `insight` explains the
+  filing, so the old check rejected good leads and firms naming healthcare
+  got charities. Candidates: a vertical with no local all-niche gift takes no
+  place; up to `MAX_FIT_CANDIDATES` (6) are tried within `MAX_FIT_CALLS` (12);
+  a try where no lead fits ends that vertical (no swaps). Taxonomy aliases
+  added for HVAC / plumbing / electrical / roofing / contractors / demolition /
+  manufacturers / retailers / medical; "accounting" / "bookkeeping" count as a
+  served industry only alone or beside "firms" / "practices" (a firm's own
+  service is not its clients' industry).
 - **The fractional word is earned, not inherited.** leadgen tags a posting
   `job_fractional_cfo` / `job_fractional_controller` off a WIDE list (fractional,
   interim, part-time, outsourced, virtual, contract, temp, consultant,
