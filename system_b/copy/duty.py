@@ -501,6 +501,40 @@ DUTIES: dict[str, Duty] = {
         line="on a california top 500 tax delinquent list",
         short=("on the state's top 500 tax list", "on the state's top 500 tax list"),
         dm="on the state's top 500 tax delinquent lists"),
+    # Texas (2026-11-05): the Comptroller's MAILING address (often an agent's)
+    # is the lead's place, so "texas" is named, never "the state".
+    "charter_forfeited_for_tax": Duty(
+        plural="had their texas charters forfeited over franchise tax",
+        singular="had its texas charter forfeited over franchise tax",
+        why=("so each must catch up its franchise tax filings to reinstate",
+             "so it must catch up its franchise tax filings to reinstate"),
+        line="texas charter forfeited over franchise tax",
+        short=("with forfeited texas charters", "with a forfeited texas charter"),
+        dm="who lost their texas charter over franchise tax"),
+    "franchise_tax_forfeited": Duty(
+        plural="lost the right to do business in texas over franchise tax",
+        singular="lost the right to do business in texas over franchise tax",
+        why=("so each must catch up franchise tax filings to get it back",
+             "so it must catch up franchise tax filings to get it back"),
+        line="lost texas business rights over franchise tax",
+        short=("that lost texas business rights", "that lost texas business rights"),
+        dm="who lost the right to do business in texas over franchise tax"),
+    # Minnesota (2026-11-05): Revenue's liquor / cannabis posting lists and its
+    # revoked sales tax permits (the state from the city: Inventory normalize).
+    "tax_delinquent_posting": Duty(
+        plural="were posted by the state as behind on filing or paying their taxes",
+        singular="was posted by the state as behind on filing or paying its taxes",
+        line="posted by the state as behind on taxes",
+        short=("posted as tax-delinquent", "posted as tax-delinquent"),
+        dm="posted by the state as behind on their taxes"),
+    "sales_tax_permit_revoked": Duty(
+        plural="had their sales tax permits revoked over unpaid sales tax",
+        singular="had its sales tax permit revoked over unpaid sales tax",
+        why=("so each can't legally make taxable sales until reinstated",
+             "so it can't legally make taxable sales until reinstated"),
+        line="sales tax permit revoked over unpaid sales tax",
+        short=("with revoked sales tax permits", "with a revoked sales tax permit"),
+        dm="whose sales tax permits were revoked"),
 
     # --- Healthcare: Medicare enrollments and ownership changes ---------------
     "medicare_new_part_a_provider": Duty(

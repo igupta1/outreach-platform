@@ -144,6 +144,8 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "proprietary_90_10_near_limit", "auditor_change", "cu_approaching_fs_audit",
     # 5. tax debts and self-reported plan or 990 problems
     "federal_tax_lien", "state_tax_lien", "unemployment_tax_lien", "top_tax_delinquent",
+    "sales_tax_permit_revoked", "charter_forfeited_for_tax", "franchise_tax_forfeited",
+    "tax_delinquent_posting",          # approved 2026-11-05 (TX mailing address, MN state)
     "cannabis_licensee_tax_delinquent", "cannabis_tax_report_violation",
     "cannabis_recordkeeping_violation", "cannabis_traceability_violation",
     "cannabis_license_suspended",
