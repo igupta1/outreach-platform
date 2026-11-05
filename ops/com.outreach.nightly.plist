@@ -5,8 +5,13 @@
   <key>Label</key><string>com.outreach.nightly</string>
   <key>ProgramArguments</key>
   <array><string>/bin/zsh</string><string>/Users/ishaangupta/Developer/outreach-platform/ops/nightly.sh</string></array>
+  <!-- 02:00 builds; 04:00 and 06:00 retry a failed night (nightly.RUN_HOURS) -->
   <key>StartCalendarInterval</key>
-  <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
+  <array>
+    <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
   <key>RunAtLoad</key><false/>
   <!-- not the default background throttling: the batch is the job -->
   <key>ProcessType</key><string>Interactive</string>

@@ -138,3 +138,81 @@ def test_a_cut_off_name_or_a_dba_is_a_fix():
         flags=['name cut off by the source (Urban League of Greater: "Greater") — check it']))
     whats = [i["what"] for i in items if i["kind"] == "fix"]
     assert any("DBA" in w for w in whats) and any("cut off" in w for w in whats)
+
+
+# --- the run's status: retries and the line at the top of the gate ---------
+
+from datetime import datetime as _dt
+
+from system_b.review.serve import nightly_status
+
+
+def test_a_retry_skips_a_night_already_built(tmp_path):
+    home = tmp_path
+    nightly.write_status(home, "ready", night="2026-11-06", started="2026-11-06T02:00:00")
+    assert nightly.built_tonight(home, _dt(2026, 11, 6, 4, 0))
+    assert not nightly.built_tonight(home, _dt(2026, 11, 7, 2, 0))       # a new night
+    nightly.write_status(home, "failed", night="2026-11-06", started="2026-11-06T02:00:00")
+    assert not nightly.built_tonight(home, _dt(2026, 11, 6, 4, 0))       # failed: try again
+
+
+def test_the_next_try_follows_the_launchd_hours():
+    assert nightly.next_try(_dt(2026, 11, 6, 2, 30)) == "4:00 am"
+    assert nightly.next_try(_dt(2026, 11, 6, 4, 10)) == "6:00 am"
+    assert nightly.next_try(_dt(2026, 11, 6, 6, 5)) is None
+
+
+def _status(tmp_path, now, **st):
+    logs = tmp_path / "logs"
+    logs.mkdir(exist_ok=True)
+    (logs / "nightly-status.json").write_text(json.dumps(st))
+    return nightly_status(logs, now)
+
+
+def test_the_page_says_ready_with_the_build_time(tmp_path):
+    line = _status(tmp_path, _dt(2026, 11, 6, 8, 0), state="ready", night="2026-11-06",
+                   started="2026-11-06T02:00:05", finished="2026-11-06T03:50:40", emails=200, fix=2)
+    assert line == {"kind": "ok", "text": "Ready · 200 emails · built 2:00–3:50 am · 2 to fix"}
+
+
+def test_the_page_says_why_it_is_not_ready(tmp_path):
+    failed = _status(tmp_path, _dt(2026, 11, 6, 3, 0), state="failed", night="2026-11-06",
+                     started="2026-11-06T02:00:00", finished="2026-11-06T02:40:00",
+                     reason="building the emails failed (exit 1)", next_try="4:00 am")
+    assert failed["kind"] == "bad"
+    assert failed["text"] == "Not ready: building the emails failed (exit 1) · next try 4:00 am"
+    # yesterday's batch, after tonight's 02:00: the Mac slept through it
+    stale = _status(tmp_path, _dt(2026, 11, 7, 8, 0), state="ready", night="2026-11-06",
+                    started="2026-11-06T02:00:00", finished="2026-11-06T03:50:00", emails=200)
+    assert stale["kind"] == "bad" and "This is the batch from Nov 6" in stale["text"]
+    # ...but before 02:00 yesterday's batch is still the current one
+    assert _status(tmp_path, _dt(2026, 11, 7, 1, 0), state="ready", night="2026-11-06",
+                   started="2026-11-06T02:00:00", finished="2026-11-06T03:50:00",
+                   emails=200)["kind"] == "ok"
+
+
+def test_a_build_in_progress_or_one_that_died(tmp_path):
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / ".nightly.lock").write_text(str(os.getpid()))
+    running = _status(tmp_path, _dt(2026, 11, 6, 2, 30), state="building", night="2026-11-06",
+                      started="2026-11-06T02:00:00")
+    assert running == {"kind": "wait", "text": "Not ready yet: building now (started 2:00 am)"}
+    (tmp_path / "logs" / ".nightly.lock").unlink()
+    died = _status(tmp_path, _dt(2026, 11, 6, 3, 0), state="building", night="2026-11-06",
+                   started="2026-11-06T02:00:00")
+    assert died["kind"] == "bad" and "stopped partway" in died["text"]
+
+
+def test_no_status_file_means_no_line(tmp_path):
+    assert nightly_status(tmp_path) is None
+
+
+def test_a_night_that_stops_records_why(tmp_path, monkeypatch):
+    home, _, downloads = _home(tmp_path, [], [])
+    monkeypatch.setattr(nightly, "refresh_running", lambda: True)
+    monkeypatch.setattr(nightly.morning, "check", lambda: (["nonprofit: inventory file is not valid JSON"], []))
+    monkeypatch.setattr(nightly.morning, "prospect_runway", lambda p, l: (900, 1500))
+    assert nightly.main(["--home", str(home), "--downloads", str(downloads)]) == 1
+    st = nightly.read_status(home)
+    assert st["state"] == "failed" and st["reason"] == "nonprofit: inventory file is not valid JSON"
+    assert "next_try" in st and st["night"] == _dt.now().date().isoformat()

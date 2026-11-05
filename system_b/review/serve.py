@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+from datetime import date, datetime, timedelta
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -62,10 +64,69 @@ def load_packs(paths: list[Path]) -> dict[str, Any]:
     return {"packs": packs, "errors": errors}
 
 
+def _clock(t: datetime) -> str:
+    return f"{t.hour % 12 or 12}:{t.minute:02d} {'am' if t.hour < 12 else 'pm'}"
+
+
+def _span(a: datetime, b: datetime) -> str:
+    """2:00–3:50 am; 11:40 pm–1:05 am"""
+    x, y = _clock(a), _clock(b)
+    return f"{x[:-3]}–{y}" if x[-2:] == y[-2:] else f"{x}–{y}"
+
+
+def _pid_alive(lock: Path) -> bool:
+    try:
+        os.kill(int(lock.read_text().strip()), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def nightly_status(logs: Path, now: datetime | None = None) -> dict[str, str] | None:
+    """The one line at the top of the page: is this morning's batch ready?
+
+    Read from logs/nightly-status.json (written by `system_b.nightly`).
+    {"kind": "ok" | "wait" | "bad", "text": ...}, or None when the nightly job
+    has never run here. A batch older than tonight's 02:00 run is "not ready":
+    the page then still shows it, but says it is the old one."""
+    try:
+        st = json.loads((logs / "nightly-status.json").read_text())
+    except (OSError, ValueError):
+        return None
+    now = now or datetime.now()
+    # The night the page should be showing: today's after 02:00, else yesterday's.
+    due = now.date() if now.hour >= 2 else now.date() - timedelta(days=1)
+    try:
+        night = date.fromisoformat(st.get("night") or "")
+        started = datetime.fromisoformat(st["started"])
+        finished = datetime.fromisoformat(st["finished"]) if st.get("finished") else None
+    except (KeyError, ValueError):
+        return {"kind": "bad", "text": "Not ready: the nightly status file is unreadable; see logs/nightly.log"}
+    state = st.get("state")
+    if state == "building":
+        if _pid_alive(logs / ".nightly.lock"):
+            return {"kind": "wait", "text": f"Not ready yet: building now (started {_clock(started)})"}
+        return {"kind": "bad", "text": f"Not ready: the run that started {_clock(started)} stopped "
+                                       "partway; see logs/nightly.log"}
+    if night < due:
+        last = f"{night:%b} {night.day}"
+        return {"kind": "bad", "text": f"Not ready: tonight's run has not happened (Mac asleep or off?). "
+                                       f"This is the batch from {last}" if state == "ready" else
+                                       f"Not ready: no run since {last}"}
+    if state == "ready":
+        text = f"Ready · {st.get('emails', 0)} emails · built {_span(started, finished or started)}"
+        if st.get("fix"):
+            text += f" · {st['fix']} to fix"
+        return {"kind": "ok", "text": text}
+    tail = f" · next try {st['next_try']}" if st.get("next_try") else " · no more tries tonight"
+    return {"kind": "bad", "text": f"Not ready: {st.get('reason') or 'the run failed'}{tail}"}
+
+
 def render(review_paths: list[Path]) -> bytes:
     """The page HTML with every pack's review JSON inlined. Reads all files
     fresh so a regenerate + browser refresh shows the new run."""
     data = load_packs(review_paths)
+    data["status"] = nightly_status(review_paths[0].resolve().parent / "logs")
     # Escape `<` so nothing in the copy (e.g. a stray "</script>") can break out
     # of the inline <script>. json.dumps already escapes the other specials.
     blob = json.dumps(data).replace("<", "\\u003c")

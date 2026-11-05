@@ -21,6 +21,11 @@ the review gate in the morning and find it ready, with anything to fix listed.
     6. REVIEW   `review.checks` stored in the review JSON (the gate lists them
                 at the top), and a one-screen summary in logs/nightly-latest.txt
 
+Every run records how it went in logs/nightly-status.json (building / ready /
+failed, with the reason); the review gate shows it as one line at the top.
+launchd starts the job at 02:00, 04:00 and 06:00: the later two are retries
+and exit at once when tonight's batch is already built (`--built-tonight`).
+
 Nothing is sent. The batch goes to Smartlead only when the user downloads it.
 """
 
@@ -35,6 +40,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from system_b import morning
 from system_b.review import checks
@@ -43,6 +49,9 @@ TARGET = 200
 # Below this many unsent prospects the summary says to pull a new Apollo list:
 # three nights of runway.
 LOW_RUNWAY = 600
+# launchd's start hours (ops/com.outreach.nightly.plist): the first run, then
+# two retries for a night that failed.
+RUN_HOURS = (2, 4, 6)
 BATCH_FILES = ("sequences.csv", "sequences.review.json", "sequences.backlog.csv",
                "sequences.downloaded.json")
 
@@ -124,6 +133,39 @@ def archive_batch(home: Path) -> str | None:
     return tag
 
 
+def status_path(home: Path) -> Path:
+    return home / "logs" / "nightly-status.json"
+
+
+def read_status(home: Path) -> dict[str, Any]:
+    try:
+        return json.loads(status_path(home).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def write_status(home: Path, state: str, **fields: Any) -> None:
+    """building | ready | failed, plus the night it is for (the start date),
+    the times and, for a failure, the reason and the next retry."""
+    path = status_path(home)
+    path.parent.mkdir(exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"state": state, **fields}, indent=1))
+    tmp.replace(path)
+
+
+def next_try(now: datetime) -> str | None:
+    """The next launchd start tonight ("4:00 am"), or None after the last."""
+    later = [h for h in RUN_HOURS if h > now.hour]
+    return f"{later[0]}:00 am" if later else None
+
+
+def built_tonight(home: Path, now: datetime | None = None) -> bool:
+    """Tonight's batch is already built: a retry has nothing to do."""
+    st = read_status(home)
+    return st.get("state") == "ready" and st.get("night") == (now or datetime.now()).date().isoformat()
+
+
 def refresh_running() -> bool:
     return (morning.INVENTORY_REPO / "logs" / ".refresh.lock").exists()
 
@@ -135,8 +177,32 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--target", type=int, default=TARGET)
     ap.add_argument("--downloads", type=Path, default=Path.home() / "Downloads")
     ap.add_argument("--dry-run", action="store_true", help="report steps 1-4, generate nothing")
+    ap.add_argument("--built-tonight", action="store_true",
+                    help="exit 0 if tonight's batch is already built, else 1; do nothing else")
     a = ap.parse_args(argv)
     home = a.home.resolve()
+    if a.built_tonight:
+        return 0 if built_tonight(home) else 1
+    if a.dry_run:
+        return _run(a, home)
+    started = datetime.now()
+    write_status(home, "building", night=started.date().isoformat(),
+                 started=started.isoformat(timespec="seconds"))
+    try:
+        return _run(a, home, started)
+    except Exception as exc:  # noqa: BLE001 -- recorded for the page, then raised
+        _failed(home, started, f"the run crashed ({type(exc).__name__}: {str(exc)[:120]})")
+        raise
+
+
+def _failed(home: Path, started: datetime, reason: str) -> None:
+    now = datetime.now()
+    write_status(home, "failed", night=started.date().isoformat(),
+                 started=started.isoformat(timespec="seconds"),
+                 finished=now.isoformat(timespec="seconds"), reason=reason, next_try=next_try(now))
+
+
+def _run(a: argparse.Namespace, home: Path, started: datetime | None = None) -> int:
     data = home / "system_b" / "data"
     ledger, prospects = data / "seen-prospects.csv", data / "prospects.csv"
     lines: list[str] = [f"nightly batch {datetime.now():%Y-%m-%d %H:%M}"]
@@ -145,10 +211,17 @@ def main(argv: list[str] | None = None) -> int:
         print(msg, flush=True)
         lines.append(msg)
 
-    def finish(code: int) -> int:
+    def finish(code: int, reason: str = "", **ready: Any) -> int:
         logs = home / "logs"
         logs.mkdir(exist_ok=True)
         (logs / "nightly-latest.txt").write_text("\n".join(lines) + "\n")
+        if started is not None:
+            if code == 0:
+                write_status(home, "ready", night=started.date().isoformat(),
+                             started=started.isoformat(timespec="seconds"),
+                             finished=datetime.now().isoformat(timespec="seconds"), **ready)
+            else:
+                _failed(home, started, reason)
         return code
 
     if a.dry_run:
@@ -179,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         say(f"    STOP {p}")
     if problems or unsent == 0:
         say("not generating tonight.")
-        return finish(1)
+        return finish(1, problems[0] if problems else "no prospects left: pull a new Apollo list")
     if a.dry_run:
         return finish(0)
 
@@ -194,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     review_path = home / "sequences.review.json"
     if proc.returncode != 0 or not review_path.exists():
         say(f"    generation failed (exit {proc.returncode}); see logs/nightly.log")
-        return finish(1)
+        return finish(1, f"building the emails failed (exit {proc.returncode}); see logs/nightly.log")
 
     review = json.loads(review_path.read_text())
     result = checks.check_batch(review, checks.read_rows(out))
@@ -208,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         if i["kind"] == "fix":
             say(f"    fix  {i['company']}: {i['what']}")
     say("review: http://127.0.0.1:8000")
-    return finish(0)
+    return finish(0, emails=s["prospects"], fix=s["fix"], look=s["look"])
 
 
 if __name__ == "__main__":

@@ -8,4 +8,4 @@ for name in com.outreach.nightly com.outreach.review; do
   launchctl bootstrap gui/$(id -u) "$D/$name.plist"
 done
 launchctl print gui/$(id -u)/com.outreach.nightly | grep -E "state|next" || true
-echo "installed: nightly batch at 02:00, review gate on http://127.0.0.1:8000"
+echo "installed: nightly batch at 02:00 (retries 04:00, 06:00), review gate on http://127.0.0.1:8000"

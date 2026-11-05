@@ -68,6 +68,20 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Retries and the status line (2026-11-05): launchd also starts the job at
+04:00 and 06:00 (`nightly.RUN_HOURS`); `nightly.sh` exits at once when
+`system_b.nightly --built-tonight` says tonight's batch is already built, and
+the 02:00 run's lock stops a retry while it is still going. Every run writes
+`logs/nightly-status.json` (building / ready / failed + reason + next try);
+the gate's first line reads it (`serve.nightly_status`): "Ready · 200 emails
+· built 2:00–3:50 am", "Not ready yet: building now", "Not ready: <reason> ·
+next try 4:00 am", a dead run ("stopped partway", the lock's pid is gone), or
+yesterday's batch after tonight's 02:00 ("tonight's run has not happened").
+The job forces a full wake (`caffeinate -u`, then `-i -s -w` for the whole
+script) and runs as `ProcessType Interactive`: on 2026-11-05 it started in a
+screen-off dark wake and a one-minute publish took 4.5 hours. The Mac is set
+to never sleep on the charger (`sudo pmset -c sleep 0`, run by the user).
+
 `ops/com.outreach.review.plist` keeps the gate served on
 http://127.0.0.1:8000 (KeepAlive; it re-reads the file on every request).
 Install both with `ops/install-nightly.sh`. The Mac must be awake at 02:00

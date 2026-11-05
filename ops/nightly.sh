@@ -1,8 +1,10 @@
 #!/bin/zsh
 # The nightly batch (system_b/nightly.py), from the last pushed commit whose
 # tests pass, never the working tree: another session's half-finished edit
-# broke the morning command more than once. launchd runs this at 02:00
-# (ops/com.outreach.nightly.plist); by hand: ops/nightly.sh [--dry-run].
+# broke the morning command more than once. launchd runs this at 02:00, and
+# again at 04:00 and 06:00 as retries that exit at once when tonight's batch is
+# already built (ops/com.outreach.nightly.plist). By hand: ops/nightly.sh
+# [--dry-run]; any argument skips the already-built check.
 set -u
 HOME_REPO="${OUTREACH_HOME:-$HOME/Developer/outreach-platform}"
 CODE="${OUTREACH_NIGHTLY_CODE:-$HOME/Developer/outreach-nightly}"
@@ -38,6 +40,9 @@ for f in "$HOME_REPO"/system_b/data/*(N); do
 done
 
 cd "$CODE"
+if [ $# -eq 0 ] && "$PY" -m system_b.nightly --home "$HOME_REPO" --built-tonight; then
+  echo "tonight's batch is already built; nothing to do"; exit 0
+fi
 if "$PY" -m pytest -q -x system_b/tests >"$LOGS/nightly-tests.log" 2>&1; then
   echo "$TARGET" >"$GOOD"; echo "tests pass at $TARGET"
 else
@@ -45,6 +50,8 @@ else
   echo "tests FAIL at $TARGET (logs/nightly-tests.log)"
   if [ -z "$LAST" ]; then
     printf 'nightly batch %s\nNOT RUN: tests fail on the latest code and no earlier commit has passed.\nSee logs/nightly-tests.log\n' "$(date '+%Y-%m-%d')" >"$LOGS/nightly-latest.txt"
+    printf '{"state": "failed", "night": "%s", "started": "%s", "finished": "%s", "reason": "the code tests fail and no earlier version has passed; see logs/nightly-tests.log"}\n' \
+      "$(date '+%Y-%m-%d')" "$(date '+%Y-%m-%dT%H:%M:%S')" "$(date '+%Y-%m-%dT%H:%M:%S')" >"$LOGS/nightly-status.json"
     exit 1
   fi
   git -C "$CODE" checkout -q --detach "$LAST"; echo "using the last good commit $LAST"

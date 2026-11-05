@@ -102,6 +102,11 @@
   #removed { color:var(--muted); font-size:13px; }
   button.undo { font-size:13px; font-weight:600; padding:4px 10px; background:#f1f1f4; color:#111; }
   button.undo:hover { background:#e4e4e8; }
+  /* Is this morning's batch ready? One line, first thing on the page. */
+  .status { margin:0 0 12px; padding:8px 14px; border-radius:8px; font-weight:600; font-size:14px; border:1px solid; }
+  .status.ok { background:#f0fdf4; border-color:#86efac; color:#166534; }
+  .status.wait { background:#fffbea; border-color:#e6d9a8; color:#854d0e; }
+  .status.bad { background:#fef2f2; border-color:#fca5a5; color:#b91c1c; }
   .checks { margin:12px 0 20px; padding:12px 16px; border:1px solid #e6d9a8; background:#fffbea; border-radius:8px; font-size:14px; }
   .checks h2 { font-size:15px; margin:0 0 6px; }
   .checks ul { margin:4px 0 8px 18px; padding:0; }
@@ -112,6 +117,7 @@
 </head>
 <body>
 <header>
+  <div class="status" id="status" hidden></div>
   <h1 id="count">—</h1>
   <div class="sub" id="meta"></div>
 </header>
@@ -623,6 +629,16 @@ function download(name, columns, packIndex) {
 document.getElementById("download-all")
   .addEventListener("click", () => download("all-emails.csv", EMAIL_COLUMNS, null));
 
+function renderStatus() {
+  const st = DOC.status;
+  if (!st) return;
+  const box = document.getElementById("status");
+  box.className = "status " + st.kind;
+  box.textContent = st.text;
+  box.hidden = false;
+}
+
+renderStatus();
 render();
 renderChecks();
 </script>
