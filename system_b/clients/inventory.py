@@ -765,6 +765,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
         pain_reasons=[str(r) for r in (row.get("pain_reasons") or [])][:4],
         role_qualifier=qualifier,
         service_tags=[str(t) for t in (row.get("service_tags") or [])],
+        org_type=row.get("org_type"),
         signal_type=signal_type,
         freshness=freshness,
         signals=signals,
@@ -1034,6 +1035,98 @@ def _past_expiry(row: dict[str, Any], today: date) -> bool:
         return False
 
 
+# --- not a buyer, too old, not in the US (2026-11-05, the user) ---------------
+#
+# A gift is three organizations a finance firm could win as clients. These
+# never could, or the record no longer says anything current:
+#   * a public company big enough to file as an (large) accelerated filer, a
+#     blank-check shell (SIC 6770), a government-sponsored enterprise, or a
+#     retirement plan with more than 500 participants: each has its own finance
+#     team (two batches handed GoPro, News Corp, Driven Brands, Fannie Mae and
+#     Barkbox's 401(k) to small firms);
+#   * an event more than 12 months old, or an annual filing (audits, 990s, plan
+#     returns, which arrive months after the year they cover) more than 24;
+#   * an address outside the US.
+# Government offices and accounting firms depend on the prospect, so they are
+# in gift.engine._off_limits, not here.
+MAX_EVENT_AGE_DAYS = 365
+MAX_ANNUAL_FILING_AGE_DAYS = 730
+MAX_PLAN_PARTICIPANTS = 500
+_ANNUAL_FILING_PREFIXES = ("nonprofit_", "plan_", "pension_", "local_gov_", "church_990t_",
+                           "union_", "charter_audit")
+_EVENT_NOT_ANNUAL = frozenset({"nonprofit_first_990", "nonprofit_new_501c3"})
+_GSE_RE = re.compile(r"\b(?:fannie mae|freddie mac|federal national mortgage|"
+                     r"federal home loan mortgage|federal home loan bank)\b", re.I)
+_US_CODES = frozenset({
+    "al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia",
+    "ks", "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj",
+    "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt",
+    "va", "wa", "wv", "wi", "wy", "dc", "pr", "gu", "vi", "as", "mp"})
+
+
+def _is_us_state(state: Any) -> bool:
+    from system_b.gift.engine import norm_state
+
+    return norm_state(str(state).replace(".", "")) in _US_CODES
+
+
+def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
+    """Why this lead is no client for a small finance firm, or None."""
+    if row.get("state") not in (None, "") and not _is_us_state(row.get("state")):
+        return "outside_us"
+    pay = {}
+    for s in lead.signals or []:
+        pay.update(s.payload or {})
+    fc = str(pay.get("filer_category") or "").lower()
+    if "accelerated" in fc and "non-accelerated" not in fc:
+        return "large_public_company"
+    if str(pay.get("sic") or "") == "6770":
+        return "blank_check_shell"
+    if _GSE_RE.search(lead.company or ""):
+        return "gse"
+    if (lead.signal_type or "").startswith(("plan_", "pension_", "welfare_")):
+        try:
+            if int(float(pay.get("participants_eoy") or 0)) > MAX_PLAN_PARTICIPANTS:
+                return "large_plan"
+        except (TypeError, ValueError):
+            pass
+    t = lead.signal_type or ""
+    annual = t.startswith(_ANNUAL_FILING_PREFIXES) and t not in _EVENT_NOT_ANNUAL
+    limit = MAX_ANNUAL_FILING_AGE_DAYS if annual else MAX_EVENT_AGE_DAYS
+    d = lead.newest_date
+    if d:
+        try:
+            if (today - date.fromisoformat(d[:10])).days > limit:
+                return "too_old"
+        except ValueError:
+            pass
+    return None
+
+
+def _property_location(row: dict[str, Any], lead: Lead) -> None:
+    """A HUD owner's record carries the OWNER's mailing address; the gift is
+    about where the property is (2026-11-05: 68 of 72 HUD leads printed the
+    owner's city). One city for every property: that city. One state: the
+    state alone. Spread out: no place, so it is never claimed as local."""
+    if lead.signal_type != "hud_new_owner":
+        return
+    props = []
+    for s in lead.signals or []:
+        props += [p for p in (s.payload or {}).get("properties") or [] if isinstance(p, dict)]
+    if not props:
+        return
+    cities = {((p.get("city") or "").strip().lower(), (p.get("state") or "").strip().upper())
+              for p in props}
+    states = {st for _, st in cities}
+    if len(cities) == 1:
+        city, st = next(iter(cities))
+        lead.city, lead.state = _clean_city(city.title()) if city else None, st or None
+    elif len(states) == 1:
+        lead.city, lead.state = None, next(iter(states)) or None
+    else:
+        lead.city, lead.state = None, None
+
+
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
     kept: list[Lead] = []
     expired = 0
@@ -1047,7 +1140,8 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
         if _is_expired_job_lead(lead, today):
             expired += 1
             continue
-        reason = _unusable_reason(row, lead)
+        _property_location(row, lead)
+        reason = _unusable_reason(row, lead) or _not_a_buyer(row, lead, today)
         if reason is not None:
             unusable[reason.split("=")[0]] += 1
             log.debug("inventory: dropped %s — %s", lead.company, reason)

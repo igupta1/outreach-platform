@@ -68,6 +68,18 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Non-buyers, old records, outside the US (2026-11-05, the user): dropped at
+load (`clients.inventory._not_a_buyer`): an (large) accelerated SEC filer, a
+blank-check shell (SIC 6770), a GSE (Fannie Mae...), a retirement plan over
+500 participants; an event over 12 months old or an annual filing (audit,
+990, plan return: `_ANNUAL_FILING_PREFIXES`) over 24 (FY audits arrive months
+late: a 12-month cut took 89% of the charity-audit leads); a state outside
+the US. HUD owners are placed where the property is (`_property_location`).
+By prospect (`gift.engine.not_a_buyer_for`): a government office unless the
+firm serves government, and an accounting firm unless it serves accounting
+firms. First run: 5,013 large plans, 1,586 too old, 173 outside the US, 46
+public companies / shells / GSEs dropped of 224k.
+
 CPA-only leads (2026-11-05, the user): a lead whose need is an audit or an
 auditor's report (`gift.engine.cpa_only`: service tags audit / audit_assurance
 / benefit_plan_audit / peo_audit, plus the single-audit and state-audit types)

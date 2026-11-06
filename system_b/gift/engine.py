@@ -898,6 +898,31 @@ def cpa_only(lead: Lead) -> bool:
             or bool(CPA_ONLY_TAGS & set(lead.service_tags or ())))
 
 
+# Never a client unless the firm serves them (2026-11-05, the user: "remove
+# non-buyers"): a government office (a county's fiscal division was a lead),
+# and an accounting firm handed to an accounting firm (a competitor).
+_ACCOUNTING_FIRM_TYPES = frozenset({"cpa_firm_license_delinquent", "cpa_firm_license_expired",
+                                    "ny_new_cpa_firm"})
+_ACCOUNTING_NAME_RE = re.compile(r"\b(?:cpas?|accounting|accountants?|bookkeeping|"
+                                 r"bookkeepers?|tax (?:service|preparation|prep))\b", re.I)
+
+
+def _serves(prospect: Prospect, *words: str) -> bool:
+    mp = prospect.match_param
+    return bool(mp) and any(w in (mp[1] or "") for w in words)
+
+
+def not_a_buyer_for(lead: Lead, prospect: Prospect) -> bool:
+    if (lead.org_type or "") in ("government", "local_government") \
+            and not _serves(prospect, "government", "public_sector"):
+        return True
+    firm = (lead.signal_type in _ACCOUNTING_FIRM_TYPES
+            or "accounting_firm_services" in (lead.service_tags or ())
+            or (lead.niche or "") == "accounting_bookkeeping"
+            or bool(_ACCOUNTING_NAME_RE.search(lead.company or "")))
+    return firm and not _serves(prospect, "accounting")
+
+
 def _off_limits(lead: Lead, prospect: Prospect) -> bool:
     """A lead this prospect must never see: its own audit client, an
     organization this firm was already handed (or, with
@@ -905,7 +930,7 @@ def _off_limits(lead: Lead, prospect: Prospect) -> bool:
     `gift.allocation`), a license another state issued, or audit work when
     the firm is not a CPA firm (`cpa_only`)."""
     key = lead.allocation_key
-    if cpa_only(lead) and not prospect.is_cpa:
+    if (cpa_only(lead) and not prospect.is_cpa) or not_a_buyer_for(lead, prospect):
         return True
     return _audited_by(lead, prospect) or _licensed_elsewhere(lead, prospect) or (
         key is not None and key in prospect.blocked_identities)
