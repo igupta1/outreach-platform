@@ -100,4 +100,8 @@ def record_fact(lead: Lead) -> str:
     if (lead.signal_type or "").startswith(("plan_", "welfare_")) and isinstance(n, (int, float)) \
             and not isinstance(n, bool) and n > 0:
         return f"{int(n)} in the plan"
+    units = p.get("units_total")
+    if (lead.signal_type or "") == "hud_new_owner" and isinstance(units, (int, float)) \
+            and not isinstance(units, bool) and units > 0:
+        return f"{int(units)} units"
     return _contact(lead)

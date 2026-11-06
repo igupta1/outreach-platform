@@ -38,6 +38,7 @@ def test_the_fact_follows_the_record_in_order():
     assert record_fact(_lead("nonprofit_going_concern", {"total_revenue": 18448862.0})) \
         == "$18.4m in revenue"
     assert record_fact(_lead("plan_audit_first_due", {"participants_eoy": 121})) == "121 in the plan"
+    assert record_fact(_lead("hud_new_owner", {"units_total": 472})) == "472 units"
 
 
 def test_a_contact_is_printed_only_with_a_plain_role():
