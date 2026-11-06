@@ -62,6 +62,16 @@ def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> 
     )
 
 
+def fit_label(mp: tuple[str, str], label: str, phrase: str | None) -> str:
+    """What the fit check judges leads against. A broad INDUSTRY candidate is
+    judged against the firm's own words too: hospices are "healthcare", but
+    not what a firm serving "Biotech Startups" serves (2026-11-05)."""
+    if mp[0] == "niche" or not phrase or phrase.strip().lower() == label.strip().lower():
+        return label
+    return (f"{label}, specifically the kind of client this firm names in its own words: "
+            f"\"{phrase.strip()}\" (a company of another kind within {label} does not fit)")
+
+
 def _supply_key(gift: Gift, rank: dict[str, int]) -> tuple[int, int]:
     """Rank candidate gifts by lead supply: more leads first, then a stronger
     best-lead signal (per the active pack's rank). All contenders are all-niche."""
@@ -163,7 +173,7 @@ def resolve_gift(
         fit_calls += 1
         return fit(label, leads)
 
-    best: tuple[Gift, tuple[str, str], str] | None = None
+    best: tuple[Gift, tuple[str, str], str, tuple] | None = None
     candidates_tried = 0
     for mp, phrase in _candidate_pairs(research):
         if candidates_tried >= MAX_FIT_CANDIDATES or fit_calls >= MAX_FIT_CALLS:
@@ -185,18 +195,21 @@ def resolve_gift(
             continue
         candidates_tried += 1
         # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):
-        g = _fitting_niche_gift(trial, scraper, pack, label, counting_fit)
+        g = _fitting_niche_gift(trial, scraper, pack, fit_label(mp, label, phrase), counting_fit)
         if g is None:
             continue                                             # no all-fitting niche gift -> drop
-        if best is None or _supply_key(g, rank) > _supply_key(best[0], rank):
-            best = (g, mp, phrase)
+        # The exact niche beats its broad parent at equal size (2026-11-05: a
+        # "Biotech Startup" firm was handed hospices as "healthcare").
+        key = (*_supply_key(g, rank)[:1], 1 if mp[0] == "niche" else 0, *_supply_key(g, rank)[1:])
+        if best is None or key > best[3]:
+            best = (g, mp, phrase, key)
 
     if fit_calls:
         log.info("gift: %d fit check(s) across %d candidate vertical(s)",
                  fit_calls, candidates_tried)
 
     if best is not None:
-        gift, mp, phrase = best
+        gift, mp, phrase, _ = best
         candidates = research.candidate_match_params
         if research.niche_source == "client_list":
             exclusivity = "sole"                                 # client list = sole focus

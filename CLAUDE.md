@@ -68,6 +68,35 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Lead-quality pass (2026-11-05, the user: "yes please do all of these"):
+- Sensitive industries (`engine.sensitive`: cannabis, churches' 990-Ts,
+  unions, security grants (90% congregations), HOAs / new condo associations,
+  nursing-home ownership changes) reach only a firm whose niche the lead is
+  in (`not_a_buyer_for`). A borrower with NAICS 5412 is an accounting firm.
+  A public company's restatement / Nasdaq late-filing notice is CPA-only.
+- Dropped at load (`clients.inventory._not_a_buyer`): holding / deal vehicles
+  and hotels (`_HOLDING_RE`: holdings, holdco, opco, propco, "Acquisition
+  LLC", hotel, resort, inn & suites, health system; SBA NAICS 7211), national
+  chains (`_CHAINS_RE`, whole words, possessives), expanding companies whose
+  registered agent is CT / CSC / Cogency / NRAI, and `plan_audit_first_filed`
+  (an auditor already signed). First run: 5,081 holding/hotel, 1,937 need met,
+  767 big agents, 127 chains.
+- Names: licence and permit records print the regulator's trade name
+  (`_trade_name`: "Big Air Plano", not "Ohana Family Ventures Inc"); a liquor
+  licence for an eating place is tagged hospitality_food / restaurant; a cut-off
+  IRS name takes the state registry name that extends it (`_full_name`); a
+  bracketed "(DBA X)" prints X.
+- The exact niche beats its broad parent at equal gift size, and a broad
+  INDUSTRY candidate's fit check is judged against the firm's own words
+  (`tiering.fit_label`: hospices are not "Biotech Startups").
+- Email 2 tries the firm's own state first (`build_gift(in_state=True)`):
+  same kind in state, any niche lead in state, then further out.
+- Facts: an SBA loan names the business ("$3.7m loan, software publishers"),
+  liquor licences their kind ("restaurant license"), security grants their
+  amount, Texas permits and expanding companies their industry, new practices
+  their specialty; roles widened (MGR, officer, member, chair...); a fact never
+  repeats its line's word ("approved for an sba loan ($2.2m)").
+
 Growth first, trouble to the firms that fix it (2026-11-05, the user): the walk,
 the email's lead order and the subject's lead sort by `gift.engine.band_for`,
 per prospect. New money / new duties (contracts, duties just switched on):

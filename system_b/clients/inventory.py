@@ -228,6 +228,7 @@ _AKA_RE = re.compile(r"\s+(?:a/k/a|aka|f/k/a|fka)(?:\s+|$)", re.IGNORECASE)
 # "JRSK, Inc. DBA Away", "TPMB, LLC DBA Taxman, Pollock, Murray and Bekkerman,
 # LLC": the trade name after DBA is the name people know (2026-11-04).
 _DBA_RE = re.compile(r"\s+(?:d/b/a|dba|d\.b\.a\.?)\s+", re.IGNORECASE)
+_DBA_PAREN_RE = re.compile(r"\(\s*(?:d/b/a|dba|d\.b\.a\.?)\s+([^)]+)\)", re.IGNORECASE)
 # A trust's instrument date: "Chen Frame Foundation DTD December 30 2009".
 _TRUST_DATE_RE = re.compile(r"[\s,]+(?:u/?a\s+)?(?:dtd|dated)\b.*$", re.IGNORECASE)
 
@@ -515,6 +516,10 @@ def _clean_company_name(name: str) -> str:
     # "Ioos Association, Inc. A/K/A Ioos Association": the alias repeats the
     # name, and a slash-acronym in an email reads as a filing.
     name = _AKA_RE.split(name, maxsplit=1)[0].rstrip(" ,")
+    # "United Operations (DBA Newity LLC)": the trade name in brackets.
+    m = _DBA_PAREN_RE.search(name)
+    if m and m.group(1).strip(" ,"):
+        name = m.group(1).strip(" ,")
     parts = _DBA_RE.split(name, maxsplit=1)
     if len(parts) == 2 and parts[1].strip(" ,"):
         name = parts[1].strip(" ,")
@@ -660,6 +665,43 @@ def _entity_id(row: dict[str, Any]) -> str | None:
     return f"domain:{domain}" if domain else None
 
 
+# The sign on the door, not the owner's LLC (2026-11-05: "1745 Restaurant LLC"
+# is Ciao Nonna). Only for licence and permit records, where the regulator
+# prints the trade name it licensed; never a guess.
+_TRADE_NAME_TYPES = ("liquor_license_", "tx_new_sales_tax_permit", "tx_late_sales_tax_registration",
+                     "tx_health_spa_new", "fl_health_studio_new", "ct_health_club_new",
+                     "cannabis_", "chicago_new_food_license")
+_EATING_PLACE_RE = re.compile(r"eating place|restaurant", re.I)
+
+
+def _full_name(row: dict[str, Any]) -> str | None:
+    """The state registry's name when the IRS one is it, cut off (the IRS keeps
+    35 characters): the record matched the two on name + zip + street, so it
+    is the same organization. Only when the registry name EXTENDS the IRS one."""
+    raw = str(row.get("name") or "")
+    full = ""
+    for sig in row.get("signals") or []:
+        full = full or str((sig.get("payload") or {}).get("state_name") or "")
+    norm = lambda x: re.sub(r"[^a-z0-9]+", " ", x.lower()).strip()  # noqa: E731
+    if full and len(norm(full)) > len(norm(raw)) and norm(full).startswith(norm(raw)):
+        return full
+    return None
+
+
+def _trade_name(row: dict[str, Any]) -> str | None:
+    t = str(row.get("signal_type") or "")
+    if not t.startswith(_TRADE_NAME_TYPES):
+        return None
+    pay = {}
+    for sig in row.get("signals") or []:
+        pay.update(sig.get("payload") or {})
+    dba = row.get("dba") or pay.get("trade_name") or pay.get("dba_name") or pay.get("outlet_name")
+    dba = " ".join(str(dba or "").split())
+    if not dba or dba.lower() == str(row.get("name") or "").strip().lower():
+        return None
+    return dba.title() if dba.isupper() else dba
+
+
 def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
     """Map one leadgen inventory row onto the outreach `Lead` shape.
 
@@ -679,10 +721,13 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
                               plain_words_description=s.get("evidence_text"),
                               source_url=s.get("source_url"))
     """
-    company = _clean_company_name(row.get("name") or "")
+    company = _clean_company_name(_trade_name(row) or _full_name(row) or row.get("name") or "")
     primary = _primary_signal(row)
     industry, niche = _taxonomy_tags(row.get("industry"), row.get("niche"),
                                      (primary.get("payload") or {}).get("sic"))
+    if industry in (None, "other") and _EATING_PLACE_RE.search(
+            str((primary.get("payload") or {}).get("license_label") or "")):
+        industry, niche = "hospitality_food", niche or "restaurant"
 
     freshness = _freshness(primary.get("event_date"), today)
     # Contract v2: the source says how long the lead holds (`expires_at`; one
@@ -1053,6 +1098,39 @@ def _past_expiry(row: dict[str, Any], today: date) -> bool:
 #   * an address outside the US.
 # Government offices and accounting firms depend on the prospect, so they are
 # in gift.engine._off_limits, not here.
+# Not a small local client (2026-11-05, the user: "skip chains and holding
+# companies"): an asset-holding or deal vehicle ("Opco", "Holdings", "XYZ
+# Acquisition LLC"), a hotel, a health system, a national chain, or a company
+# whose registered agent is one of the big corporate agents (CT Corporation,
+# CSC, Cogency, NRAI: a sign of a larger firm).
+_HOLDING_RE = re.compile(
+    r"\b(?:opco|propco|holdco|holdings?|holding co(?:mpany)?|acquisitions?\s+(?:llc|inc|corp|co)\b|"
+    r"health ?care system|health system|hospital system|hotels?|motel|resorts?|lodging|"
+    r"inn (?:&|and) suites)\b", re.I)
+_CHAINS = (
+    "walmart", "wal-mart", "target corp", "costco", "kroger", "safeway", "albertsons", "publix",
+    "whole foods", "trader joe", "cvs", "walgreen", "rite aid", "7-eleven", "circle k",
+    "dollar general", "family dollar", "home depot", "lowe's", "sam's club", "total wine",
+    "bevmo", "spec's", "h-e-b", "heb grocery", "wegmans", "sprouts", "aldi", "meijer", "hy-vee",
+    "food lion", "stop & shop", "shoprite", "wawa", "sheetz", "quiktrip", "speedway", "racetrac",
+    "casey's", "kum & go", "mcdonald", "starbucks", "chipotle", "applebee", "chili's",
+    "olive garden", "buffalo wild wings", "texas roadhouse", "outback steakhouse", "red robin",
+    "denny's", "ihop", "cheesecake factory", "p.f. chang", "dave & buster", "topgolf", "hooters",
+    "twin peaks", "yard house", "darden", "brinker", "marriott", "hilton", "hyatt",
+    "holiday inn", "hampton inn", "best western", "sheraton", "westin", "doubletree",
+    "la quinta", "embassy suites", "amazon.com", "taco bell", "dunkin", "panera", "subway")
+# Whole words only ("aldi" is not "Valdivia"); a brand that is also a place
+# or a word is matched only in a form a chain uses ("Hilton Head Plumbing"
+# and "Subway Tile" are not chains).
+_CHAINS_RE = re.compile(r"(?<![\w'])(?:" + "|".join(re.escape(c) for c in _CHAINS
+                        if c not in ("hilton", "subway", "speedway", "aldi", "target corp", "spec's"))
+                        + r"|hilton (?:hotels?|garden inn|worldwide)|subway (?:restaurants?|sandwich)"
+                        + r"|speedway llc|aldi inc|target corporation|spec's (?:wine|family)"
+                        + r")(?:'s)?(?![\w'])", re.I)
+_BIG_AGENTS_RE = re.compile(r"\b(?:c ?t corporation|corporation service company|\bcsc\b|"
+                            r"cogency global|national registered agents)\b", re.I)
+# Need already met: a first audited Form 5500 was filed, so an auditor signed.
+_NEED_MET = frozenset({"plan_audit_first_filed"})
 MAX_EVENT_AGE_DAYS = 365
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
@@ -1088,6 +1166,19 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
         return "blank_check_shell"
     if _GSE_RE.search(lead.company or ""):
         return "gse"
+    if (lead.signal_type or "") in _NEED_MET:
+        return "need_met"
+    names = " | ".join(str(x) for x in (lead.company, row.get("name"), row.get("dba"),
+                                         pay.get("dba_name"), pay.get("trade_name")) if x)
+    if _HOLDING_RE.search(names):
+        return "holding_or_hotel"
+    if _CHAINS_RE.search(names):
+        return "chain"
+    if str(pay.get("naics") or "").startswith("7211"):
+        return "holding_or_hotel"                     # hotels and motels (SBA)
+    if (lead.signal_type or "") == "new_business_expanding" and \
+            _BIG_AGENTS_RE.search(str(pay.get("registered_agent_org") or "")):
+        return "big_registered_agent"
     if (lead.signal_type or "").startswith(("plan_", "pension_", "welfare_")):
         try:
             if int(float(pay.get("participants_eoy") or 0)) > MAX_PLAN_PARTICIPANTS:

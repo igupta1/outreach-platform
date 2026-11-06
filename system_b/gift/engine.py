@@ -942,7 +942,9 @@ CPA_ONLY_TAGS = frozenset({"audit", "audit_assurance", "benefit_plan_audit", "pe
 CPA_ONLY_TYPES = frozenset({
     "nonprofit_single_audit_not_done", "nonprofit_single_audit_late",
     "local_gov_single_audit_late", "nonprofit_state_audit_line_no_audit",
-    "charter_audit_missing", "plan_audit_opinion_modified"})
+    "charter_audit_missing", "plan_audit_opinion_modified",
+    # a public company's restated or late financials (2026-11-05)
+    "restatement_nonreliance", "nasdaq_late_filing_deficiency"})
 
 
 def cpa_only(lead: Lead) -> bool:
@@ -964,11 +966,36 @@ def _serves(prospect: Prospect, *words: str) -> bool:
     return bool(mp) and any(w in (mp[1] or "") for w in words)
 
 
+# Industries a generalist may not want to be handed (2026-11-05, the user):
+# only to a firm whose own niche the lead is in (match level 1-3).
+SENSITIVE_PREFIXES = ("cannabis_", "church_990t_", "union_")
+SENSITIVE_TYPES = frozenset({"nsgp_security_grant_subaward",     # 90% congregations
+                             "va_hoa_new_registration", "fl_condo_new_association",
+                             "snf_change_of_ownership"})
+
+
+def sensitive(lead: Lead) -> bool:
+    t = lead.signal_type or ""
+    return (t.startswith(SENSITIVE_PREFIXES) or t in SENSITIVE_TYPES
+            or (lead.industry or "") == "cannabis" or (lead.org_type or "") == "union")
+
+
+def _in_their_niche(lead: Lead, prospect: Prospect) -> bool:
+    if prospect.classification != "niched" or not prospect.match_param:
+        return False
+    level = compute_match_level(lead, prospect)
+    return level is not None and level <= 3
+
+
 def not_a_buyer_for(lead: Lead, prospect: Prospect) -> bool:
     if (lead.org_type or "") in ("government", "local_government") \
             and not _serves(prospect, "government", "public_sector"):
         return True
+    if sensitive(lead) and not _in_their_niche(lead, prospect):
+        return True
+    naics = "".join(str((sig.payload or {}).get("naics") or "") for sig in (lead.signals or [])[:1])
     firm = (lead.signal_type in _ACCOUNTING_FIRM_TYPES
+            or naics.startswith("5412")                  # accounting / bookkeeping borrowers
             or "accounting_firm_services" in (lead.service_tags or ())
             or (lead.niche or "") == "accounting_bookkeeping"
             or bool(_ACCOUNTING_NAME_RE.search(lead.company or "")))
@@ -992,8 +1019,12 @@ def _pick_leads(
     prospect: Prospect, scraper: _Scraper, excluded: set[str], *, target: int,
     into: list[Lead], rank: dict[str, int], niche_only: bool = False,
     signal_types: frozenset[str] | None = None, nationwide: bool = False,
+    in_state: bool = False,
 ) -> None:
     """The Level walk. Mutates `into` / `excluded` in place.
+
+    `in_state` keeps the walk inside the prospect's own state: no niche-
+    anywhere level 3, no far levels (email 2 tries its state first).
 
     The match levels (`_levels_for`), then -- outside a `niche_only` build --
     the far levels (`_far_levels`: strong leads from the bordering states, then
@@ -1016,10 +1047,12 @@ def _pick_leads(
     prospect the far levels do not cover (no US state); a niched one already
     has its niche-only level 3."""
     levels = _levels_for(prospect, niche_only=niche_only)
-    far = [] if niche_only else _far_levels(prospect)
+    if in_state:
+        levels = [(lvl, kw) for lvl, kw in levels if "state" in kw]
+    far = [] if niche_only or in_state else _far_levels(prospect)
     levels += far
-    if nationwide and not far and not (prospect.classification == "niched"
-                                       and prospect.match_param):
+    if nationwide and not far and not in_state and not (prospect.classification == "niched"
+                                                        and prospect.match_param):
         levels.append((LEVEL_NATIONWIDE, {}))
     _walk(prospect, scraper, excluded, levels, target=target, into=into, rank=rank,
           backup=False, signal_types=signal_types)
@@ -1093,6 +1126,7 @@ def build_gift(
     prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
     niche_only: bool = False, pack: NichePack | None = None,
     signal_types: frozenset[str] | None = None, nationwide: bool = False,
+    in_state: bool = False,
 ) -> Gift | None:
     """Build the gift. `niche_only` (Change 2 / Gate B) restricts to on-niche
     leads (levels 1-3): the returned gift is all_niche or None, never padded
@@ -1113,7 +1147,8 @@ def build_gift(
         excluded.add(lead.id)
 
     _pick_leads(prospect, scraper, excluded, target=target, into=gift, rank=rank,
-                niche_only=niche_only, signal_types=signal_types, nationwide=nationwide)
+                niche_only=niche_only, signal_types=signal_types, nationwide=nationwide,
+                in_state=in_state)
 
     if not gift:
         return None

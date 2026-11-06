@@ -26,7 +26,9 @@ _ROLE_RE = re.compile(
     r"executive director|interim executive director|director|managing member|"
     r"managing partner|partner|principal|general manager|manager|"
     r"accounting manager|finance director|director of finance|controller|treasurer|"
-    r"administrator|plan administrator)$", re.I)
+    r"administrator|plan administrator|mgr|officer|member|managing director|chair|"
+    r"chairman|chairperson|secretary|authorized official)$", re.I)
+_ROLE_WORDS = {"mgr": "manager"}
 
 # "Department of Veterans Affairs" -> "veterans affairs"; Defense awards name
 # the service instead ("Department of the Army" -> "army").
@@ -77,7 +79,7 @@ def _contact(lead: Lead) -> str:
         return ""
     if name.isupper() or name.islower():
         name = name.title()
-    return f"{name}, {title.lower()}"
+    return f"{name}, {_ROLE_WORDS.get(title.lower(), title.lower())}"
 
 
 def record_fact(lead: Lead) -> str:
@@ -88,7 +90,12 @@ def record_fact(lead: Lead) -> str:
         return f"{award}, {who}" if who else award
     loan = money(p.get("loan_amount"))
     if loan:
-        return f"{loan} loan"
+        # The borrower's business, from the loan record's own NAICS title.
+        what = _industry(p.get("naics_description"))
+        return f"{loan} loan" + (f", {what}" if what else "")
+    grant = money(p.get("subaward_amount"))
+    if grant:
+        return f"{grant} grant"
     if (lead.signal_type or "") == "plan_late_contributions":
         late = money(p.get("amount"))
         if late:
@@ -100,8 +107,33 @@ def record_fact(lead: Lead) -> str:
     if (lead.signal_type or "").startswith(("plan_", "welfare_")) and isinstance(n, (int, float)) \
             and not isinstance(n, bool) and n > 0:
         return f"{int(n)} in the plan"
+    t = lead.signal_type or ""
+    # What the licence or permit is for, in the regulator's own words.
+    if t.startswith("liquor_license_"):
+        label = str(p.get("license_label") or "")
+        if re.search(r"eating place|restaurant", label, re.I):
+            return "restaurant license"
+        if re.search(r"beer and wine|wine and malt|beer & wine", label, re.I):
+            return "beer and wine license"
+    if t in ("tx_new_sales_tax_permit", "tx_late_sales_tax_registration", "new_business_expanding"):
+        what = _industry(p.get("naics_label") or p.get("naics_title") or p.get("naics_description"))
+        if what:
+            return what
+    if t in ("new_practice_npi", "new_practice_medicare_enrollment"):
+        what = str(p.get("taxonomy") or "").strip().lower()
+        if what and len(what) <= 40:
+            return what
     units = p.get("units_total")
     if (lead.signal_type or "") == "hud_new_owner" and isinstance(units, (int, float)) \
             and not isinstance(units, bool) and units > 0:
         return f"{int(units)} units"
     return _contact(lead)
+
+
+def _industry(text: object) -> str:
+    """A record's industry title, lowercased, when it is short enough to read
+    in a line ("software publishers", "full-service restaurants"); "" else."""
+    t = " ".join(str(text or "").split()).strip().lower()
+    if not t or len(t) > 45 or t in ("all other", "other", "unclassified"):
+        return ""
+    return t.replace(" and ", " & ") if len(t) > 35 else t

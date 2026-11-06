@@ -55,10 +55,16 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     # (build_gift excludes already-used leads via sent_lead_ids.)
     kinds = frozenset(ld.signal_type for ld in gift.leads if ld.signal_type)
     niched = prospect.classification == "niched"
+    # Their own state before anywhere else (2026-11-05, the user): the same
+    # kind in their state, then any lead of their niche in their state, and
+    # only then the same kind (or the niche) further out.
     attempts = []
     if niched:
-        attempts += [dict(niche_only=True, signal_types=kinds), dict(niche_only=True)]
-    attempts += [dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
+        attempts += [dict(niche_only=True, signal_types=kinds, in_state=True),
+                     dict(niche_only=True, in_state=True),
+                     dict(niche_only=True, signal_types=kinds), dict(niche_only=True)]
+    attempts += [dict(signal_types=kinds, in_state=True), dict(in_state=True),
+                 dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
     g = None
     for opts in attempts:
         g = build_gift(prospect, sc, target=1, pack=pack, **opts)

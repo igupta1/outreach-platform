@@ -640,6 +640,14 @@ def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str]) -> str:
     return ""
 
 
+def _unrepeated(fact: str, phrase: str) -> str:
+    """"$2.2m" after "approved for an sba 7(a) loan", not "$2.2m loan" again."""
+    for word in (" loan", " grant"):
+        if word.strip() in phrase.lower() and word + "," in fact + ",":
+            fact = fact.replace(word, "", 1)
+    return fact
+
+
 def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | None:
     """(framing, lead lines without numbers) for a record gift, or None to keep
     the legacy path."""
@@ -693,7 +701,8 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
         # One fact from the lead's own record (copy.facts, 2026-11-05).
         fact = record_fact(lead)
         if kind == "mixed":
-            lines.append(f"{name}: {magnet_phrase(lead)}" + (f" ({fact})" if fact else ""))
+            phrase = magnet_phrase(lead)
+            lines.append(f"{name}: {phrase}" + (f" ({_unrepeated(fact, phrase)})" if fact else ""))
         else:
             detail = ", ".join(b for b in (_record_detail(lead, kind), fact) if b)
             lines.append(f"{name} ({detail})" if detail else name)
@@ -1433,7 +1442,7 @@ def _record_followup(lead: Lead, prospect: Prospect) -> str | None:
         return None
     fact = record_fact(lead)                 # one fact from the record (copy.facts)
     if fact:
-        said = f"{said} ({fact})"
+        said = f"{said} ({_unrepeated(fact, said)})"
     name = spoken_name(lead.company)
     city, state = city_display(prospect.city), state_display(prospect.state)
     lead_city, lead_state = city_display(lead.city), state_display(lead.state)
