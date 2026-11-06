@@ -86,16 +86,16 @@ def test_first_990_names_the_form_and_only_the_preparer_absence_the_return_shows
     framing, lines = record_opener(g, DANA)
     assert framing.endswith("these 3 nonprofits in denver filed their first annual returns "
                             "with the irs:")
-    assert lines == ["Mile High Youth Fund (990-ez for fy2025, filed without a paid preparer)",
-                     "Front Range Arts (990 for fy2025)",
+    # 2026-11-06: no form or year (the heading says it filed its first return)
+    assert lines == ["Mile High Youth Fund (no paid preparer)",
+                     "Front Range Arts",
                      # not read for a preparer person: nothing is said
-                     "Colorado Food Bank Network (990-ez for fy2026)"]
+                     "Colorado Food Bank Network"]
     assert short_subject(g, DANA) == "3 denver nonprofits that filed their first irs returns"
     e2 = build_followup_email(g.leads[0], DANA, step=2, today=TODAY, pack=pack_for("cfo"),
                               gift_signals={"nonprofit_first_990"})
     assert e2.body.startswith("one more in denver: Mile High Youth Fund filed its first annual "
-                              "return with the irs (990-ez for fy2025, filed without a paid "
-                              "preparer).")
+                              "return with the irs (no paid preparer).")
 
 
 @pytest.mark.parametrize("t", NEW)
@@ -116,4 +116,4 @@ def test_every_record_rule_holds(t):
                   "failed", "missed", "violat"):
             assert w not in low, (w, text)
     # The engineer line calls charities organizations.
-    assert "finds organizations showing signs" in e1.body
+    assert "finds organizations that need" in e1.body

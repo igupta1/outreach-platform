@@ -418,7 +418,9 @@ _WHOLE_WORDS = frozenset({
 # names are on the FAC record, not in the inventory). A name ending on a word
 # that cannot end a name, or a long one ending on a word that usually goes on,
 # or on a stray letter, is treated as cut off: ranked last and flagged.
-_NEVER_LAST = frozenset({"of", "for", "and", "&", "greater"})
+# 2026-11-06: "The Alabama Coalition Against" (the IRS's 35 characters).
+_NEVER_LAST = frozenset({"of", "for", "and", "&", "greater", "against", "to", "with", "from",
+                         "into", "toward", "towards", "between", "among"})
 _USUALLY_CONTINUES = frozenset({
     "community", "health", "development", "educational", "housing", "family",
     "families", "american", "national", "area", "child", "children", "early",
@@ -1042,6 +1044,15 @@ _SPONSOR_TYPES = frozenset({
     "plan_termination_pending", "plan_prohibited_transaction",
     "pension_unpaid_min_contribution", "welfare_plan_audit_threshold", "plan_fraud_loss",
     "plan_audit_opinion_modified"})
+# Federal award recipients include individuals ("Alan S. Gassman", "Halpern,
+# Joseph", 2026-11-06). Judged by the ordinary rule: the strict one also read
+# "Channel Robotics" and "Boulder Insights" as people.
+_AWARD_TYPES = frozenset({"federal_cost_reimbursement_contract",
+                          "construction_federal_award_davis_bacon", "federal_first_time_grant"})
+
+
+_PLAN_NAME_RE = re.compile(r"\b401\s?\(?k\)?|\b403\s?\(?b\)?|\bpooled employer plan\b|"
+                           r"\b(?:retirement|pension|profit sharing|savings) plan\b", re.I)
 
 
 def _duty_types() -> frozenset[str]:
@@ -1054,9 +1065,19 @@ def _unusable_reason(row: dict[str, Any], lead: Lead) -> str | None:
     if _has_id_suffix(lead.company):
         return "id_suffixed_name"
     # The raw registry name: "S SATO LLC" prints as "S Sato".
-    if lead.signal_type in _duty_types() and looks_like_person(
-            row.get("name") or lead.company, strict=lead.signal_type in _SPONSOR_TYPES):
+    if (lead.signal_type in _duty_types() or lead.signal_type in _AWARD_TYPES) and \
+            looks_like_person(row.get("name") or lead.company,
+                              strict=lead.signal_type in _SPONSOR_TYPES):
         return "person_name"
+    # A name the source cut off mid-phrase ("The Alabama Coalition Against")
+    # or mid-word ("Conservati"): never printed (2026-11-06). The softer
+    # IRS-limit test stays a review flag.
+    if irs_cut_name(lead.company) or cut_off_word(lead.company):
+        return "name_cut_off"
+    # A retirement plan's own name, not its sponsor ("Simplify 401(k) Pooled
+    # Employer Plan").
+    if _PLAN_NAME_RE.search(lead.company or ""):
+        return "plan_name"
     # A domainless lead is NOT dropped here. `gift.engine.sort_key` already
     # ranks it below every resolvable company, which keeps it out of gifts that
     # have better options while still leaving it available when a narrow

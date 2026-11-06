@@ -40,14 +40,16 @@ from system_b.copy.subject import lead_noun, niche_claim
 from system_b.gift.models import Gift, Prospect
 from system_b.niches.base import NichePack, default_pack
 
+_FINANCE_PACK_KEYS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
+
 # DM #2 — the last touch on either channel. Deliberately slot-free: email #3
 # already proved this argument needs no personalization, and a message with no
 # slots is one the operator pastes rather than assembles.
+# 2026-11-06: the email's offer and goodbye, not the old "i build systems
+# for whatever's draining your week. worth a look?".
 DM_2 = (
-    "no worries if leads aren't what you're short on. i build systems for "
-    "whatever's draining your week, so if it's something else i'd be curious "
-    "what it is.\n\n"
-    "worth a look?"
+    "last one from me. if you ever want these, reply \"yes\" and i'll send 3 "
+    "every monday, free for 2 weeks. if not, no worries."
 )
 
 
@@ -149,6 +151,10 @@ def _sign_off(pack: NichePack) -> str:
     the BINARY ask (not a calendar one — see copy.email._CTA_LINE), and the
     gift offered unconditionally. Compressed from
     Email #1's left-field + CTA — a DM that runs four paragraphs is not read."""
+    if pack.key in _FINANCE_PACK_KEYS:
+        # The email's one offer (2026-11-06), not "worth a look? happy to run it".
+        return ("i'm an engineer and built this. want 3 like these every monday? "
+                "free for 2 weeks, then you decide.")
     return (
         f"built this one for {pack.dm_audience}. still tuning it, worth a look? "
         "happy to run it for you either way :)"
@@ -256,11 +262,12 @@ def _subgift(gift: Gift, prospect: Prospect, n: int) -> Gift:
                    subject_shape="singular" if n == 1 else gift.subject_shape)
 
 
-def _note_body(gift: Gift, prospect: Prospect) -> str | None:
+def _note_body(gift: Gift, prospect: Prospect, pack: NichePack | None = None) -> str | None:
     """`saw you work with nonprofits. these 2 in atlanta had ...: A; B.` or
     None when the leads are outside the record family."""
     from system_b.copy.email import record_opener
 
+    # No "saw you do ..." opener: 300 characters go to the leads.
     record = record_opener(gift, prospect)
     if record is None:
         return None
@@ -279,15 +286,26 @@ def build_connect_note(
     pack = pack or default_pack()
     for n in range(gift.gift_size, 0, -1):
         sub = _subgift(gift, prospect, n)
-        body = _note_body(sub, prospect)
+        body = _note_body(sub, prospect, pack)
         if body is None:
             return None
-        tails = (
-            f"{left_field_for(pack, sub)} {_CTA_LINE}",
-            f"{left_field_for(pack, sub)} worth a look?",
-            f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} worth a look?",
-            f"{_SHORTEST_LEFT_FIELD[n == 1]} worth a look?",
-        )
+        if pack.key in _FINANCE_PACK_KEYS:
+            # The email's offer (2026-11-06), shortest last.
+            tails = (
+                f"{left_field_for(pack, sub)} want 3 like these every monday? "
+                "free for 2 weeks, then you decide.",
+                f"{left_field_for(pack, sub)} want 3 like these every monday? free for 2 weeks.",
+                f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} want 3 every monday, free?",
+                ("i'm an engineer. my system finds more like it." if n == 1 else
+                 "i'm an engineer. my system finds these.") + " want 3 a week, free?",
+            )
+        else:
+            tails = (
+                f"{left_field_for(pack, sub)} {_CTA_LINE}",
+                f"{left_field_for(pack, sub)} worth a look?",
+                f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} worth a look?",
+                f"{_SHORTEST_LEFT_FIELD[n == 1]} worth a look?",
+            )
         for tail in tails:
             if n == 1:
                 tail = tail.replace(" like these", " like this one")

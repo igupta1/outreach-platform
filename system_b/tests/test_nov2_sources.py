@@ -219,7 +219,7 @@ def test_a_church_gift_says_churches_only_when_the_irs_codes_every_one_a_church(
     ch[1] = lead("church_990t_first", "Peace Center", {"religious_basis": "religious_org"},
                  industry="nonprofit", niche="religious")
     assert "faith-based organizations in houston" in opener(ch)
-    assert "(parking lot, fy2025)" in opener(ch)
+    assert "(parking lot)" in opener(ch)
 
 
 # --- taxonomy children + labels -------------------------------------------------------

@@ -90,7 +90,7 @@ def test_followup_lead_line_is_templated_no_dollar():
 
 def test_fallback_has_no_lead_line():
     d = build_followup_email(None, _prospect(city="Denver"), step=2, today=TODAY)
-    assert "circling back" in d.body
+    assert d.body.startswith("following up on the leads above.")
     assert d.subject == ""
 
 
@@ -172,7 +172,7 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
     # step 3 still gives an easy out: who handles new clients, or a reply word
-    assert "handles new clients" in d3.body or "won't email again" in d3.body
+    assert "who should i send these to?" in d3.body or "won't email again" in d3.body
 
 
 def test_fallback_followup_still_makes_the_ask():

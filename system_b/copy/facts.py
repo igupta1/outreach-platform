@@ -33,10 +33,6 @@ _ROLE_WORDS = {"mgr": "manager"}
 # finance help (2026-11-05): never printed.
 _FINANCE_ROLE_RE = re.compile(r"\b(?:cfo|controller|treasurer|finance|accounting)\b", re.I)
 
-# "Department of Veterans Affairs" -> "veterans affairs"; Defense awards name
-# the service instead ("Department of the Army" -> "army").
-_AGENCY_DROP = re.compile(r"^(?:u\.?s\.?\s+)?(?:department of (?:the )?)", re.I)
-
 
 def money(v: object) -> str:
     """$988k, $1.2m, $56k, $900. "" for anything that is not a positive number."""
@@ -56,21 +52,49 @@ def money(v: object) -> str:
     return f"${x:.0f}"
 
 
+# The names a finance reader knows on sight (2026-11-06: "transportation
+# dept" 54 times and "securities and exchange commission" read as jargon).
+# An agency missing here prints nothing: the dollar figure carries the line.
+_AGENCY_SHORT = {
+    "national science foundation": "nsf",
+    "national institutes of health": "nih",
+    "department of health and human services": "hhs",
+    "department of agriculture": "usda",
+    "department of the interior": "interior",
+    "department of transportation": "dot",
+    "department of commerce": "commerce",
+    "department of veterans affairs": "va",
+    "department of justice": "doj",
+    "department of homeland security": "dhs",
+    "department of energy": "doe",
+    "department of education": "education",
+    "department of the treasury": "treasury",
+    "department of state": "state dept",
+    "department of labor": "labor",
+    "department of defense": "defense",
+    "department of the army": "army",
+    "department of the air force": "air force",
+    "department of the navy": "navy",
+    "defense logistics agency": "defense",
+    "national aeronautics and space administration": "nasa",
+    "general services administration": "gsa",
+    "environmental protection agency": "epa",
+    "securities and exchange commission": "sec",
+    "federal trade commission": "ftc",
+    "social security administration": "ssa",
+    "small business administration": "sba",
+}
+
+
 def agency(p: dict) -> str:
     branch = str(p.get("branch") or "")
     if "National Institutes of Health" in branch:
         return "nih"
-    if "National Science Foundation" in branch or p.get("agency") == "National Science Foundation":
-        return "nsf"
     top = str(p.get("awarding_agency") or p.get("agency") or "").strip()
     sub = str(p.get("awarding_sub_agency") or "").strip()
     name = sub if top.lower() == "department of defense" and sub else top
-    short = _AGENCY_DROP.sub("", name).strip().lower()
-    # "transportation" alone reads as an industry: "transportation dept".
-    if short and short != name.lower() and " " not in short \
-            and short not in ("army", "navy", "defense"):
-        return f"{short} dept"
-    return short
+    name = re.sub(r"^u\.?s\.?\s+", "", name, flags=re.I).lower()
+    return _AGENCY_SHORT.get(name) or (_AGENCY_SHORT.get(top.lower(), "") if sub else "")
 
 
 def _payload(lead: Lead) -> dict:

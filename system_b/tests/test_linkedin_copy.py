@@ -55,8 +55,8 @@ def test_dm_1_opens_like_email_1_and_names_one_company():
     assert "just posted a finance role" in dm
     assert "Twin Oaks Real Estate in benicia" in dm     # company keeps its casing
     assert "hiring a founding head of finance & strategy" in dm
-    assert "built this one for fractional cfos" in dm
-    assert "worth a look?" in dm                     # every touch asks for the call
+    # the email's one offer (2026-11-06)
+    assert "want 3 like these every monday? free for 2 weeks, then you decide." in dm
     assert "Elm Grove" not in dm                         # ONE company, not the gift
 
 
@@ -113,8 +113,8 @@ def test_evergreen_names_nothing_that_can_go_stale():
     assert "flags real estate companies posting finance roles" in dm
     assert "Twin Oaks" not in dm and "benicia" not in dm
     assert "just posted" not in dm and "hiring" not in dm
-    # the ask survives — the whole point of the touch is still the call
-    assert "worth a look?" in dm
+    # the ask survives: the email's offer
+    assert "want 3 like these every monday?" in dm
 
 
 def test_evergreen_uses_geography_when_there_is_no_vertical():
@@ -129,8 +129,7 @@ def test_evergreen_uses_geography_when_there_is_no_vertical():
 def test_dm_2_is_constant_and_lead_free():
     assert build_dm_2() == build_dm_2()
     body = build_dm_2()
-    assert "no worries if leads aren't what you're short on" in body
-    assert "worth a look?" in body
+    assert body.startswith("last one from me.") and "monday" in body
 
 
 def test_no_dm_contains_an_em_dash_or_shouts():
@@ -155,4 +154,7 @@ def test_every_pack_can_render_both_dms():
         for dm in (build_dm_1(gift, prospect, pack=pack),
                    build_dm_1_evergreen(gift, prospect, pack=pack)):
             assert "None" not in dm
-            assert pack.dm_audience in dm
+            if key in ("msp", "mssp", "cloud"):
+                assert pack.dm_audience in dm
+            else:
+                assert "i'm an engineer" in dm

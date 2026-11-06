@@ -66,8 +66,8 @@ CASES = [
     (UP, {}, "moved up to a bigger contractor license"),
     (CR, {"pricing_kind": "cost-reimbursement"},
      "federal contract with every cost open to audit"),
-    (CR, {"pricing_kind": "time-and-materials"}, "hourly federal contract the government can audit"),
-    (CR, {"pricing_kind": "labor-hour"}, "hourly federal contract the government can audit"),
+    (CR, {"pricing_kind": "time-and-materials"}, "federal contract the government can audit"),
+    (CR, {"pricing_kind": "labor-hour"}, "federal contract the government can audit"),
     (CR, {}, "federal contract the government can audit"),
     (FG, {"grants_in_window": 2}, "first federal grant in 3+ years"),
     (NB, {"state": "FL", "entity_kind": "LLC"}, "just registered as a new company"),
@@ -181,7 +181,8 @@ def test_email_2_is_one_plain_sentence_in_email_1s_words():
                                 today=TODAY, pack=pack, gift_signals={DB})
     tail = "\n\nshould i keep these to florida, or go wider?"
     assert same.body == "one more in tampa: B won a federal construction job." + tail
-    assert diff.body == ("one more in tampa: New Co just registered as a new company."
+    # another kind is "also", not "one more" (2026-11-06)
+    assert diff.body == ("also in tampa: New Co just registered as a new company."
                          + tail)
     for body in (same.body, diff.body):
         assert "same signal" not in body and "offer still stands" not in body
@@ -206,7 +207,7 @@ def test_email_2_names_the_place_only_when_it_matches_the_prospect():
                                      city="Reno", state="NV"), atl, step=2, today=TODAY,
                                 pack=pack)
     assert away.body.startswith(
-        "one more: Far Co in reno won an hourly federal contract the government can audit.")
+        "one more: Far Co in reno won a federal contract the government can audit.")
 
 
 def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():

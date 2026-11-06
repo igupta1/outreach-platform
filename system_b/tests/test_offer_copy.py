@@ -28,25 +28,25 @@ def _lead(t, name="Acme Llc", payload=None, **kw):
 def test_the_offer_is_free_weekly_leads_with_one_ask_and_no_price():
     a = offer.cta("A", offer.scope("construction companies", "florida"))
     assert a == ('want 3 like these every monday, only construction companies in florida? '
-                 'free for 2 weeks. just reply "yes".')
+                 'free for 2 weeks, then you decide. just reply "yes".')
     b = offer.cta("B", "")
     for line in (a, b):
         assert line.count("?") == 1 and "free for 2 weeks" in line and "$" not in line
         assert "set it up" not in line
 
 
-def test_each_prospect_keeps_one_variant_and_the_two_split_the_batch():
+def test_each_prospect_keeps_one_variant_and_only_a_runs_for_now():
     emails = [f"owner{i}@firm{i}.com" for i in range(400)]
     got = [offer.variant_for(e) for e in emails]
     assert got == [offer.variant_for(e) for e in emails]          # stable
-    assert 150 < got.count("A") < 250                              # about half each
+    assert got.count("A") == 400                                   # one version for now (2026-11-06)
     assert offer.variant_for(None) == "A"
 
 
 def test_the_fixed_sentences_vary_by_prospect_but_keep_the_engineer():
     lines = {offer.engineer_line(f"x{i}@y.com", "companies", "finance") for i in range(60)}
     assert len(lines) == 3 and all(ln.startswith("i'm an engineer") for ln in lines)
-    finals = {offer.final_note(f"x{i}@y.com", "Peak Books") for i in range(60)}
+    finals = {offer.final_note(f"x{i}@y.com") for i in range(60)}
     assert len(finals) == 2 and all(f.startswith("last one from me.") for f in finals)
     assert all("custom tools" not in f for f in finals)
 
@@ -87,3 +87,67 @@ def test_names_that_are_not_companies_and_finance_contacts_are_left_out():
     assert why(_lead("nonprofit_going_concern", "Regional Food Bank")) is None
     cfo_contact = _lead("hrsa_new_health_center", contact_name="Tony Duong", contact_title="CFO")
     assert record_fact(cfo_contact) == ""
+
+
+# --- 2026-11-06: the second copy pass ---------------------------------------
+
+def test_one_call_to_action_says_what_happens_after_two_weeks():
+    assert offer.ACTIVE == ("A",)
+    assert {offer.variant_for(f"a{i}@b.com") for i in range(50)} == {"A"}
+    assert "then you decide" in offer.cta("A", "") and "then you decide" in offer.cta("B", "")
+
+
+def test_email_3_names_no_firm_and_is_not_a_jab():
+    finals = {offer.final_note(f"x{i}@y.com") for i in range(60)}
+    assert all("matter" not in f and " at " not in f for f in finals)
+
+
+def test_email_2_asks_about_their_state_only_when_email_1_was_from_it():
+    assert "keep these to ohio" in offer.followup_question(None, "ohio", cfo=False)
+    assert all("keep these" not in offer.followup_question(f"k{i}", None, cfo=True)
+               for i in range(20))
+
+
+def test_a_no_niche_email_opens_on_what_they_do():
+    from system_b.copy.email import record_opener
+    from system_b.gift.models import Gift
+    from system_b.niches.base import pack_for
+
+    leads = [mk(f"d{i}", "construction_federal_award_davis_bacon", city=c, state="CO")
+             for i, c in enumerate(("Boulder", "Pueblo", "Aurora"))]
+    g = Gift(leads=leads, best_lead=leads[0], gift_size=3, all_niche=False, geo_level="state",
+             subject_shape="plural", what_category="davis_bacon", best_lead_level=2)
+    p = Prospect(firm_name="Peak Books", city="Denver", state="CO")
+    assert record_opener(g, p, pack_for("bookkeeping"))[0].startswith(
+        "saw you do bookkeeping in denver. these 3")
+    assert record_opener(g, p, pack_for("finance"))[0].startswith(
+        "saw you help companies with their finances in denver.")
+    away = Gift(leads=leads, best_lead=leads[0], gift_size=3, all_niche=False, geo_level="none",
+                subject_shape="plural", what_category="davis_bacon", best_lead_level=4)
+    assert record_opener(away, Prospect(firm_name="X", city="Lincoln", state="NE"),
+                         pack_for("cfo"))[0].startswith("saw you do fractional cfo work. ")
+
+
+def test_names_a_reader_would_trip_on_never_reach_a_gift():
+    from system_b.clients.inventory import _unusable_reason
+
+    def lead(name, t="federal_cost_reimbursement_contract"):
+        return Lead(id=name, company=name, signal_type=t, city="Austin", state="TX",
+                    signals=[Signal(type=t, date="2026-10-01", payload={})])
+    assert _unusable_reason({}, lead("The Alabama Coalition Against", "nonprofit_new_501c3")) \
+        == "name_cut_off"
+    assert _unusable_reason({}, lead("Alan S. Gassman, P.A")) == "person_name"
+    assert _unusable_reason({}, lead("Channel Robotics")) is None
+    assert _unusable_reason({}, lead("Simplify 401(k) Pooled Employer Plan",
+                                     "plan_late_contributions")) == "plan_name"
+    assert _unusable_reason({}, lead("Peas Research")) is None
+
+
+def test_a_first_plan_audit_is_cpa_work_and_new_york_registrations_stay_in_new_york():
+    from system_b.gift.engine import _licensed_elsewhere, cpa_only
+    plan = mk("p", "plan_audit_first_due", city="Austin", state="TX")
+    plan.service_tags = []
+    assert cpa_only(plan)
+    law = mk("l", "ny_new_law_firm", city="Palm Beach", state="FL")
+    assert _licensed_elsewhere(law, Prospect(firm_name="X", city="Tampa", state="FL"))
+    assert not _licensed_elsewhere(law, Prospect(firm_name="X", city="Albany", state="NY"))

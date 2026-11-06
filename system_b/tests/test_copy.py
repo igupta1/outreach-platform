@@ -250,7 +250,7 @@ def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
     a = offer.cta("A", offer.scope("construction companies", "florida"))
     b = offer.cta("B", "")
     assert a == ('want 3 like these every monday, only construction companies in florida? '
-                 'free for 2 weeks. just reply "yes".')
+                 'free for 2 weeks, then you decide. just reply "yes".')
     assert a.count("?") == 1 and b.count("?") == 1
     assert "free for 2 weeks" in b and "$" not in a + b      # an offer, no price
 
@@ -279,8 +279,7 @@ def test_every_pack_shares_the_one_left_field_line():
             # 2026-10-24: what makes the gift different and what it does for
             # them. Never "real time" (the inventory is refreshed by hand).
             help_word = {"cfo": "finance", "finance": "finance"}.get(key, key)
-            assert line == ("i'm an engineer. i built a system that finds companies "
-                            f"showing signs they need {help_word} help.")
+            assert line == f"i'm an engineer. my system finds companies that need {help_word} help."
             assert "real time" not in line
         if key in ("msp", "mssp", "cloud"):
             assert pack.dm_audience in line

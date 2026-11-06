@@ -169,13 +169,13 @@ def test_a_first_plan_audit_gift_renders_exactly():
               ("Car Source Llc", "Bright Dental Group", "Summit Roofing Inc")])
     assert body(g) == (
         "hey dana,\n\n"
-        "these 3 companies in columbus have retirement plans "
+        "saw you do fractional cfo work. these 3 companies in columbus have retirement plans "
         "that passed 120 participants, so each now needs its first independent "
         "plan audit:\n\n"
         "1. Car Source\n2. Bright Dental Group\n3. Summit Roofing\n\n"
-        "i'm an engineer. i built a system that finds companies showing signs they need "
+        "i'm an engineer. my system finds companies that need "
         "finance help.\n\n"
-        'want 3 like these every monday, in ohio? free for 2 weeks. just reply "yes".')
+        'want 3 like these every monday, in ohio? free for 2 weeks, then you decide. just reply "yes".')
     assert short_subject(g, DANA) == "3 columbus companies needing their first plan audit"
 
 
@@ -216,7 +216,7 @@ def test_a_late_union_report_says_how_late_and_calls_them_unions():
     assert framing.endswith("these 2 unions in columbus filed their yearly labor "
                             "department financial reports late:")
     assert lines == ["Teamsters, LU 683 (18 months late)", "Boilermakers, LG 92 (3 months late)"]
-    assert "organizations showing signs" in body(g)          # the engineer line
+    assert "organizations that need" in body(g)          # the engineer line
 
 
 def test_a_mixed_line_speaks_like_row_1():
@@ -407,8 +407,9 @@ def test_a_persons_name_is_never_a_duty_lead(name, person):
     assert why({"name": "KREYNE SATO"}, lead("plan_late_contributions", name="Kreyne Sato")) \
         == "person_name"
     assert why({}, lead("union_funds_shortage", name="Kreyne Sato")) is None
-    # The original five are judged as before: no person rule there.
-    assert _unusable_reason({}, lead("federal_first_time_grant", name=name)) is None
+    # Federal award recipients too (2026-11-06: "Kayle Stremler" won a contract).
+    assert (_unusable_reason({}, lead("federal_first_time_grant", name=name)) == "person_name") \
+        is person
 
 
 def test_an_expanding_business_says_where_it_registered_and_what_it_is():

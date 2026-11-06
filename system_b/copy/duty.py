@@ -585,7 +585,7 @@ DUTIES: dict[str, Duty] = {
         why=("so each owes hud yearly financial statements",
              "so it owes hud yearly financial statements"),
         line="new owner of hud-assisted housing",
-        short=("that bought hud-assisted housing", "that bought hud-assisted housing"),
+        short=("now owning hud-assisted housing", "now owning hud-assisted housing"),
         dm="becoming owners of hud-assisted housing"),
     "tcac_placed_in_service": Duty(
         plural="placed tax-credit housing projects in service",
@@ -878,13 +878,9 @@ def _gap_years(lead: Lead) -> str:
 # (`paid_preparer_listed` is False; None = not read, so nothing is said).
 
 def _first_990_detail(lead: Lead) -> str:
-    p = _payload(lead)
-    form = "990-ez" if str(p.get("return_type") or "").upper() == "990EZ" else "990"
-    year = p.get("tax_year")
-    detail = f"{form} for fy{year}" if year else form
-    if p.get("paid_preparer_listed") is False:
-        detail += ", filed without a paid preparer"
-    return detail
+    # 2026-11-06: not "990 for fy2025" (the heading already says it filed its
+    # first return); only the one fact a reader can use.
+    return "no paid preparer" if _payload(lead).get("paid_preparer_listed") is False else ""
 
 
 HELD_DUTIES: dict[str, Duty] = {
@@ -1652,9 +1648,7 @@ def _church_990t_detail(lead: Lead) -> str:      # "(parking lot rental, fy2025)
     act = " ".join(str(p.get("activity") or "").lower().split())
     if _ENTITY_WORD.search(act):
         act = ""
-    year = p.get("tax_year")
-    return ", ".join(x for x in (act if 0 < len(act) <= 40 else "",
-                                 f"fy{year}" if year else "") if x)
+    return act if 0 < len(act) <= 40 else ""
 
 
 DUTIES.update({
@@ -1829,7 +1823,7 @@ DUTIES.update({
         singular="won its first federal sbir research award",
         why=_GRANT_RULES,
         line="first federal sbir research award",
-        short=("with a first sbir award", "with a first sbir award"),
+        short=("with first sbir awards", "with a first sbir award"),
         dm="winning their first sbir award"),
 })
 

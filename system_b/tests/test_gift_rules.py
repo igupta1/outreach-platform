@@ -72,7 +72,8 @@ def test_a_closer_place_beats_a_stronger_type_within_a_band():
     city_plan = lead("City Plan Co", "plan_audit_first_due", industry="other")  # medium, city
     state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")  # strong
     assert names(geo(), [state_audit, city_award], target=2) == ["City Award", "State Charity"]
-    assert names(geo(), [state_audit, city_plan], target=1) == ["City Plan Co"]
+    # (a first plan audit is CPA work: a CPA firm)
+    assert names(geo(is_cpa=True), [state_audit, city_plan], target=1) == ["City Plan Co"]
 
 
 def test_a_weak_city_lead_gives_way_to_a_strong_one_in_the_state():

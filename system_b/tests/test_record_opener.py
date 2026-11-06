@@ -64,9 +64,8 @@ def test_the_users_example_renders_exactly():
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
-        "i'm an engineer. i built a system that finds organizations showing signs "
-        "they need finance help.\n\n"
-        'want 3 like these every monday, only nonprofits in georgia? free for 2 weeks. just reply "yes".'
+        "i'm an engineer. my system finds organizations that need finance help.\n\n"
+        'want 3 like these every monday, only nonprofits in georgia? free for 2 weeks, then you decide. just reply "yes".'
     )
 
 
@@ -87,7 +86,7 @@ def test_place_is_named_only_when_every_lead_is_there():
     assert framing == ("these 2 companies in tennessee "
                        "won federal construction jobs, so each now owes weekly certified "
                        "payroll for every worker:")
-    assert lines == ["A, nashville", "B, memphis (first federal job on record)"]
+    assert lines == ["A, nashville", "B, memphis (first federal job)"]
     # Arlington WA is not Arlington TX: same city name, two states -> no place.
     g2 = gift([lead(FG, name="A", city="Arlington", state="WA"),
                lead(FG, name="B", city="Arlington", state="TX")], geo="none")
@@ -120,13 +119,13 @@ def test_a_mix_of_kinds_keeps_each_full_reason_and_no_why():
 
 def test_cost_contracts_claim_every_cost_only_when_every_one_is_cost_reimbursement():
     every = gift([lead(CR, {"pricing_kind": "cost-reimbursement"}, name=n) for n in "AB"])
-    assert "where the government can audit every cost" in record_opener(every, TROY)[0]
+    assert "where the government can check every cost" in record_opener(every, TROY)[0]
     mixed = gift([lead(CR, {"pricing_kind": "cost-reimbursement"}, name="A"),
                   lead(CR, {"pricing_kind": "time-and-materials"}, name="B")])
     framing, lines = record_opener(mixed, TROY)
-    assert "won federal contracts the government can audit, so each needs books that " \
-        "can pass a government audit:" in framing
-    assert lines == ["A", "B (hourly)"]
+    assert "won federal contracts the government can audit, so each needs " \
+        "audit-ready books:" in framing
+    assert lines == ["A", "B"]                  # no "hourly" jargon (2026-11-06)
 
 
 def test_one_lead_reads_in_the_singular():
@@ -160,11 +159,9 @@ def test_the_engineer_line_names_organizations_only_for_nonprofits():
     builders = gift([lead(DB, {}, name="A", industry="construction"),
                      lead(NP, MW, name="B")])
     assert left_field_for(cfo, charities) == (
-        "i'm an engineer. i built a system that finds organizations showing signs "
-        "they need finance help.")
+        "i'm an engineer. my system finds organizations that need finance help.")
     assert left_field_for(cfo, builders) == (
-        "i'm an engineer. i built a system that finds companies showing signs "
-        "they need finance help.")
+        "i'm an engineer. my system finds companies that need finance help.")
     assert left_field_for(pack_for("accounting"), builders).endswith("need accounting help.")
     assert left_field_for(pack_for("bookkeeping"), builders).endswith("need bookkeeping help.")
 

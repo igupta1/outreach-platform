@@ -639,6 +639,11 @@ document.getElementById("download-a")
   .addEventListener("click", () => download("variant-A-emails.csv", EMAIL_COLUMNS, null, "A"));
 document.getElementById("download-b")
   .addEventListener("click", () => download("variant-B-emails.csv", EMAIL_COLUMNS, null, "B"));
+// One call to action in the batch (2026-11-06: A only): one download button.
+if (new Set(PACKS.flatMap(pk => pk.prospects || []).map(p => p.variant || "A")).size < 2) {
+  document.getElementById("download-a").hidden = true;
+  document.getElementById("download-b").hidden = true;
+}
 
 function renderStatus() {
   const st = DOC.status;

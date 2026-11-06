@@ -905,6 +905,9 @@ ISSUED_BY: dict[str, str | None] = {
     "film_nj_credit_approved": "NJ",
     "ae_txdot_overhead_approval_lapsed": "TX",
     "ae_caltrans_first_icr_acceptance": "CA",
+    # New York State registrations: a Florida firm was handed new New York
+    # law firms (2026-11-06).
+    "ny_new_law_firm": "NY", "ny_new_cpa_firm": "NY",
 }
 
 
@@ -950,6 +953,9 @@ CPA_ONLY_TYPES = frozenset({
     "nonprofit_single_audit_not_done", "nonprofit_single_audit_late",
     "local_gov_single_audit_late", "nonprofit_state_audit_line_no_audit",
     "charter_audit_missing", "plan_audit_opinion_modified",
+    # a plan's first independent audit, tagged or not (2026-11-06: a
+    # bookkeeper was handed one whose record carried no service tag)
+    "plan_audit_first_due",
     # a public company's restated or late financials (2026-11-05)
     "restatement_nonreliance", "nasdaq_late_filing_deficiency"})
 

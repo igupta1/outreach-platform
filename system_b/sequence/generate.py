@@ -65,8 +65,11 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
         attempts += [dict(niche_only=True, signal_types=kinds, in_state=True),
                      dict(niche_only=True, in_state=True),
                      dict(niche_only=True, signal_types=kinds), dict(niche_only=True)]
-    attempts += [dict(signal_types=kinds, in_state=True), dict(in_state=True),
-                 dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
+    # Email 1 promised "only consulting firms": email 2 keeps that promise or
+    # gifts nothing (2026-11-06: Uniswap Labs followed "only consulting firms").
+    if not (niched and gift.all_niche):
+        attempts += [dict(signal_types=kinds, in_state=True), dict(in_state=True),
+                     dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
     g = None
     for opts in attempts:
         g = build_gift(prospect, sc, target=1, pack=pack, **opts)
@@ -79,11 +82,13 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
         if name_fixer is not None:
             name_fixer.tidy([lead])
 
+    # "keep these to ohio?" only when email 1's leads were in Ohio.
+    ask_state = gift.geo_level in ("city", "state")
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,
                              include_signoff=False,
                              gift_signals={ld.signal_type for ld in gift.leads},
-                             vary_key=vary_key),
+                             vary_key=vary_key, ask_state=ask_state),
         build_followup_email(None, prospect, step=3, today=today, pack=pack,
                              include_signoff=False, vary_key=vary_key),
     ]
