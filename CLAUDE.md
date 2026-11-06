@@ -199,7 +199,19 @@ the review card as `voice` / `voice_source`), first match wins:
    pack, "built this one for finance firms" ("neutral").
 
 Never a skip: every prospect comes from an Apollo finance-firm list, so a site
-that names no service is still a finance firm; only its rung is unknown. Until
+that names no service is still a finance firm; only its rung is unknown.
+The one exception (2026-11-05, the user's ask): a firm whose OWN site plainly
+sells something else is dropped before any gift or copy. The site classifier
+(`research/llm.py` rule 5) also answers what the firm itself sells; only
+staffing / marketing / software / training / investing, backed by the site's
+own words found verbatim (`classifier._attach_business`), marks it, and a firm
+whose name says CPA / accounting / bookkeeping / tax / payroll / audit is kept
+anyway (`generate.names_finance_service`). A firm that also sells any finance
+service is 'finance'; thin or unclear sites are never marked. `run.py` writes
+each one to `not-finance.csv` beside the ledger and skips it at the door from
+then on (delete the row to undo). Live check 2026-11-05: 5 of 5 repliers kept;
+staffing, software, investor and marketing sites dropped; borderline ones
+(interim-CFO search, a CFO academy that also sells CFO services) kept. Until
 2026-10-19 such a firm was held as `no_rung`. Several lists is neutral rather
 than the senior one because a firm on the CFO and accounting lists may be
 either. `run.py` still alarms when over 20% of drafted firms got their voice

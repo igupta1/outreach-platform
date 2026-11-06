@@ -54,3 +54,9 @@ class ResearchResult:
     # The ONE rung the site is plainly about (research.rung.clear_focus), or
     # None when it sells several. Only a tiebreak inside the gift.
     rung_focus: str | None = None
+    # What the firm ITSELF sells when its site plainly shows it is not a
+    # finance firm: staffing | marketing | software | training | investing, or
+    # "" (a finance firm, or not clear). Set only with `business_phrase`, the
+    # site's own words, verified verbatim (classifier._attach_business).
+    business: str = ""
+    business_phrase: str | None = None

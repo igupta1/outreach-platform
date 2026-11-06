@@ -195,7 +195,30 @@ def _classify(
     raw = llm(site) or {}
     result = _classify_niche(raw, site, taxonomy, client_fit)
     _attach_revenue(result, raw, site)
+    _attach_business(result, raw, site)
     return result
+
+
+# What a firm can sell that makes it no prospect at all (2026-11-05: ~110 of
+# 1,557 Apollo "finance firms" were staffing agencies, marketing agencies,
+# software vendors, training companies and investors).
+NON_FINANCE = ("staffing", "marketing", "software", "training", "investing")
+
+
+def _attach_business(result: ResearchResult, raw: dict[str, Any], site: dict[str, str]) -> None:
+    """Mark a firm whose own site plainly sells something other than finance
+    services. Same gate as everything else the model proposes: the phrase that
+    shows it must be on a fetched page word for word, or nothing is marked. A
+    thin or unclear site is never marked; it stays a finance firm."""
+    kind = str(raw.get("business") or "").strip().lower()
+    phrase = str(raw.get("business_phrase") or "").strip()
+    if kind not in NON_FINANCE or not phrase:
+        return
+    url = locate(phrase, site)
+    if url is None:
+        return
+    result.business, result.business_phrase = kind, phrase
+    result.evidence.append(Evidence("business", phrase, url))
 
 
 def _classify_niche(

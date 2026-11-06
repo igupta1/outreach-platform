@@ -190,6 +190,17 @@ def choose_voice(
     return NEUTRAL_PACK, "neutral"
 
 
+# A firm whose name says it does finance work is kept even when its site reads
+# like something else: "Smith CPA" with a software page is still a CPA firm.
+_FINANCE_NAME_RE = re.compile(
+    r"\b(?:cpas?|accounting|accountants?|bookkeeping|bookkeepers?|tax(?:es)?|"
+    r"payroll|audit(?:ors?)?)\b", re.I)
+
+
+def names_finance_service(firm_name: str | None) -> bool:
+    return bool(_FINANCE_NAME_RE.search(firm_name or ""))
+
+
 def generate_sequence(
     row: dict[str, Any], sc: Any, taxonomy: dict, today: date,
     *, pack_key: str = "cfo", force_pack: bool = False,
@@ -214,6 +225,22 @@ def generate_sequence(
     # decides, or the neutral voice does (`choose_voice`). `--force-pack`
     # overrides both.
     research = research_prospect(row["website"], taxonomy)
+    # Not a prospect at all: the firm's own site plainly sells staffing,
+    # marketing, software, training or investing (verified verbatim, see
+    # research.classifier._attach_business). Dropped for good by run.py
+    # (data/not-finance.csv), unless its NAME says it does finance work.
+    if getattr(research, "business", "") and not names_finance_service(row.get("firm_name")):
+        return {
+            "firm": row.get("firm_name"),
+            "status": "not_finance",
+            "not_finance": {
+                "email": (row.get("email") or "").strip().lower(),
+                "website": row.get("website", ""),
+                "firm_name": row.get("firm_name", ""),
+                "business": research.business,
+                "evidence": research.business_phrase or "",
+            },
+        }
     pack_key, voice_source = choose_voice(
         getattr(research, "rung", None), row.get("_source"),
         pack_key=pack_key, force_pack=force_pack, firm_name=row.get("firm_name"),

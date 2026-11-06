@@ -197,6 +197,33 @@ def _load_ledger(path: Path) -> set[str]:
 LEDGER_COLUMNS = ["email", "first_seen"]
 
 
+# Firms whose own site showed they sell something other than finance services
+# (sequence.generate: status "not_finance"). Never researched again: a later
+# Apollo pull that brings one back skips it at the door, like the ledger. To
+# undo one, delete its row. Kept beside the ledger (`--ledger`), not the code:
+# the nightly job runs this file from a separate checkout.
+NOT_FINANCE_NAME = "not-finance.csv"
+NOT_FINANCE_COLUMNS = ["email", "website", "firm_name", "business", "evidence", "date"]
+
+
+def _load_not_finance(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    with path.open(newline="", encoding="utf-8") as fh:
+        return {(r.get("email") or "").strip().lower() for r in csv.DictReader(fh) if r.get("email")}
+
+
+def _append_not_finance(path: Path, rows: list[dict], today: date) -> None:
+    if not rows:
+        return
+    new = not path.exists()
+    with path.open("a", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=NOT_FINANCE_COLUMNS, extrasaction="ignore")
+        if new:
+            w.writeheader()
+        w.writerows({**r, "date": today.isoformat()} for r in rows)
+
+
 def _append_ledger(path: Path, emails: list[str], today: date) -> None:
     """Append today's genuinely-new emails, with the date first seen. Append-only
     and header-on-create, so nothing this tool writes can clobber earlier rows.
@@ -340,6 +367,13 @@ def main() -> None:
             print(f"[ledger] skipping {len(prospects) - len(kept)} prospect(s) "
                   "sequenced in an earlier run")
         prospects = kept
+    not_finance_path = Path(args.ledger).with_name(NOT_FINANCE_NAME)
+    not_finance_seen = _load_not_finance(not_finance_path)
+    kept = [p for p in prospects if (p.get("email") or "").strip().lower() not in not_finance_seen]
+    if len(kept) != len(prospects):
+        print(f"[not finance] skipping {len(prospects) - len(kept)} prospect(s) whose site "
+              f"showed they are not a finance firm ({not_finance_path})")
+    prospects = kept
 
     taxonomy = load_taxonomy()
     # The lead inventory is the three VERTICAL magnets (nonprofit / funds /
@@ -383,6 +417,7 @@ def main() -> None:
     location_only: list[tuple[dict, dict]] = []
     skipped: list[tuple[str, str]] = []
     backlog: list[dict] = []
+    not_finance: list[dict] = []
     for p in prospects:
         if target is not None and len(results) >= target:
             break
@@ -396,6 +431,12 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))
+            continue
+        if res.get("status") == "not_finance":
+            nf = res["not_finance"]
+            not_finance.append(nf)
+            print(f"  · {firm:32} dropped: not a finance firm ({nf['business']}: \"{nf['evidence'][:60]}\")")
+            skipped.append((firm, f"not a finance firm ({nf['business']}): {nf['evidence'][:80]}"))
             continue
         if res.get("status") != "ok":
             row_backlog = res.get("backlog")
@@ -476,6 +517,9 @@ def main() -> None:
     # Only VALID results: a prospect the inventory could not gift was never
     # contacted, so it should be retried once the leads move.
     if not args.ignore_ledger:
+        _append_not_finance(not_finance_path, not_finance, today)
+        if not_finance:
+            print(f"[not finance] {len(not_finance)} firm(s) dropped for good -> {not_finance_path}")
         _append_ledger(
             Path(args.ledger),
             [(r.get("email") or "").strip().lower() for r in results],
