@@ -1719,6 +1719,44 @@ DUTIES.update({t: d for t, d in HELD_DUTIES.items() if t not in HELD_TYPES})
 # because a gift never names a person. Its wording stays ready.
 HELD_DUTIES["fl_bar_trust_account_discipline"] = DUTIES.pop("fl_bar_trust_account_discipline")
 
+# --- Expanding businesses (2026-11-05, approved by the user) -------------------
+# A company formed in one state that registered to do business in another
+# (Colorado / Connecticut Secretary of State). What the filing shows, nothing
+# more: where it registered and what it is ("a delaware llc"). Many are local
+# businesses formed in Delaware or Wyoming; the words hold for both.
+def _state_name(code: str | None) -> str:
+    from system_b.gift.engine import _US_STATES
+
+    names = {v: k for k, v in _US_STATES.items()}
+    return names.get((code or "").strip().lower(), "")
+
+
+def _registered_in(leads: list[Lead]) -> str:
+    states = {_state_name(_payload(ld).get("state")) for ld in leads}
+    if len(states) == 1 and next(iter(states)):
+        return f"registered to do business in {next(iter(states))}"
+    return "registered to do business in a new state"
+
+
+def _home(lead: Lead) -> str:
+    p = _payload(lead)
+    home = _state_name(p.get("home_jurisdiction"))
+    kind = {"llc": "llc", "corporation": "corporation"}.get(
+        str(p.get("entity_kind") or "").strip().lower(), "")
+    if not (home and kind):
+        return ""
+    return f"{'an' if home[0] in 'aeiou' else 'a'} {home} {kind}"
+
+
+DUTIES["new_business_expanding"] = Duty(
+    plural=_registered_in,
+    singular=lambda ld: _registered_in([ld]),
+    line=lambda ld: _registered_in([ld]),
+    detail=_home,
+    short=("newly registered in the state", "newly registered in the state"),
+    bare=True, dm="registering to do business in a new state")
+
+
 DUTY_SIGNALS = frozenset(DUTIES)
 
 

@@ -78,7 +78,7 @@ def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
     # 74 + 27 wired in 2026-11-02 + 2 Healthcare (the Inventory's APPROVED_SIGNALS has the same)
-    assert len(DUTIES) == 117      # - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
+    assert len(DUTIES) == 118      # + expanding businesses (2026-11-05, not an inventory HELD type); - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t
@@ -96,7 +96,9 @@ def test_the_inventorys_approved_list_is_this_list():
     approved = next(ast.literal_eval(n.value) for n in ast.walk(tree)
                     if isinstance(n, ast.Assign)
                     and any(getattr(t, "id", "") == "APPROVED_SIGNALS" for t in n.targets))
-    assert set(approved) == set(DUTIES)
+    # new_business_expanding is published from the inventory's off-by-default
+    # list, not its HELD types, so it is not in APPROVED_SIGNALS.
+    assert set(approved) == set(DUTIES) - {"new_business_expanding"}
 
 
 def test_strong_duties_rank_ahead_of_weak_ones_and_row_8_stays_last():
@@ -111,7 +113,9 @@ def test_strong_duties_rank_ahead_of_weak_ones_and_row_8_stays_last():
     assert order("plan_late_contributions") < order("federal_first_time_grant")
     assert order("federal_first_time_grant") < order("construction_license_upgrade") \
         < order("construction_new_licensed_business")
-    assert max(TYPE_ORDER.values()) == order("new_business_expanding")
+    # Row 8's new formations stay last; expanding businesses are a record
+    # signal of their own since 2026-11-05.
+    assert max(TYPE_ORDER.values()) == order("new_business_formed")
     assert order("new_business_formed") > max(order(t) for t in DUTIES)
     assert len(set(TYPE_ORDER.values())) == len(TYPE_ORDER)     # one kind fills a gift
 
@@ -407,3 +411,22 @@ def test_a_persons_name_is_never_a_duty_lead(name, person):
     assert why({}, lead("union_funds_shortage", name="Kreyne Sato")) is None
     # The original five are judged as before: no person rule there.
     assert _unusable_reason({}, lead("federal_first_time_grant", name=name)) is None
+
+
+def test_an_expanding_business_says_where_it_registered_and_what_it_is():
+    from system_b.copy.duty import DUTIES as _D
+    from system_b.models import Lead as _Lead, Signal as _Signal
+
+    def ld(home, kind):
+        return _Lead(id=f"x:{home}", company="Keen Meds", signal_type="new_business_expanding",
+                     city="Denver", state="CO",
+                     signals=[_Signal(type="new_business_expanding", date="2026-10-01",
+                                      date_confidence="high", plain_words_description="r",
+                                      source_url="https://x.gov",
+                                      payload={"state": "CO", "home_jurisdiction": home,
+                                               "entity_kind": kind})])
+    d = _D["new_business_expanding"]
+    assert d.predicate([ld("DE", "LLC"), ld("WY", "LLC")]) == "registered to do business in colorado"
+    assert d.detail_for(ld("DE", "LLC")) == "a delaware llc"
+    assert d.detail_for(ld("AZ", "corporation")) == "an arizona corporation"
+    assert d.detail_for(ld("DE", "partnership")) == ""

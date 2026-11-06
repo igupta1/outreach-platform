@@ -169,6 +169,9 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "liquor_license_new_tx", "liquor_license_new_ca", "liquor_license_new_ny",
     "liquor_license_new_fl", "liquor_license_new_co", "liquor_license_new_chicago",
     "chicago_new_food_license",
+    # a company formed elsewhere that registered to do business here
+    # (2026-11-05, approved by the user; was Row 8's off-by-default half)
+    "new_business_expanding",
     # Healthcare (2026-11-02): an approved Medicare group enrollment is stated by
     # the record itself, so it ranks with the licence rows; a first organization
     # NPI is the softest event of all (last, after the Form D rows).
@@ -240,8 +243,7 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "cpeo_revoked_or_suspended"})
 HELD_TYPES: frozenset[str] = frozenset() if os.environ.get("OUTREACH_PREVIEW_HELD") else _HELD
 _OTHER_TYPE = len(_TYPE_STRENGTH)
-TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1,
-                   "new_business_expanding": _OTHER_TYPE + 2})
+TYPE_ORDER.update({"new_business_formed": _OTHER_TYPE + 1})
 
 # Row 8 is a BACKUP: a gift is built from every other lead type first, and a
 # new business only fills a place nothing else could (see `_pick_leads`).
@@ -258,7 +260,10 @@ ROW8_IN_GIFTS = False
 
 
 def is_backup(lead: Lead) -> bool:
-    return (lead.signal_type or "").startswith(BACKUP_PREFIX)
+    # Only a new formation: an expanding company is a record signal of its own
+    # since 2026-11-05.
+    t = lead.signal_type or ""
+    return t.startswith(BACKUP_PREFIX) and t != "new_business_expanding"
 
 
 # --- strength bands (2026-10-30) -------------------------------------------
