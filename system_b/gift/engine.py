@@ -216,13 +216,12 @@ TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(_TYPE_STRENGTH)}
 _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "cannabis_traceability_violation",
                                    "cannabis_license_suspended",
-                                   # Restaurants
-                                   "tx_new_mixed_beverage_permit", "liquor_license_new_tx",
-                                   "liquor_license_new_ca", "liquor_license_new_ny",
-                                   "liquor_license_new_owner_ny", "liquor_license_new_fl",
-                                   "liquor_license_new_co", "liquor_license_new_chicago",
-                                   "liquor_license_new_owner_chicago",
+                                   # Restaurants (the liquor licence slices
+                                   # approved 2026-11-05)
+                                   "tx_new_mixed_beverage_permit",
                                    "chicago_new_food_license",
+                                   # Startups: held 2026-11-05 ("very commoditized")
+                                   "startup_first_form_d", "startup_new_form_d",
                                    # TexasPermits
                                    "tx_new_brewer_license",
                                    # Professional: leads are individual lawyers

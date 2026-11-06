@@ -937,7 +937,9 @@ def _startup_noun(lead: Lead) -> tuple[str, str]:
 _RAISE_WHY = ("so each has a new raise to get on its books",
               "so it has a new raise to get on its books")
 
-DUTIES.update({
+# HELD 2026-11-05 by the user: "a very commoditized signal" (every finance
+# firm already watches new raises). Wording kept for a later decision.
+HELD_DUTIES.update({
     "startup_first_form_d": Duty(
         plural="filed their first form d with the sec",
         singular="filed its first form d with the sec",
@@ -1130,6 +1132,14 @@ _NEW_LICENSE = Duty(
 DUTIES.update({                        # ENABLED (hand checks 7% and 8% false positives)
     "liquor_license_new_owner_ca": _NEW_OWNER,
     "liquor_license_new_owner_tx": _NEW_OWNER,
+    # Approved 2026-11-05 by the user. The 16-50% hand-check misses were "not a
+    # new restaurant"; the wording claims only what the record proves: a new
+    # licence ("got a new liquor license"), or a licence in a new owner's name.
+    **{t: _NEW_LICENSE for t in ("liquor_license_new_tx", "liquor_license_new_ca",
+                                 "liquor_license_new_ny", "liquor_license_new_fl",
+                                 "liquor_license_new_co", "liquor_license_new_chicago")},
+    **{t: _NEW_OWNER for t in ("liquor_license_new_owner_ny",
+                               "liquor_license_new_owner_chicago")},
 })
 HELD_DUTIES.update({                   # HELD (wording ready)
     "tx_new_mixed_beverage_permit": Duty(
@@ -1140,11 +1150,6 @@ HELD_DUTIES.update({                   # HELD (wording ready)
         line="new texas mixed beverage permit, monthly tax reports",
         short=("with new liquor permits", "with a new liquor permit"), bare=True,
         dm="getting new texas mixed beverage permits"),
-    **{t: _NEW_LICENSE for t in ("liquor_license_new_tx", "liquor_license_new_ca",
-                                 "liquor_license_new_ny", "liquor_license_new_fl",
-                                 "liquor_license_new_co", "liquor_license_new_chicago")},
-    **{t: _NEW_OWNER for t in ("liquor_license_new_owner_ny",
-                               "liquor_license_new_owner_chicago")},
     "chicago_new_food_license": Duty(
         plural="got new city food licenses", singular="got a new city food license",
         line="new chicago food license",

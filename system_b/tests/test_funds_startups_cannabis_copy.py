@@ -15,6 +15,8 @@ record-opener format and held to their records:
 from __future__ import annotations
 
 import re
+
+import pytest
 from datetime import date
 
 from system_b.copy.duty import DUTIES, HELD_DUTIES
@@ -79,6 +81,7 @@ def test_the_form_adv_amendment_type_is_worded_but_held():
 
 # --- Startups --------------------------------------------------------------------
 
+@pytest.mark.skip(reason="Form D held 2026-11-05 (the user: 'a very commoditized signal')")
 def test_startups_raise_opener_names_no_dollars_and_says_startups_only_when_all_young():
     young = [lead("startup_first_form_d", n, {"incorporated_within_five_years": True,
                                                "total_amount_sold": 14031768})
@@ -97,9 +100,11 @@ def test_startups_raise_opener_names_no_dollars_and_says_startups_only_when_all_
             "private offerings, so each has a new raise to get on its books:") in body(gift(new))
 
 
-def test_startup_types_are_live_and_rank_after_every_duty():
+def test_startup_types_are_held_and_rank_after_every_duty():
+    # Held 2026-11-05 by the user ("a very commoditized signal"): wording kept.
     for t in ("startup_first_form_d", "startup_new_form_d"):
-        assert t in DUTIES and t in RECORD_SIGNALS and t not in HELD_TYPES
+        assert t in HELD_DUTIES and t not in DUTIES and t in HELD_TYPES
+        assert t not in RECORD_SIGNALS
     assert TYPE_ORDER["startup_first_form_d"] < TYPE_ORDER["startup_new_form_d"] \
         < TYPE_ORDER["new_business_formed"]
 

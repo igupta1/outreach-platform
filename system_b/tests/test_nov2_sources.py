@@ -44,11 +44,13 @@ ENABLED = {
     "tx_peo_new_license",  # approved 2026-11-03
     "va_new_class_b_contractor",  # approved 2026-11-05
     "new_practice_npi", "new_practice_medicare_enrollment",
+    # the liquor licence slices, approved 2026-11-05
+    "liquor_license_new_tx", "liquor_license_new_ca", "liquor_license_new_ny",
+    "liquor_license_new_owner_ny", "liquor_license_new_fl", "liquor_license_new_co",
+    "liquor_license_new_chicago", "liquor_license_new_owner_chicago",
 }
 HELD = {
-    "tx_new_mixed_beverage_permit", "liquor_license_new_tx", "liquor_license_new_ca",
-    "liquor_license_new_ny", "liquor_license_new_owner_ny", "liquor_license_new_fl",
-    "liquor_license_new_co", "liquor_license_new_chicago", "liquor_license_new_owner_chicago",
+    "tx_new_mixed_beverage_permit",
     "chicago_new_food_license", "tx_new_brewer_license",
     "nm_ocd_new_operator", "fcc_499a_missed", "fcc_499_new_registrant",
     "h2b_seasonal_employer_other_industry",
