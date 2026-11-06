@@ -40,7 +40,7 @@ def test_email_two_follows_email_ones_kind_before_any_nearby_lead():
     builder = lead("Houston Builder", DB, industry="construction")
     dallas = lead("Dallas Charity", NP, city="Dallas")
     sc = SnapshotScraper([*charities, builder, dallas], taxonomy={})
-    houston = Prospect(firm_name="AP CPA PLLC", city="Houston", state="TX")
+    houston = Prospect(firm_name="AP CPA PLLC", city="Houston", state="TX", is_cpa=True)
     gift = build_gift(houston, sc, target=3, pack=pack_for("accounting"))
     # Equal scores: the order among them is the prospect's rotation.
     assert {ld.company for ld in gift.leads} == {"Charity 0", "Charity 1", "Charity 2"}
@@ -51,7 +51,7 @@ def test_email_two_follows_email_ones_kind_before_any_nearby_lead():
 
     # With no lead of that kind anywhere, a nearby lead still beats no email 2.
     sc = SnapshotScraper([*charities, builder], taxonomy={})
-    houston = Prospect(firm_name="AP CPA PLLC", city="Houston", state="TX")
+    houston = Prospect(firm_name="AP CPA PLLC", city="Houston", state="TX", is_cpa=True)
     gift = build_gift(houston, sc, target=3, pack=pack_for("accounting"))
     _, _, leads = _followup_drafts(houston, gift, sc, pack_for("accounting"), TODAY)
     assert leads[0].company == "Houston Builder"

@@ -290,6 +290,48 @@ def strength_band(lead: Lead) -> int:
     return WEAK
 
 
+# --- growth first, trouble to the firms that fix it (2026-11-05) -------------
+#
+# The user: "put leads with new money and a new duty first; trouble leads go
+# mainly to firms that fix that exact problem." Every interested reply so far
+# came from new federal jobs and new licences, or from a CPA shown audit
+# findings; a fractional CFO shown charities with going-concern warnings said
+# they cannot afford him. TROUBLE is `_TYPE_STRENGTH`'s groups 1, 4 and 5 (an
+# auditor's or regulator's finding; a report late or missing; a tax debt or a
+# self-reported problem). Everything else is new money or a new duty.
+_T = [t for t in _TYPE_STRENGTH]
+TROUBLE_TYPES: frozenset[str] = frozenset(
+    _T[:_T.index("construction_federal_award_davis_bacon")]
+    + _T[_T.index("nonprofit_990_missed_2yr"):_T.index("adv_no_fund_administrator")])
+del _T
+TROUBLE_LAST = WEAK + 1
+
+
+def fixes_trouble(lead: Lead, prospect: Prospect) -> bool:
+    """A firm whose work IS this lead's problem: a CPA firm (audits, controls,
+    late returns, tax debts), or a firm that serves the lead's own industry
+    (a nonprofit specialist shown a charity's audit findings)."""
+    if prospect.is_cpa:
+        return True
+    if prospect.classification != "niched" or not prospect.match_param:
+        return False
+    level = compute_match_level(lead, prospect)
+    return level is not None and level <= 3
+
+
+def band_for(lead: Lead, prospect: Prospect | None) -> int:
+    """The band a lead sorts in for THIS prospect. Without one, the plain
+    `strength_band`. New money / new duty: STRONG (contracts, a duty just
+    switched on) or MEDIUM (licences, loans, new businesses, grants). Trouble:
+    its own band for a firm that fixes it, else after everything else."""
+    base = strength_band(lead)
+    if prospect is None:
+        return base
+    if (lead.signal_type or "") in TROUBLE_TYPES:
+        return base if fixes_trouble(lead, prospect) else TROUBLE_LAST
+    return STRONG if base in (STRONG, MEDIUM) else MEDIUM
+
+
 # Inside the prospect's own state, a WEAK lead in their city no longer beats a
 # stronger one elsewhere in their state: the walk used to take every lead in
 # the city first. Strong and medium city leads keep their place, and within a
@@ -476,18 +518,21 @@ def kind_pain(leads: list[Lead], target: int = GIFT_TARGET) -> dict[str, int]:
             for t, v in by.items()}
 
 
-def strongest_first(gift: Gift) -> None:
+def strongest_first(gift: Gift, prospect: Prospect | None = None) -> None:
     """List the gift's strongest lead first (2026-10-25): this year's findings,
     then by `strength`. In place; the walk's level order already decided WHICH
-    leads are in the gift, this only decides the order they are read in."""
-    gift.leads.sort(key=lambda ld: (0 if _recent_finding(ld) else 1, -strength(ld)))
+    leads are in the gift, this only decides the order they are read in.
+    With the prospect, its band first (`band_for`: growth before trouble for a
+    firm that does not fix it)."""
+    gift.leads.sort(key=lambda ld: (band_for(ld, prospect) if prospect else 0,
+                                    0 if _recent_finding(ld) else 1, -strength(ld)))
 
 
-def _home_band(lead: Lead) -> int:
+def _home_band(lead: Lead, prospect: Prospect | None = None) -> int:
     """The band the own-state level sorts by: bands below `CITY_YIELDS_FROM`
     are one group, so only a lead at or past it gives way to a stronger one
     outside the city."""
-    band = strength_band(lead)
+    band = band_for(lead, prospect)
     return band if band >= CITY_YIELDS_FROM else STRONG
 
 
@@ -533,7 +578,8 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
              focus: str | None = None,
              home: tuple[str | None, str | None] | None = None,
              salt: str | None = None,
-             kinds: dict[str, int] | None = None) -> tuple:
+             kinds: dict[str, int] | None = None,
+             prospect: Prospect | None = None) -> tuple:
     """Within-level re-sort (the level itself is never re-ordered: industry +
     area always take precedence). Strongest signal per the active pack's
     `signal_rank`, then -- when the firm plainly does ONE kind of work -- a
@@ -574,14 +620,15 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         rank.get(lead.signal_type, 9),
         # Own-state level only (else 0, 0): the band, then their city first.
         # Before focus, so focus never moves a lead across that line.
-        _home_band(lead) if home else 0,
+        _home_band(lead, prospect) if home else 0,
         0 if home is None or _in_city(lead, home) else 1,
         # No focus -> 0 for everyone, so no preference at all.
         0 if focus is None or suits_focus(lead, focus) else 1,
         # The strength band (TYPE_ORDER is monotone in it, so on its own this
         # changes nothing), then the kind in most pain at this level before
         # the type order (0 without pain scores): pain never crosses a band.
-        strength_band(lead),
+        # Per prospect since 2026-11-05 (`band_for`): growth before trouble.
+        band_for(lead, prospect),
         -(kinds or {}).get(lead.signal_type or "", 0),
         TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
         _unfindable(lead),
@@ -728,7 +775,7 @@ def _find_priority_lead(
         ]
         if leads:
             leads.sort(key=lambda lead: sort_key(lead, pack.signal_rank, prospect.focus,
-                                                 salt=prospect.firm_name))
+                                                 salt=prospect.firm_name, prospect=prospect))
             return leads[0]
     return None
 
@@ -1022,7 +1069,8 @@ def _walk(
             kinds = kind_pain(leads)
             leads.sort(key=lambda lead: sort_key(lead, rank, prospect.focus,
                                                  home if own_state else None,
-                                                 salt=prospect.firm_name, kinds=kinds))
+                                                 salt=prospect.firm_name, kinds=kinds,
+                                                 prospect=prospect))
             for lead in leads:
                 if len(into) >= target:
                     break
@@ -1107,7 +1155,7 @@ def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None
             # speaks for its strongest lead (a charity audit finding before a
             # new license, never a Row 8 fill before either).
             # Pain inside a band first (2026-11-03; 0 without pain scores).
-            strength_band(lead),
+            band_for(lead, prospect),
             -_pain_band(lead),
             TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE),
             # A domainless lead is the likeliest to read as invented, so it

@@ -259,7 +259,7 @@ def generate_sequence(
             "status": "no_gift",
             "backlog": _backlog_row(row, research, prospect),
         }
-    strongest_first(gift)          # the email reads its strongest lead first
+    strongest_first(gift, prospect)   # the email reads its strongest lead first
     # Names as a person would write them (`copy.names`): renamed in place before
     # any copy is written, each change noted on the review card.
     name_notes = name_fixer.tidy(gift.leads) if name_fixer is not None else []

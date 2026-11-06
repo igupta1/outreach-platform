@@ -76,18 +76,24 @@ def test_a_closer_place_beats_a_stronger_type_within_a_band():
 
 
 def test_a_weak_city_lead_gives_way_to_a_strong_one_in_the_state():
-    """2026-10-30: a new license (or a tax lien) in their city no longer beats a
-    charity audit finding in their state. The gift then names the state."""
-    city_new_license = lead("City License Llc", NL)                          # weak, city
+    """2026-10-30: a tax lien in a CPA's city no longer beats a charity audit
+    finding in its state (a CPA fixes both, so trouble keeps its own band)."""
     city_lien = lead("City Lien Co", "state_tax_lien", industry="other")     # weak, city
     state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
-    got = build_gift(geo(), SnapshotScraper([city_new_license, city_lien, state_audit],
-                                            taxonomy={}), target=2)
+    got = build_gift(geo(is_cpa=True), SnapshotScraper([city_lien, state_audit], taxonomy={}),
+                     target=1)
     assert got.leads[0].company == "State Charity" and got.geo_level == "state"
-    # Among the weak ones the city still comes first, then the strength order.
+
+
+def test_growth_comes_first_and_trouble_last_for_a_firm_that_does_not_fix_it():
+    """2026-11-05, the user: new money and new duties first; trouble mainly to
+    the firms that fix that exact problem."""
+    city_new_license = lead("City License Llc", NL)
+    city_lien = lead("City Lien Co", "state_tax_lien", industry="other")
+    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
     state_license = lead("State License Llc", NL, city="Boulder")
-    assert names(geo(), [state_license, city_new_license, city_lien], target=3) == \
-        ["City Lien Co", "City License Llc", "State License Llc"]
+    assert names(geo(), [state_audit, city_lien, state_license, city_new_license], target=4) == \
+        ["City License Llc", "State License Llc", "City Lien Co", "State Charity"]
 
 
 def test_the_old_city_first_walk_is_one_switch_away(monkeypatch):
@@ -137,8 +143,8 @@ def test_focus_never_crosses_a_match_level():
     assert names(geo(focus="cfo"), [contract_state, award_here], target=1) == \
         ["Award Builders"]
     # Nor the strength band: a suited weak lead does not jump a strong one.
-    grant_here = lead("Grant Labs", FG, tags=["fractional_cfo"])
-    assert names(geo(focus="cfo"), [grant_here, contract_state], target=1) == \
+    lien_here = lead("Lien Labs", "state_tax_lien", industry="other", tags=["fractional_cfo"])
+    assert names(geo(focus="cfo"), [lien_here, contract_state], target=1) == \
         ["Contract Labs"]
 
 
@@ -284,8 +290,12 @@ def test_types_follow_the_strength_order_and_score_orders_within_a_type():
         lead("Award 50", DB, score=50), lead("Charity", NP, industry="nonprofit", score=1),
         lead("Contract", CR, score=1),
     ]
-    assert names(geo(), leads, target=7) == [
+    # A CPA fixes the charity's audit problem: the original strength order.
+    assert names(geo(is_cpa=True), leads, target=7) == [
         "Charity", "Award 50", "Award 10", "Contract", "Grant", "Upgrade", "New License 99"]
+    # Anyone else: new money and new duties first, the charity's trouble last.
+    assert names(geo(), leads, target=7) == [
+        "Award 50", "Award 10", "Contract", "Grant", "Upgrade", "New License 99", "Charity"]
 
 
 def test_the_strength_order_is_the_users():

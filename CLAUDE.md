@@ -68,6 +68,17 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Growth first, trouble to the firms that fix it (2026-11-05, the user): the walk,
+the email's lead order and the subject's lead sort by `gift.engine.band_for`,
+per prospect. New money / new duties (contracts, duties just switched on):
+STRONG; licences, loans, new businesses, grants: MEDIUM. TROUBLE_TYPES
+(`_TYPE_STRENGTH` groups 1, 4, 5: findings, late or missing reports, tax
+debts and self-reported problems) keep their own band only for a firm that
+fixes them (`fixes_trouble`: a CPA firm, or a niched firm whose niche the
+lead matches at level 1-3); for anyone else they come after everything.
+Simulated over 115 prospects' places: first lead is trouble 109 -> 3. The far
+levels still admit only the base STRONG band.
+
 One fact per lead (2026-11-05, the user changed the old "no figure, no
 contact" rule): every email 1 lead line and email 2's lead carry ONE fact from
 the lead's own record (`copy/facts.record_fact`), read and formatted by code:

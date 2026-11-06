@@ -36,7 +36,7 @@ def lead(name, signal_type, *, pain=None, score=50.0, city="Denver", state="CO",
 
 
 def names(leads, target=3, firm="Ledger Books", city="Denver"):
-    gift = build_gift(Prospect(firm_name=firm, city=city, state="CO"),
+    gift = build_gift(Prospect(firm_name=firm, city=city, state="CO", is_cpa=True),
                       SnapshotScraper(leads, taxonomy={}), target=target)
     return [ld.company for ld in gift.leads] if gift else []
 
@@ -65,7 +65,9 @@ def test_pain_never_crosses_a_band():
     lien = lead("Big Lien", LIEN, pain=99)
     plan = lead("First Plan Audit", PLAN, pain=30)
     award = lead("Award", DB, pain=20)
-    assert names([lien, plan, award]) == ["Award", "First Plan Audit", "Big Lien"]
+    # Since 2026-11-05 a duty just switched on shares the top band with an
+    # award (`band_for`: new money and new duties first), so pain orders them.
+    assert names([lien, plan, award]) == ["First Plan Audit", "Award", "Big Lien"]
 
 
 def test_the_city_still_comes_first_inside_a_band():
@@ -102,7 +104,7 @@ def test_without_pain_the_old_order_holds():
 def test_the_subject_speaks_for_the_most_pain_inside_the_band():
     gift = [lead("Audit", NP, pain=40, industry="nonprofit"), lead("Award", DB, pain=85),
             lead("Lien", LIEN, pain=99)]
-    best = _best_lead(gift, Prospect(firm_name="Ledger Books", city="Denver", state="CO"))
+    best = _best_lead(gift, Prospect(firm_name="Ledger Books", city="Denver", state="CO", is_cpa=True))
     assert best.company == "Award"
 
 
