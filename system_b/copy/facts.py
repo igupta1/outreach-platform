@@ -29,6 +29,9 @@ _ROLE_RE = re.compile(
     r"administrator|plan administrator|mgr|officer|member|managing director|chair|"
     r"chairman|chairperson|secretary|authorized official)$", re.I)
 _ROLE_WORDS = {"mgr": "manager"}
+# A lead whose named contact is its own CFO reads as one that already has
+# finance help (2026-11-05): never printed.
+_FINANCE_ROLE_RE = re.compile(r"\b(?:cfo|controller|treasurer|finance|accounting)\b", re.I)
 
 # "Department of Veterans Affairs" -> "veterans affairs"; Defense awards name
 # the service instead ("Department of the Army" -> "army").
@@ -80,7 +83,7 @@ def _payload(lead: Lead) -> dict:
 def _contact(lead: Lead) -> str:
     name = " ".join((lead.contact_name or "").split())
     title = " ".join((lead.contact_title or "").split())
-    if not name or not title or not _ROLE_RE.match(title):
+    if not name or not title or not _ROLE_RE.match(title) or _FINANCE_ROLE_RE.search(title):
         return ""
     if name.isupper() or name.islower():
         name = name.title()

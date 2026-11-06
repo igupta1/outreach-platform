@@ -44,8 +44,9 @@ def test_wording_says_approved_and_names_no_lender_person_dollar_or_date():
         names = ["Acme Dental Pllc", "Birch Roofing Llc", "Cedar Cafe Inc"]
         b = body([lead(t, n) for n in names])
         low = b.lower()
-        assert f"were approved for an sba {prog} loan" in low
-        assert "so each will likely owe its lender periodic financial statements" in low
+        # 2026-11-05: plain words, and no "will likely owe" guess.
+        assert "were approved for sba loans" in low and "7(a)" not in low
+        assert "likely" not in low
         # 2026-11-05: one fact per lead from the record, the loan's size
         # (copy.facts), formatted, never the raw figure.
         for bad in ("funded", "big bank", "1,799,900", "2026"):
@@ -54,4 +55,4 @@ def test_wording_says_approved_and_names_no_lender_person_dollar_or_date():
         for n in ("Acme Dental", "Birch Roofing", "Cedar Cafe"):
             assert n in b
         one = body([lead(t, "Acme Dental Pllc")]).lower()
-        assert f"was approved for an sba {prog} loan" in one and "it will likely owe" in one
+        assert "was approved for an sba loan" in one and "likely" not in one

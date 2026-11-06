@@ -240,12 +240,19 @@ def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
     look?" is answerable from the email they are already reading. Still
     niche/geo-agnostic: the opener and the leads carried the personalization,
     and repeating it here made the close about the feed."""
+    # 2026-11-05: the finance packs' ask is the offer (copy.offer.cta); this
+    # legacy line is what the IT packs still end on.
     expected = "worth a look? happy to set it up for you either way :)"
     p = P()
     for all_niche, geo in ((True, "city"), (False, "city"), (False, "state"), (False, "none")):
         assert _cta(G(all_niche=all_niche, geo=geo), p) == expected
-    # it asks exactly once
-    assert expected.count("?") == 1
+    from system_b.copy import offer
+    a = offer.cta("A", offer.scope("construction companies", "florida"))
+    b = offer.cta("B", "")
+    assert a == ('want 3 like these every monday, only construction companies in florida? '
+                 'free for 2 weeks. just reply "yes".')
+    assert a.count("?") == 1 and b.count("?") == 1
+    assert "free for 2 weeks" in b and "$" not in a + b      # an offer, no price
 
 
 # --------------------------------------------------------------------------
@@ -485,7 +492,7 @@ def test_full_email_niched_example_1():
     assert "2. Acme Bio, denver: is looking for a bookkeeper, 3 days ago" in draft.body
     assert "3. Nimbus Rx, denver: is looking for a staff accountant, 4 days ago" in draft.body
     assert LEFT_FIELD[0] in draft.body
-    assert "worth a look?" in draft.body
+    assert "free for 2 weeks" in draft.body       # the offer (copy.offer)
     assert draft.body.endswith("best,\nishaan")
     # no funding claim means no registered-address caveat
     assert not any("registered address" in f for f in draft.flags)
@@ -508,7 +515,7 @@ def test_full_email_generalist_example_8():
     assert "saw you're based in miami, so i pulled 2 companies in miami" in draft.body
     assert "1. Palm Freight, miami: is looking for a vp of finance, 2 days ago" in draft.body
     assert "2. Bay Foods, miami: is looking for a controller, 3 days ago" in draft.body
-    assert "worth a look?" in draft.body
+    assert "free for 2 weeks" in draft.body       # the offer (copy.offer)
     # ZERO niche words anywhere — subject AND body — for a generalist
     assert_no_niche_claim(draft.subject + "\n" + draft.body)
 
@@ -555,7 +562,7 @@ def test_unmapped_niche_renders_generalist_not_a_token():
     # ...but the copy is generalist, because the token has no label.
     assert draft.subject == "companies in denver that need finance help right now"
     assert "saw you're based in denver, so i pulled 2 companies in denver" in draft.body
-    assert "worth a look?" in draft.body
+    assert "free for 2 weeks" in draft.body       # the offer (copy.offer)
     for banned in ("pet_grooming", "pet grooming", "pet grooming shops"):
         assert banned not in (draft.subject + "\n" + draft.body)
     assert_no_niche_claim(draft.subject + "\n" + draft.body)

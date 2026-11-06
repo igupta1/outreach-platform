@@ -78,7 +78,7 @@ def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
     # 74 + 27 wired in 2026-11-02 + 2 Healthcare (the Inventory's APPROVED_SIGNALS has the same)
-    assert len(DUTIES) == 125      # + 5 growth sources and Form D back for startup firms (2026-11-05); + expanding businesses (2026-11-05, not an inventory HELD type); - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
+    assert len(DUTIES) == 124      # - expanding businesses held again (2026-11-05); + 5 growth sources and Form D back for startup firms (2026-11-05); + expanding businesses (2026-11-05, not an inventory HELD type); - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t
@@ -96,9 +96,7 @@ def test_the_inventorys_approved_list_is_this_list():
     approved = next(ast.literal_eval(n.value) for n in ast.walk(tree)
                     if isinstance(n, ast.Assign)
                     and any(getattr(t, "id", "") == "APPROVED_SIGNALS" for t in n.targets))
-    # new_business_expanding is published from the inventory's off-by-default
-    # list, not its HELD types, so it is not in APPROVED_SIGNALS.
-    assert set(approved) == set(DUTIES) - {"new_business_expanding"}
+    assert set(approved) == set(DUTIES)
 
 
 def test_strong_duties_rank_ahead_of_weak_ones_and_row_8_stays_last():
@@ -160,7 +158,7 @@ def test_every_duty_type_renders_with_no_fallback_and_no_leak(t):
 def test_a_mixed_gift_keeps_each_duty_line(t):
     other = lead("federal_first_time_grant", name="Grant Co")
     framing, lines = record_opener(gift([lead(t), other]), DANA)
-    assert framing.endswith("that need finance help:")
+    assert framing.endswith("from public records:")
     assert lines[0] == f"Acme Holdings: {magnet_phrase(lead(t))}"
 
 
@@ -171,13 +169,13 @@ def test_a_first_plan_audit_gift_renders_exactly():
               ("Car Source Llc", "Bright Dental Group", "Summit Roofing Inc")])
     assert body(g) == (
         "hey dana,\n\n"
-        "saw you're based in columbus. these 3 companies in columbus have retirement plans "
-        "past 120 account holders on their latest form 5500, so each needs its first "
+        "these 3 companies in columbus have retirement plans "
+        "that passed 120 participants, so each now needs its first independent "
         "plan audit:\n\n"
         "1. Car Source\n2. Bright Dental Group\n3. Summit Roofing\n\n"
         "i'm an engineer. i built a system that finds companies showing signs they need "
         "finance help.\n\n"
-        "worth a look? happy to set it up for you either way :)")
+        'want 3 like these every monday, in ohio? free for 2 weeks. just reply "yes".')
     assert short_subject(g, DANA) == "3 columbus companies needing their first plan audit"
 
 
@@ -187,7 +185,7 @@ def test_new_york_tax_warrants_say_warrants_and_no_amount():
     g = gift([lead("state_tax_lien", w, name=n, city="Syracuse", state="NY")
               for n in ("Blacktop Sealcoat Llc", "Audax Enterprise Inc")])
     framing, lines = record_opener(g, ny)
-    assert framing == ("saw you're based in syracuse. these 2 companies in syracuse had "
+    assert framing == ("these 2 companies in syracuse had "
                        "state tax warrants filed against them:")
     assert lines == ["Blacktop Sealcoat", "Audax Enterprise"]
     assert short_subject(g, ny) == "2 syracuse companies with state tax warrants"
@@ -203,7 +201,7 @@ def test_a_new_medicare_provider_names_its_kind():
                    city="Beaumont", state="TX", industry="healthcare")
               for k, n in zip(kinds, ("Help Hospice Llc", "Rhema Home Health Inc"))])
     framing, lines = record_opener(g, tx)
-    assert framing == ("saw you're based in beaumont. these 2 providers in beaumont newly "
+    assert framing == ("these 2 providers in beaumont newly "
                        "enrolled in medicare, so each owes its first medicare cost report:")
     assert lines == ["Help Hospice (hospice)", "Rhema Home Health (home health agency)"]
     e2 = build_followup_email(g.leads[0], tx, step=2, today=TODAY, pack=pack_for("cfo"))
@@ -254,7 +252,7 @@ def test_a_film_credit_with_no_city_prints_no_state_three_times():
     g = gift([lead("film_ca_credit_allocated", name=n, city=None, state="CA")
               for n in ("Glue The Film, Llc", "Farewell To Thieves, Llc")], geo="state")
     framing, lines = record_opener(g, ca)
-    assert framing == ("saw you're based in burbank. these 2 production companies in "
+    assert framing == ("these 2 production companies in "
                        "california were allocated state film tax credits, so each needs a "
                        "cpa report to get its credit certificate:")
     assert lines == ["Glue The Film", "Farewell To Thieves"]
@@ -414,7 +412,7 @@ def test_a_persons_name_is_never_a_duty_lead(name, person):
 
 
 def test_an_expanding_business_says_where_it_registered_and_what_it_is():
-    from system_b.copy.duty import DUTIES as _D
+    from system_b.copy.duty import HELD_DUTIES as _D   # held again 2026-11-05
     from system_b.models import Lead as _Lead, Signal as _Signal
 
     def ld(home, kind):

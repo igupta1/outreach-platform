@@ -50,6 +50,9 @@ class Prospect:
     # A CPA firm (its site, its name or its contact's title: research.rung.
     # detect_cpa). Only a CPA is shown a CPA-only lead (engine.cpa_only).
     is_cpa: bool = False
+    # The rung their own site sells (research.rung: bookkeeping | accounting |
+    # cfo), or None. A CFO firm's leads must be able to afford one.
+    rung: str | None = None
 
 
 @dataclass

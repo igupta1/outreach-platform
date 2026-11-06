@@ -66,7 +66,7 @@ def test_both_types_are_live_and_ranked_below_every_duty():
 def test_new_501c3_renders_exactly():
     g = gift([lead("nonprofit_new_501c3", n) for n in NAMES])
     framing, lines = record_opener(g, DANA)
-    assert framing == ("saw you're based in denver. these 3 nonprofits in denver are newly "
+    assert framing == ("these 3 nonprofits in denver are newly "
                        "incorporated and recognized as 501(c)(3)s by the irs, so each has a 990 "
                        "or 990-ez to file each year:")
     assert lines == list(NAMES)

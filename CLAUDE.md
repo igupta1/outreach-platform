@@ -68,6 +68,33 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Copy pass (2026-11-05, the user approved the list):
+- The offer (`system_b/copy/offer.py`): free weekly leads in their niche for 2
+  weeks, no price, one ask. Two calls to action are tested (A: 'want 3 like
+  these every monday, only {niche} in {state}? free for 2 weeks. just reply
+  "yes".'; B: '...free for 2 weeks. what kind of client should they be?'),
+  one per prospect by email hash (`variant_for`); the CSV's `variant` column
+  and the gate's Download A / Download B buttons make one Smartlead campaign
+  per variant. Compare at ~1,000 sends each.
+- The fixed sentences vary by the same hash: three engineer-line wordings,
+  email 2's question (state scope / smallest client / right clients), email 3
+  (who handles new clients / reply "monday"). No "worth a look?", no "happy
+  to set it up", no "custom tools" (`_FINAL_PIVOT` stays for the IT packs).
+  With no key (tests) the first wording and variant A.
+- Gifts are ONE kind whenever the inventory allows (`engine.single_kind_gift`,
+  used by tiering for niche and generalist gifts); a mixed gift says "from
+  public records", never "need finance help" (subjects too).
+- No "saw you're based in X" opener; a revenue opener only when it means
+  something (`_sane_revenue`: a lower bound, span <= 100x).
+- Plain words: "sba loans" (no 7(a), no "will likely owe"), "contracts the
+  government can audit", "retirement plans that passed 120 participants";
+  health spas lose a why that was already done; liquor licences gain the
+  record's own "so each now files {state} sales tax returns".
+- A CFO firm (`Prospect.rung == "cfo"`) gets no SBA loan under $100k and no
+  nonprofit under $250k revenue; a lead's finance-titled contact is never its
+  fact; street addresses, banks and universities are not companies; expanding
+  businesses are held again (a registration alone shows no need).
+
 Growth sources approved 2026-11-05 (the user: "I trust you with the email
 wording"): Healthcare `fda_first_device_clearance` / `fda_device_clearance`
 ("got their first fda clearances for a medical device, so each can now legally

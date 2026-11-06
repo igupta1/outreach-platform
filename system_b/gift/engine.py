@@ -229,6 +229,8 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    # approved 2026-11-05)
                                    "tx_new_mixed_beverage_permit",
                                    "chicago_new_food_license",
+                                   # 2026-11-05: on its own it shows no need
+                                   "new_business_expanding",
 
                                    # TexasPermits
                                    "tx_new_brewer_license",
@@ -992,6 +994,24 @@ def _in_their_niche(lead: Lead, prospect: Prospect) -> bool:
     return level is not None and level <= 3
 
 
+CFO_MIN_LOAN = 100_000
+CFO_MIN_REVENUE = 250_000
+
+
+def _too_small_for_a_cfo(lead: Lead) -> bool:
+    pay: dict = {}
+    for sig in lead.signals or []:
+        pay.update(sig.payload or {})
+    try:
+        loan = float(pay.get("loan_amount") or 0)
+        revenue = float(pay.get("total_revenue") or 0)
+    except (TypeError, ValueError):
+        return False
+    if (lead.signal_type or "").startswith("sba_") and 0 < loan < CFO_MIN_LOAN:
+        return True
+    return (lead.signal_type or "").startswith("nonprofit") and 0 < revenue < CFO_MIN_REVENUE
+
+
 _BIG_GC_RE = re.compile(
     r"\b(?:turner construction|structure tone|gilbane|suffolk construction|swinerton|"
     r"whiting[- ]turner|skanska|aecom|tishman|hensel phelps|clark construction|mccarthy building|"
@@ -1012,6 +1032,10 @@ def not_a_buyer_for(lead: Lead, prospect: Prospect) -> bool:
     # (2026-11-05, the user: "allow raised-money leads only for firms that
     # serve startups").
     if (lead.signal_type or "").startswith("startup_") and not _in_their_niche(lead, prospect):
+        return True
+    # A fractional CFO's client has to afford one (2026-11-05): no SBA loan
+    # under $100k, no nonprofit under $250k of filed revenue.
+    if prospect.rung == "cfo" and _too_small_for_a_cfo(lead):
         return True
     # A national general contractor has its own finance team.
     if lead.signal_type == "construction_large_permit" and _BIG_GC_RE.search(lead.company or ""):
@@ -1202,6 +1226,32 @@ def pull_one_lead(
     value/fallback; this returns the lead."""
     gift = build_gift(prospect, scraper, target=1, pack=pack)
     return gift.leads[0] if gift else None
+
+
+def single_kind_gift(
+    prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
+    pack: NichePack | None = None, niche_only: bool = False, build=None,
+) -> Gift | None:
+    """`build_gift`, but three leads of ONE kind whenever the inventory has
+    them (2026-11-05, the user): every interested reply so far came from an
+    email whose leads shared one event ("these 3 ... won federal construction
+    jobs, so each now owes weekly certified payroll"), and a mixed gift can
+    only say "here are 3 companies from public records". The kinds are tried
+    in the order the walk ranks them; a generalist's stays in its own state.
+    A mixed gift is the last resort."""
+    build = build or build_gift
+    g = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only)
+    if g is None or len({ld.signal_type for ld in g.leads}) <= 1:
+        return g
+    wide = build(prospect, scraper, target=target * 4, pack=pack, niche_only=niche_only)
+    kinds = list(dict.fromkeys(ld.signal_type for ld in (wide.leads if wide else g.leads)
+                               if ld.signal_type))
+    for kind in kinds:
+        one = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only,
+                    signal_types=frozenset({kind}), in_state=not niche_only)
+        if one is not None and one.gift_size >= target and (one.all_niche or not niche_only):
+            return one
+    return g
 
 
 def _best_lead(gift: list[Lead], prospect: Prospect, rank: dict[str, int] | None = None) -> Lead:

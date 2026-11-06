@@ -127,6 +127,9 @@
 <footer>
   <span class="foot-note" id="foot-email"></span>
   <button id="download-all">Download all emails CSV (one campaign)</button>
+  <!-- The offer test (2026-11-05): one Smartlead campaign per call to action. -->
+  <button id="download-a">Download A</button>
+  <button id="download-b">Download B</button>
   <span id="removed" hidden></span>
   <span class="foot-note" id="foot"></span>
 </footer>
@@ -142,7 +145,7 @@ const PACKS = DOC.packs || [];
 // so the file is byte-identical to the run's own CSV, edits aside.
 const EMAIL_COLUMNS = ["pack","cohort_date",
                        "email","first_name","last_name","company",
-                       "subject","email_1","email_2","email_3"];
+                       "subject","email_1","email_2","email_3","variant"];
 
 const el = (tag, attrs={}, ...kids) => {
   const n = document.createElement(tag);
@@ -546,17 +549,19 @@ function csvCell(v) {
 
 // `packIndex === null` exports every pack (one campaign for the whole day);
 // otherwise just that pack's cards.
-function buildCsv(columns, packIndex) {
+function buildCsv(columns, packIndex, variant) {
   const lines = [columns.join(",")];
   const sel = packIndex === null || packIndex === undefined
     ? ".card:not(.removed)"
     : '.card[data-pack="' + packIndex + '"]:not(.removed)';
+  const keep = p => !variant || (p.variant || "A") === variant;
   // `:not(.removed)` is what makes the X real: a removed prospect leaves the
   // downloaded CSV entirely, which is the only place removal has to hold.
   document.querySelectorAll(sel).forEach(cardEl => {
     const pi = +cardEl.getAttribute("data-pack");
     const pk = PACKS[pi];
     const p = pk.prospects[+cardEl.getAttribute("data-idx")];
+    if (!keep(p)) return;
     const edited = {};
     cardEl.querySelectorAll(".f").forEach(f => { edited[f.getAttribute("data-key")] = f.value; });
     // Re-join the edited head with the dimmed closing, so the exported email is
@@ -569,7 +574,7 @@ function buildCsv(columns, packIndex) {
       email: p.email, first_name: p.first_name, last_name: p.last_name,
       company: p.company,
       subject: edited.subject, email_1: email1,
-      email_2: edited.email_2, email_3: p.email_3,
+      email_2: edited.email_2, email_3: p.email_3, variant: p.variant || "",
     };
     lines.push(columns.map(c => csvCell(row[c])).join(","));
   });
@@ -579,11 +584,13 @@ function buildCsv(columns, packIndex) {
 // The addresses a download carries, for the nightly job: a batch you never
 // download goes back on the queue the next night. Best effort; the nightly
 // job also reads the CSV from ~/Downloads.
-function recordDownload(packIndex) {
+function recordDownload(packIndex, variant) {
   const sel = packIndex === null || packIndex === undefined
     ? ".card:not(.removed)" : '.card[data-pack="' + packIndex + '"]:not(.removed)';
-  const emails = [...document.querySelectorAll(sel)].map(cardEl =>
-    PACKS[+cardEl.getAttribute("data-pack")].prospects[+cardEl.getAttribute("data-idx")].email);
+  const emails = [...document.querySelectorAll(sel)]
+    .map(cardEl => PACKS[+cardEl.getAttribute("data-pack")].prospects[+cardEl.getAttribute("data-idx")])
+    .filter(p => !variant || (p.variant || "A") === variant)
+    .map(p => p.email);
   try {
     fetch("/downloaded", {method:"POST", headers:{"Content-Type":"application/json"},
                           body: JSON.stringify({emails})}).catch(() => {});
@@ -616,9 +623,9 @@ function renderChecks() {
   box.hidden = false;
 }
 
-function download(name, columns, packIndex) {
-  recordDownload(packIndex);
-  const blob = new Blob([buildCsv(columns, packIndex)], {type:"text/csv;charset=utf-8"});
+function download(name, columns, packIndex, variant) {
+  recordDownload(packIndex, variant);
+  const blob = new Blob([buildCsv(columns, packIndex, variant)], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -628,6 +635,10 @@ function download(name, columns, packIndex) {
 
 document.getElementById("download-all")
   .addEventListener("click", () => download("all-emails.csv", EMAIL_COLUMNS, null));
+document.getElementById("download-a")
+  .addEventListener("click", () => download("variant-A-emails.csv", EMAIL_COLUMNS, null, "A"));
+document.getElementById("download-b")
+  .addEventListener("click", () => download("variant-B-emails.csv", EMAIL_COLUMNS, null, "B"));
 
 function renderStatus() {
   const st = DOC.status;

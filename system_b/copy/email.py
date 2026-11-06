@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations, bare_gift
+from system_b.copy import offer
 from system_b.copy.facts import record_fact
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
@@ -468,7 +469,9 @@ _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
                              "that moved up to a bigger contractor license"),
     NEW_BUSINESS_SIGNAL: ("that just registered as new companies",
                           "that just registered as a new company"),
-    "mixed": ("that need finance help", "that needs finance help"),
+    # 2026-11-05: not "that need finance help": the record shows an event,
+    # not a need; each line then says its own event.
+    "mixed": ("from public records", "from public records"),
 }
 
 # kind -> ((plural predicate, singular predicate), (plural why, singular why))
@@ -498,8 +501,8 @@ _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
                           "won a federal construction job"),
                          ("so each now owes weekly certified payroll for every worker",
                           "so it now owes weekly certified payroll for every worker")),
-    "cost_every": (("won federal contracts where every cost can be audited",
-                    "won a federal contract where every cost can be audited"),
+    "cost_every": (("won federal contracts where the government can audit every cost",
+                    "won a federal contract where the government can audit every cost"),
                    ("so each needs books that can pass a government audit",
                     "so it needs books that can pass a government audit")),
     COST_CONTRACT_SIGNAL: (("won federal contracts the government can audit",
@@ -617,7 +620,8 @@ def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str]) -> str:
     """The first sentence: what we saw about THEM. Same evidence and the same
     soft verbs as `_framing`; empty when we can honestly say nothing."""
     niche = niche_claim(gift, prospect)
-    if prospect.client_revenue and prospect.niche_source != "client_list":
+    if prospect.client_revenue and prospect.niche_source != "client_list" \
+            and _sane_revenue(prospect.client_revenue):
         rev = revenue_display(prospect.client_revenue)
         return f"saw you work with {rev} {niche_noun(niche) if niche else 'companies'}."
     if niche:
@@ -629,15 +633,29 @@ def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str]) -> str:
         if prospect.niche_exclusivity == "one_of_several":
             return f"noticed you work with {niche_noun(niche)}."
         return f"saw on your site you work with {niche_noun(niche)}."
-    # Geography is claimed about them only when the leads really are there.
-    city = city_display(prospect.city)
-    state = state_display(prospect.state)
-    level, where = place
-    if level == "city" and city == where and state_display(prospect.state):
-        return f"saw you're based in {city}."
-    if level == "state" and state == where:
-        return f"saw you're based in {city or state}." if city else f"saw you're based in {state}."
+    # No "saw you're based in X" (2026-11-05, the user): the next sentence names
+    # the place anyway ("based in lehi. these 3 in lehi"), and a city alone
+    # proves nothing about them. The email opens on the leads instead.
     return ""
+
+
+def _offer_scope(gift: Gift, prospect: Prospect) -> str:
+    """What the weekly leads would be: their niche (when the gift claims it)
+    and their state."""
+    niche = niche_claim(gift, prospect) if gift.all_niche else None
+    # Their state only when the gift is from it: a gift from the bordering
+    # states must not promise "in nebraska" leads.
+    place = state_display(prospect.state) if gift.geo_level in ("city", "state") else None
+    return offer.scope(niche_noun(niche) if niche else None, place)
+
+
+def _sane_revenue(rng: tuple[float | None, float | None]) -> bool:
+    """A client-size claim worth opening on: not an upper bound alone
+    ("sub-$250k") and not a span too wide to mean anything ("$100k-$130m")."""
+    lo, hi = rng
+    if lo is None or lo <= 0:
+        return False
+    return hi is None or hi / lo <= 100
 
 
 def _unrepeated(fact: str, phrase: str) -> str:
@@ -1139,9 +1157,9 @@ def cost_contract_phrase(lead: Lead) -> str:
     ("can be audited", not "get audited")."""
     kind = _payload(lead).get("pricing_kind")
     if kind in ("time-and-materials", "labor-hour"):
-        return "hourly federal contract, hours can be audited"
+        return "hourly federal contract the government can audit"
     if kind == "cost-reimbursement":
-        return "federal contract where every cost is auditable"
+        return "federal contract with every cost open to audit"
     return "federal contract the government can audit"
 
 
@@ -1260,6 +1278,8 @@ def build_email_1(
     today: date,
     pack=None,
     include_signoff: bool = True,
+    variant: str | None = None,
+    vary_key: str | None = None,
 ) -> EmailDraft:
     """Render Email #1. EVERY lead line is code-templated (hiring, breach,
     funding) — no model writes any part of a sent email. The scaffolding is
@@ -1285,8 +1305,14 @@ def build_email_1(
             line = record[1][i]
         lines.append(f"{i + 1}. {line}" if numbered else line)
 
-    left_field = left_field_for(pack, gift)
-    cta = pack.cta(gift, prospect)
+    if pack.key in _FINANCE_PACKS:
+        # 2026-11-05: one offer, one ask (`copy.offer`), and the engineer line
+        # in one of its equivalent wordings.
+        left_field = offer.engineer_line(vary_key, _org_noun(gift), _HELP_WORD[pack.key])
+        cta = offer.cta(variant or offer.variant_for(vary_key), _offer_scope(gift, prospect))
+    else:
+        left_field = left_field_for(pack, gift)
+        cta = pack.cta(gift, prospect)
     # lowercase prose, proper nouns intact: "hey dora," not "hey Dora,".
     # Kept on purpose (2026-10-25): the user tried the email without it and it
     # read abrupt.
@@ -1417,9 +1443,9 @@ def _record_predicate(lead: Lead) -> str | None:
     if t == COST_CONTRACT_SIGNAL:
         kind = p.get("pricing_kind")
         if kind in ("time-and-materials", "labor-hour"):
-            return "won an hourly federal contract where the hours can be audited"
+            return "won an hourly federal contract the government can audit"
         if kind == "cost-reimbursement":
-            return "won a federal contract where every cost can be audited"
+            return "won a federal contract where the government can audit every cost"
         return "won a federal contract the government can audit"
     if t == FIRST_GRANT_SIGNAL:
         return "got its first federal grant in 3+ years"
@@ -1435,7 +1461,13 @@ def _record_predicate(lead: Lead) -> str | None:
     return None
 
 
-def _record_followup(lead: Lead, prospect: Prospect) -> str | None:
+def _followup_ask(prospect: Prospect, pack=None, vary_key: str | None = None) -> str:
+    return offer.followup_question(vary_key, state_display(prospect.state),
+                                   cfo=getattr(pack, "key", "") == "cfo")
+
+
+def _record_followup(lead: Lead, prospect: Prospect, pack=None,
+                     vary_key: str | None = None) -> str | None:
     """Email 2's core for a record lead, or None to keep the old shape."""
     said = _record_predicate(lead)
     if said is None:
@@ -1454,7 +1486,7 @@ def _record_followup(lead: Lead, prospect: Prospect) -> str | None:
     else:
         at = f" in {lead_city or lead_state}" if (lead_city or lead_state) else ""
         first = f"one more: {name}{at} {said}."
-    return f"{first}\n\n{_FOLLOWUP_TAIL}"
+    return f"{first}\n\n{_followup_ask(prospect, pack, vary_key)}"
 
 
 def build_followup_email(
@@ -1466,6 +1498,7 @@ def build_followup_email(
     pack=None,
     include_signoff: bool = False,
     gift_signals: frozenset[str] | set[str] | None = None,
+    vary_key: str | None = None,
 ) -> EmailDraft:
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
@@ -1492,8 +1525,11 @@ def build_followup_email(
     final = step == 3
 
     if final:
-        core = _FINAL_PIVOT
-    elif lead is not None and (record := _record_followup(lead, prospect)) is not None:
+        # 2026-11-05: a short goodbye or a referral ask, never the old "i build
+        # custom tools" pivot (`_FINAL_PIVOT`, kept for the IT packs).
+        core = (offer.final_note(vary_key, spoken_name(prospect.firm_name or "") or None)
+                if pack.key in _FINANCE_PACKS else _FINAL_PIVOT)
+    elif lead is not None and (record := _record_followup(lead, prospect, pack, vary_key)) is not None:
         # `_lead_line` still runs for its flags (unfindable, cut-off name).
         flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
         core = record
@@ -1516,7 +1552,7 @@ def build_followup_email(
         # to keep sending these?") recruited a subscriber, which is the wrong
         # yes: a sequence whose steps chase different outcomes converts on the
         # easiest one, and that was never the call.
-        tail = "offer still stands on setting it up for you. worth a look?"
+        tail = _followup_ask(prospect, pack, vary_key)
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
@@ -1525,7 +1561,7 @@ def build_followup_email(
         sig = pack.followup_signal
         core = (
             f"circling back, still keeping an eye out for {niche_noun(niche)} "
-            f"showing {sig}. worth a look?"
+            f"showing {sig}. {_followup_ask(prospect, pack, vary_key)}"
         )
 
     parts = [core]

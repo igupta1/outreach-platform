@@ -23,7 +23,7 @@ from collections.abc import Callable
 from typing import Any
 
 from system_b.copy.lex import niche_display
-from system_b.gift.engine import build_gift
+from system_b.gift.engine import build_gift, single_kind_gift
 from system_b.gift.fit import claim_check, fit_check
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -56,6 +56,7 @@ def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> 
         sent_lead_ids=list(row.get("sent_lead_ids") or []),
         blocked_identities=frozenset(row.get("blocked_identities") or ()),
         focus=getattr(research, "rung_focus", None),
+        rung=getattr(research, "rung", None),
         is_cpa=bool(getattr(research, "cpa", False))
                or detect_cpa(None, firm_name=row.get("firm_name"), title=row.get("title")),
         **kw,
@@ -119,7 +120,8 @@ def _fitting_niche_gift(
     excluded: list[str] = []
     for _ in range(max_swaps + 1):
         trial.sent_lead_ids = list(excluded)
-        g = build_gift(trial, scraper, niche_only=True, pack=pack)   # GATE B (taxonomy)
+        g = single_kind_gift(trial, scraper, niche_only=True, pack=pack,
+                             build=build_gift)                # GATE B (taxonomy)
         if g is None or not g.all_niche:
             return None
         verdicts = fit(label, g.leads)                               # GATE B (genuine fit)
@@ -229,4 +231,4 @@ def resolve_gift(
         row, research, classification="generalist",
         match_param=None, niche_exclusivity="none",
     )
-    return prospect, build_gift(prospect, scraper, pack=pack)
+    return prospect, single_kind_gift(prospect, scraper, pack=pack, build=build_gift)

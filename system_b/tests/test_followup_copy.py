@@ -164,20 +164,20 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
     d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY)
     d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "worth a look?" in d2.body
-    # Email 3 ends on its own question (2026-10-24), not a second ask about the
-    # tool: "what's draining your week? ... worth a look?" did not fit together.
-    assert d3.body.endswith("if something else is draining your week, what is it?")
+    # 2026-11-05: email 2 asks a different, easy question; email 3 is a short
+    # goodbye or a referral ask, never the "custom tools" pivot.
+    assert d2.body.rstrip().endswith("?") and "worth a look?" not in d2.body
+    assert d3.body.startswith("last one from me.") and "custom tools" not in d3.body
     assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
-    # step 3 still gives an easy out
-    assert "no worries" in d3.body
+    # step 3 still gives an easy out: who handles new clients, or a reply word
+    assert "handles new clients" in d3.body or "won't email again" in d3.body
 
 
 def test_fallback_followup_still_makes_the_ask():
     d = build_followup_email(None, _prospect(), step=2, today=TODAY)
-    assert "worth a look?" in d.body
+    assert d.body.rstrip().endswith("?")
     assert "want me to send them your way" not in d.body
 
 
@@ -188,11 +188,11 @@ def test_step3_never_lists_a_lead_even_when_one_is_passed():
     the first four companies. Email #3 drops the gift and asks about their real
     bottleneck, so a lead handed to it is ignored rather than printed."""
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
-              company="Acme", evidence="Controller")
+              company="Zenith Widgets", evidence="Controller")
     d = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "Acme" not in d.body
+    assert "Zenith" not in d.body
     assert "is looking for" not in d.body
-    assert "no worries if leads aren't what you're short on" in d.body
+    assert d.body.startswith("last one from me.")
     # with no lead passed it renders identically — one shape, not two
     assert d.body == build_followup_email(None, _prospect(), step=3, today=TODAY).body
 

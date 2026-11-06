@@ -91,7 +91,7 @@ def test_facts_name_the_business_and_never_repeat_the_line():
         "naics_label": "electronic shopping and mail-order"})) == "electronic shopping and mail-order"
     assert record_fact(_lead("tx_new_sales_tax_permit", contact_name="Pat Lee", contact_title="MGR")) \
         == "Pat Lee, manager"
-    assert _unrepeated("$2.2m loan", "approved for an sba 7(a) loan") == "$2.2m"
+    assert _unrepeated("$2.2m loan", "approved for an sba loan") == "$2.2m"
     assert _unrepeated("$2.2m loan, software publishers", "was approved for an sba loan") \
         == "$2.2m, software publishers"
     assert _unrepeated("$988k, army", "won a federal job") == "$988k, army"

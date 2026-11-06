@@ -1130,6 +1130,16 @@ _CHAINS_RE = re.compile(r"(?<![\w'])(?:" + "|".join(re.escape(c) for c in _CHAIN
                         + r")(?:'s)?(?![\w'])", re.I)
 _BIG_AGENTS_RE = re.compile(r"\b(?:c ?t corporation|corporation service company|\bcsc\b|"
                             r"cogency global|national registered agents)\b", re.I)
+# A name that is a street address ("16301 S Broadway"), a bank or a
+# university: no small firm's client (2026-11-05). Credit unions stay (their
+# audits are CPA work).
+_ADDRESS_NAME_RE = re.compile(
+    r"^\d+\s+(?:[nsew]\.?\s+)?\w+(?:\s+\w+)?\s+(?:st|street|ave|avenue|rd|road|blvd|"
+    r"boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway|hwy|highway|broadway)\b\.?$",
+    re.I)
+_BIG_INSTITUTION_RE = re.compile(
+    r"(?<!food )(?<!blood )(?<!diaper )(?<!clothing )(?<!toy )(?<!book )(?<!milk )"
+    r"\b\w*bank\b|\bbancorp\b|\bbancshares\b|\buniversity\b", re.I)
 # Need already met: a first audited Form 5500 was filed, so an auditor signed.
 _NEED_MET = frozenset({"plan_audit_first_filed"})
 MAX_EVENT_AGE_DAYS = 365
@@ -1173,6 +1183,8 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
                                          pay.get("dba_name"), pay.get("trade_name")) if x)
     if _HOLDING_RE.search(names):
         return "holding_or_hotel"
+    if _ADDRESS_NAME_RE.match(lead.company or "") or _BIG_INSTITUTION_RE.search(lead.company or ""):
+        return "not_a_company"
     if _CHAINS_RE.search(names):
         return "chain"
     if str(pay.get("naics") or "").startswith("7211"):

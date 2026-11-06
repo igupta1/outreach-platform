@@ -417,10 +417,11 @@ DUTIES: dict[str, Duty] = {
 
     # --- Benefits: the employer's own Form 5500 --------------------------------
     "plan_audit_first_due": Duty(
-        plural="have retirement plans past 120 account holders on their latest form 5500",
-        singular="has a retirement plan past 120 account holders on its latest form 5500",
-        why=("so each needs its first plan audit", "so it needs its first plan audit"),
-        line="plan passed 120 account holders, first audit due",
+        plural="have retirement plans that passed 120 participants",
+        singular="has a retirement plan that passed 120 participants",
+        why=("so each now needs its first independent plan audit",
+             "so it now needs its first independent plan audit"),
+        line="plan passed 120 participants, first audit due",
         short=("needing their first plan audit", "needing its first plan audit"),
         dm="whose retirement plans just crossed the audit line"),
     "plan_audit_first_filed": Duty(
@@ -966,23 +967,24 @@ DUTIES.update({
 # show a given loan's terms, so the why-clause says "will likely owe", not "owes".
 # No dollar figure, no date. The noun is the generic "business": NAICS niches ride
 # the lead's own `niche` (see `_SOURCE_NICHES`), not the wording.
-_SBA_WHY = ("so each will likely owe its lender periodic financial statements",
-            "so it will likely owe its lender periodic financial statements")
+# 2026-11-05: no why. "will likely owe" read as a guess, and the record does
+# not show the loan's terms; the fact ("$500k loan, dental") carries it.
+_SBA_WHY = None
 
 DUTIES.update({
     "sba_7a_loan_approved": Duty(
-        plural="were approved for an sba 7(a) loan",
-        singular="was approved for an sba 7(a) loan",
+        plural="were approved for sba loans",
+        singular="was approved for an sba loan",
         why=_SBA_WHY,
-        line="approved for an sba 7(a) loan",
-        short=("approved for sba 7(a) loans", "approved for an sba 7(a) loan"),
+        line="approved for an sba loan",
+        short=("approved for sba loans", "approved for an sba loan"),
         noun=("business", "businesses"), dm="getting approved for sba 7(a) loans"),
     "sba_504_loan_approved": Duty(
-        plural="were approved for an sba 504 loan",
-        singular="was approved for an sba 504 loan",
+        plural="were approved for sba loans",
+        singular="was approved for an sba loan",
         why=_SBA_WHY,
-        line="approved for an sba 504 loan",
-        short=("approved for sba 504 loans", "approved for an sba 504 loan"),
+        line="approved for an sba loan",
+        short=("approved for sba loans", "approved for an sba loan"),
         noun=("business", "businesses"), dm="getting approved for sba 504 loans"),
 })
 
@@ -1123,8 +1125,23 @@ _NEW_OWNER = Duty(
     detail=_was,
     line="new owner, liquor license in its name",
     short=("under new owners", "under a new owner"), bare=True, dm="changing hands")
+def _sales_tax_why(leads: list[Lead]) -> tuple[str, str] | None:
+    """The sales tax returns the licence starts (the regulator's record names
+    the duty: `filing_duty` sales_tax), when every lead is in one state."""
+    from system_b.copy.subject import state_display as _sd
+
+    states = {(ld.state or "").upper() for ld in leads}
+    if len(states) != 1 or not all(_payload(ld).get("filing_duty") == "sales_tax" for ld in leads):
+        return None
+    st = _sd(next(iter(states)))
+    if not st:
+        return None
+    return (f"so each now files {st} sales tax returns", f"so it now files {st} sales tax returns")
+
+
 _NEW_LICENSE = Duty(
     plural="got new liquor licenses", singular="got a new liquor license",
+    why=_sales_tax_why,
     line="new liquor license",
     short=("with new liquor licenses", "with a new liquor license"), bare=True,
     dm="getting new liquor licenses")
@@ -1389,8 +1406,6 @@ DUTIES.update({
     "tx_health_spa_new": Duty(       # Occ. Code 702.101, 702.151, 702.201-.202
         plural="just registered as texas health spas",
         singular="just registered as a texas health spa",
-        why=("so each had to post security or get an exemption before selling memberships",
-             "so it had to post security or get an exemption before selling memberships"),
         line="new texas health spa registration",
         short=("just registered as health spas", "just registered as a health spa"),
         noun=_FITNESS, dm="just registering as health spas in texas"),
@@ -1748,7 +1763,8 @@ def _home(lead: Lead) -> str:
     return f"{'an' if home[0] in 'aeiou' else 'a'} {home} {kind}"
 
 
-DUTIES["new_business_expanding"] = Duty(
+# 2026-11-05 the user: held again. On its own a registration shows no need.
+HELD_DUTIES["new_business_expanding"] = Duty(
     plural=_registered_in,
     singular=lambda ld: _registered_in([ld]),
     line=lambda ld: _registered_in([ld]),

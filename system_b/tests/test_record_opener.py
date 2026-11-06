@@ -66,7 +66,7 @@ def test_the_users_example_renders_exactly():
         "3. Georgia Works (two years in a row)\n\n"
         "i'm an engineer. i built a system that finds organizations showing signs "
         "they need finance help.\n\n"
-        "worth a look? happy to set it up for you either way :)"
+        'want 3 like these every monday, only nonprofits in georgia? free for 2 weeks. just reply "yes".'
     )
 
 
@@ -84,7 +84,7 @@ def test_place_is_named_only_when_every_lead_is_there():
                    state="TN", industry="construction")], geo="state")
     p = Prospect(firm_name="X", city="Knoxville", state="TN", first_name="Jo")
     framing, lines = record_opener(g, p)
-    assert framing == ("saw you're based in knoxville. these 2 companies in tennessee "
+    assert framing == ("these 2 companies in tennessee "
                        "won federal construction jobs, so each now owes weekly certified "
                        "payroll for every worker:")
     assert lines == ["A, nashville", "B, memphis (first federal job on record)"]
@@ -112,15 +112,15 @@ def test_a_mix_of_kinds_keeps_each_full_reason_and_no_why():
     g = gift([lead(NP, MW, name="A"), lead(FG, name="B")])
     framing, lines = record_opener(g, Prospect(firm_name="X", city="Atlanta",
                                                state="GA", first_name="Jo"))
-    assert framing == ("saw you're based in atlanta. here are 2 nonprofits in atlanta "
-                       "that need finance help:")
+    assert framing == ("here are 2 nonprofits in atlanta "
+                       "from public records:")
     assert lines == ["A: auditors flagged their financial controls",
                      "B: first federal grant in 3+ years"]
 
 
 def test_cost_contracts_claim_every_cost_only_when_every_one_is_cost_reimbursement():
     every = gift([lead(CR, {"pricing_kind": "cost-reimbursement"}, name=n) for n in "AB"])
-    assert "where every cost can be audited" in record_opener(every, TROY)[0]
+    assert "where the government can audit every cost" in record_opener(every, TROY)[0]
     mixed = gift([lead(CR, {"pricing_kind": "cost-reimbursement"}, name="A"),
                   lead(CR, {"pricing_kind": "time-and-materials"}, name="B")])
     framing, lines = record_opener(mixed, TROY)

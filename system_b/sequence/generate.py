@@ -12,6 +12,8 @@ and carry NO recency date (Option A): they send days later, so a baked-in
 from __future__ import annotations
 
 import re
+
+from system_b.copy import offer
 from datetime import date
 from typing import Any
 
@@ -31,7 +33,7 @@ from system_b.review.payload import build_review
 
 
 def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
-                     name_fixer: Any | None = None):
+                     name_fixer: Any | None = None, vary_key: str | None = None):
     """Build Email #2 and #3 up front. Returns (drafts, extra_ids, leads) where
     `leads` is aligned to steps 2 and 3 — the review gate surfaces those leads'
     evidence too.
@@ -80,9 +82,10 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,
                              include_signoff=False,
-                             gift_signals={ld.signal_type for ld in gift.leads}),
+                             gift_signals={ld.signal_type for ld in gift.leads},
+                             vary_key=vary_key),
         build_followup_email(None, prospect, step=3, today=today, pack=pack,
-                             include_signoff=False),
+                             include_signoff=False, vary_key=vary_key),
     ]
     return drafts, extra_ids, [lead, None]
 
@@ -269,11 +272,16 @@ def generate_sequence(
     # Names as a person would write them (`copy.names`): renamed in place before
     # any copy is written, each change noted on the review card.
     name_notes = name_fixer.tidy(gift.leads) if name_fixer is not None else []
+    # The offer test (copy.offer): one call to action per prospect, stable by
+    # email; the fixed sentences' wording varies by the same key.
+    vary_key = (row.get("email") or "").strip().lower() or None
+    variant = offer.variant_for(vary_key)
     email1 = build_email_1(
-        gift, prospect, today=today, pack=pack, include_signoff=False
+        gift, prospect, today=today, pack=pack, include_signoff=False,
+        variant=variant, vary_key=vary_key,
     )
     followups, _, followup_leads = _followup_drafts(prospect, gift, sc, pack, today,
-                                                    name_fixer)
+                                                    name_fixer, vary_key=vary_key)
     if name_fixer is not None:
         name_notes += [n for n in name_fixer.tidy(followup_leads) if n not in name_notes]
     # The LinkedIn half of the sequence, rendered now so the operator pastes
@@ -315,6 +323,7 @@ def generate_sequence(
         "last_name": row.get("last_name") or "",
         "company": row.get("firm_name") or "",
         "linkedin_url": row.get("linkedin") or "",
+        "variant": variant,
         "subject": email1.subject,
         "email_1": email1.body,
         "email_2": followups[0].body if followups else "",

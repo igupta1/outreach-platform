@@ -70,6 +70,9 @@ COLUMNS = [
     "email", "first_name", "last_name", "company", "linkedin_url",
     "subject", "email_1", "email_2", "email_3",
     "li_dm_1", "li_dm_1_evergreen", "li_dm_2",
+    # The offer test's call to action, A or B (copy.offer): one Smartlead
+    # campaign per variant (2026-11-05).
+    "variant",
 ]
 
 # Every prospect ever written, so a later run can tell a genuinely new person
@@ -509,7 +512,8 @@ def main() -> None:
         "generated_at": today.isoformat(),
         "valid_count": len(results),
         "skipped": [{"firm": firm, "reason": why} for firm, why in skipped],
-        "prospects": [res["review"] for res in results if res.get("review")],
+        "prospects": [{**res["review"], "variant": res.get("variant") or ""}
+                      for res in results if res.get("review")],
     }
     review_path.write_text(json.dumps(review_doc, indent=2), encoding="utf-8")
 

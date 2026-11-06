@@ -217,7 +217,7 @@ _SHORT_WHAT: dict[str, str] = {
     "new_license": "with new contractor licenses",
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
-    "public_record": "that need finance help",
+    "public_record": "from public records",      # 2026-11-05: no "need finance help"
     "unstaffed_funds": "with no fund administrator",
     **{t: d.short_for([], 2) for t, d in DUTIES.items()},
 }
@@ -229,7 +229,7 @@ _SHORT_WHAT_ONE: dict[str, str] = {
     "new_license": "with a new contractor license",
     "license_upgrade": "moving up a contractor license",
     "new_business": "that just registered",
-    "public_record": "that needs finance help",
+    "public_record": "from public records",
     "unstaffed_funds": "with no fund administrator",
     **{t: d.short_for([], 1) for t, d in DUTIES.items()},
 }
