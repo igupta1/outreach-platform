@@ -68,6 +68,20 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+Growth sources approved 2026-11-05 (the user: "I trust you with the email
+wording"): Healthcare `fda_first_device_clearance` / `fda_device_clearance`
+("got their first fda clearances for a medical device, so each can now legally
+sell that device in the us"; fact: the device's panel), Construction
+`construction_large_permit` (contractors "named on new city building permits
+for large jobs"; fact: the job's declared value; national GCs dropped,
+`engine._BIG_GC_RE`), Federal `sam_new_entity_registration` ("just registered
+as federal contractors"; fact: the NAICS title) and `sbir_phase1_award` ("won
+their first federal sbir research awards" + grant rules; fact: amount, nih /
+nsf). Files `construction-growth-leads.json`, `govcon-growth-leads.json`.
+Form D is live again for firms that serve startups only (`not_a_buyer_for`);
+"startup" maps to software_saas, "biotech" / "medtech" to their healthcare
+niches.
+
 Lead-quality pass (2026-11-05, the user: "yes please do all of these"):
 - Sensitive industries (`engine.sensitive`: cannabis, churches' 990-Ts,
   unions, security grants (90% congregations), HOAs / new condo associations,

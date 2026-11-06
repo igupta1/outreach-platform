@@ -937,9 +937,9 @@ def _startup_noun(lead: Lead) -> tuple[str, str]:
 _RAISE_WHY = ("so each has a new raise to get on its books",
               "so it has a new raise to get on its books")
 
-# HELD 2026-11-05 by the user: "a very commoditized signal" (every finance
-# firm already watches new raises). Wording kept for a later decision.
-HELD_DUTIES.update({
+# 2026-11-05 the user held Form D ("a very commoditized signal"), then allowed
+# it for firms that serve startups only (gift.engine.not_a_buyer_for).
+DUTIES.update({
     "startup_first_form_d": Duty(
         plural="filed their first form d with the sec",
         singular="filed its first form d with the sec",
@@ -1756,6 +1756,66 @@ DUTIES["new_business_expanding"] = Duty(
     short=("newly registered in the state", "newly registered in the state"),
     bare=True, dm="registering to do business in a new state")
 
+
+# --- New growth sources (2026-11-05; the user: "I trust you with the email
+# wording"). Each states only what its record shows. -----------------------
+def _fda_kind(leads: list[Lead]) -> str:
+    kinds = {str(_payload(ld).get("submission") or "").lower() for ld in leads}
+    if kinds == {"de novo"}:
+        return "fda de novo grants" if len(leads) > 1 else "an fda de novo grant"
+    return "fda clearances" if len(leads) > 1 else "an fda clearance"
+
+
+def _fda_first(leads: list[Lead]) -> str:
+    k = _fda_kind(leads)
+    return f"got their first {k} for a medical device" if len(leads) > 1 \
+        else f"got its first {k.removeprefix('an ')} for a medical device"
+
+
+_SELL_DEVICE = ("so each can now legally sell that device in the us",
+                "so it can now legally sell that device in the us")
+
+DUTIES.update({
+    # Healthcare (openFDA 510(k) / De Novo): a small US applicant.
+    "fda_first_device_clearance": Duty(
+        plural=_fda_first, singular=lambda ld: _fda_first([ld]),
+        line="first fda clearance for a medical device",
+        short=("with a first fda clearance", "with a first fda clearance"),
+        why=_SELL_DEVICE, noun=("medical device company", "medical device companies"),
+        dm="getting their first fda device clearance"),
+    "fda_device_clearance": Duty(
+        plural=lambda leads: f"got new {_fda_kind(leads)} for medical devices",
+        singular=lambda ld: f"got {_fda_kind([ld])} for a new medical device",
+        line="new fda clearance for a medical device",
+        short=("with new fda clearances", "with a new fda clearance"),
+        why=_SELL_DEVICE, noun=("medical device company", "medical device companies"),
+        dm="getting fda device clearances"),
+    # Construction (city open data): the contractor named on the permit.
+    "construction_large_permit": Duty(
+        plural="were named on new city building permits for large jobs",
+        singular="was named as the contractor on a new city building permit for a large job",
+        line="contractor on a new large city building permit",
+        short=("on new large building permits", "on a new large building permit"),
+        detail=lambda ld: (f"{_payload(ld).get('permits_in_window')} permits"
+                           if str(_payload(ld).get("permits_in_window") or "1") not in ("0", "1")
+                           else ""),
+        noun=("contractor", "contractors"), dm="pulling large city building permits"),
+    # Federal (SAM.gov monthly extract): a small business, new to SAM.
+    "sam_new_entity_registration": Duty(
+        plural="just registered as federal contractors",
+        singular="just registered as a federal contractor",
+        line="newly registered federal contractor",
+        short=("new to federal contracting", "new to federal contracting"),
+        dm="registering as federal contractors"),
+    # Federal (NIH RePORTER / NSF / SBIR.gov): the firm's first SBIR/STTR award.
+    "sbir_phase1_award": Duty(
+        plural="won their first federal sbir research awards",
+        singular="won its first federal sbir research award",
+        why=_GRANT_RULES,
+        line="first federal sbir research award",
+        short=("with a first sbir award", "with a first sbir award"),
+        dm="winning their first sbir award"),
+})
 
 DUTY_SIGNALS = frozenset(DUTIES)
 

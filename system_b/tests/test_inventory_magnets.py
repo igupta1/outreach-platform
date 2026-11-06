@@ -51,6 +51,9 @@ def test_the_inventory_magnets_are_the_published_files():
         "publicsector": "public-sector-leads.json", "specialty": "specialty-leads.json",
         "constructionduty": "construction-duty-leads.json",
         "govconduty": "govcon-duty-leads.json",
+        # Growth sources (2026-11-05).
+        "constructiongrowth": "construction-growth-leads.json",
+        "govcongrowth": "govcon-growth-leads.json",
         # Funds, re-added 2026-10-30.
         "funds": "fund-leads.json", "fundsduty": "fund-duty-leads.json",
         # Startups and Cannabis (2026-10-30).

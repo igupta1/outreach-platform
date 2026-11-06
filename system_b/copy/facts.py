@@ -54,7 +54,12 @@ def money(v: object) -> str:
 
 
 def agency(p: dict) -> str:
-    top = str(p.get("awarding_agency") or "").strip()
+    branch = str(p.get("branch") or "")
+    if "National Institutes of Health" in branch:
+        return "nih"
+    if "National Science Foundation" in branch or p.get("agency") == "National Science Foundation":
+        return "nsf"
+    top = str(p.get("awarding_agency") or p.get("agency") or "").strip()
     sub = str(p.get("awarding_sub_agency") or "").strip()
     name = sub if top.lower() == "department of defense" and sub else top
     short = _AGENCY_DROP.sub("", name).strip().lower()
@@ -108,6 +113,20 @@ def record_fact(lead: Lead) -> str:
             and not isinstance(n, bool) and n > 0:
         return f"{int(n)} in the plan"
     t = lead.signal_type or ""
+    if t == "construction_large_permit":
+        job = money(p.get("headline_value"))
+        if job:
+            return f"{job} job"
+    if t == "sam_new_entity_registration":
+        from system_b.gift.fit import naics_title
+
+        what = _industry(naics_title(p.get("naics")))
+        if what:
+            return what
+    if t.startswith("fda_") and p.get("panel"):
+        panel = str(p["panel"]).split(",")[0].strip().lower()
+        if panel and len(panel) <= 25:
+            return f"{panel} device"
     # What the licence or permit is for, in the regulator's own words.
     if t.startswith("liquor_license_"):
         label = str(p.get("license_label") or "")

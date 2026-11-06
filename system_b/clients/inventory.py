@@ -117,6 +117,7 @@ MAGNET_MAX_AGE_DAYS: dict[str, int] = {
     "specialty": 14,
     "constructionduty": 21,
     "govconduty": 30,
+    "constructiongrowth": 14, "govcongrowth": 45,
     # Funds: the SEC roster is monthly, the IAPD feed weekly; the inventory
     # refreshes it weekly (Inventory `max_age_days` 45).
     "funds": 45,
@@ -1292,6 +1293,9 @@ MAGNETS: dict[str, str] = {
     "specialty": "specialty-leads.json",                # TTB, A/E rates, CPUC, NV gaming, film
     "constructionduty": "construction-duty-leads.json",  # WA prevailing wage, NV, FL stop-work
     "govconduty": "govcon-duty-leads.json",             # first SBIR Phase II
+    # 2026-11-05 growth sources (approved by the user)
+    "constructiongrowth": "construction-growth-leads.json",  # large city building permits
+    "govcongrowth": "govcon-growth-leads.json",         # SAM new registrations, first SBIR Phase I
     # Funds (re-added 2026-10-30): SEC Form ADV advisers whose funds report
     # no outside administrator; the duty file holds only approved types.
     "funds": "fund-leads.json",
@@ -1336,6 +1340,8 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
     "specialty": None,            # per program (_taxonomy_tags)
     "constructionduty": "construction",
     "govconduty": "government_contracting",
+    "constructiongrowth": "construction",
+    "govcongrowth": "government_contracting",
     "funds": "investment_management",       # niche private_funds (taxonomy words)
     "fundsduty": "investment_management",
     "startups": "software_saas",            # niche tech_startup -> _SOURCE_NICHES
@@ -1355,6 +1361,9 @@ MAGNET_INDUSTRY: dict[str, str | None] = {
 # it can never match a prospect, and Gate B would judge it for nothing).
 # None = no vertical: the lead is a city/state (generalist) gift only.
 _SOURCE_NICHES: dict[str, tuple[str | None, str | None]] = {
+    # Federal growth (2026-11-05): no taxonomy child for these
+    "new_federal_registrant": ("government_contracting", None),
+    "sbir_sttr": ("government_contracting", None),
     # Healthcare
     "hospital": ("healthcare", None), "healthcare": ("healthcare", None),
     "health_center": ("healthcare", "medical_practice"),

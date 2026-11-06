@@ -28,6 +28,11 @@ _ALIASES: dict[str, tuple[str, str | None]] = {
     "cpg": ("ecommerce_retail", "cpg_food_beverage"),
     "saas": ("software_saas", None),
     "software": ("software_saas", None),
+    # 2026-11-05: startups (Form D, for firms that serve them) and the medical
+    # niches the new FDA leads carry.
+    "startup": ("software_saas", None),
+    "biotech": ("healthcare", "biotech_pharma"),
+    "medtech": ("healthcare", "medical_devices"),
     "crypto": ("fintech", "crypto_web3"),
     "web3": ("fintech", "crypto_web3"),
     # Fund managers. Without these a firm whose site says "we serve private

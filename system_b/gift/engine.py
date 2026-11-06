@@ -109,6 +109,8 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     "tx_career_school_new", "tx_cacfp_new_sponsor",
     "construction_first_prevailing_wage_intent", "hud_new_owner",
     "ttb_new_distillery_permit", "ttb_new_winery_permit",
+    # 2026-11-05: a first SBIR award starts federal grant rules
+    "sbir_phase1_award",
     # 2026-11-02: federal excise returns start with a brewer's licence (the
     # same duty as TTB's), a Texas mixed beverage permit starts monthly tax
     # reports (held), and the PEO / employee-leasing / CPEO licences each carry
@@ -172,6 +174,10 @@ _TYPE_STRENGTH: tuple[str, ...] = (
     # a company formed elsewhere that registered to do business here
     # (2026-11-05, approved by the user; was Row 8's off-by-default half)
     "new_business_expanding",
+    # 2026-11-05 growth sources: a first FDA clearance, a large city permit,
+    # a new SAM registration, another FDA clearance
+    "fda_first_device_clearance", "construction_large_permit",
+    "sam_new_entity_registration", "fda_device_clearance",
     # Healthcare (2026-11-02): an approved Medicare group enrollment is stated by
     # the record itself, so it ranks with the licence rows; a first organization
     # NPI is the softest event of all (last, after the Form D rows).
@@ -223,8 +229,7 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    # approved 2026-11-05)
                                    "tx_new_mixed_beverage_permit",
                                    "chicago_new_food_license",
-                                   # Startups: held 2026-11-05 ("very commoditized")
-                                   "startup_first_form_d", "startup_new_form_d",
+
                                    # TexasPermits
                                    "tx_new_brewer_license",
                                    # Professional: leads are individual lawyers
@@ -987,11 +992,29 @@ def _in_their_niche(lead: Lead, prospect: Prospect) -> bool:
     return level is not None and level <= 3
 
 
+_BIG_GC_RE = re.compile(
+    r"\b(?:turner construction|structure tone|gilbane|suffolk construction|swinerton|"
+    r"whiting[- ]turner|skanska|aecom|tishman|hensel phelps|clark construction|mccarthy building|"
+    r"dpr construction|mortenson|webcor|hathaway dinwiddie|plant construction|lendlease|"
+    r"hitt contracting|balfour beatty|james g\.? davis|power construction|pepper construction|"
+    r"walsh construction|bulley|clayco|holder construction|brasfield|sundt|hoar construction|"
+    r"hunt construction|kiewit|granite construction|layton construction|rogers-o'brien|"
+    r"tutor perini|cg schmidt|consigli|shawmut|lf driscoll|skanska usa|nan fung)", re.I)
+
+
 def not_a_buyer_for(lead: Lead, prospect: Prospect) -> bool:
     if (lead.org_type or "") in ("government", "local_government") \
             and not _serves(prospect, "government", "public_sector"):
         return True
     if sensitive(lead) and not _in_their_niche(lead, prospect):
+        return True
+    # A new raise: only for a firm that says it serves startups / software
+    # (2026-11-05, the user: "allow raised-money leads only for firms that
+    # serve startups").
+    if (lead.signal_type or "").startswith("startup_") and not _in_their_niche(lead, prospect):
+        return True
+    # A national general contractor has its own finance team.
+    if lead.signal_type == "construction_large_permit" and _BIG_GC_RE.search(lead.company or ""):
         return True
     naics = "".join(str((sig.payload or {}).get("naics") or "") for sig in (lead.signals or [])[:1])
     firm = (lead.signal_type in _ACCOUNTING_FIRM_TYPES

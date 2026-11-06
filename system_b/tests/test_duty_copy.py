@@ -78,7 +78,7 @@ def test_every_duty_type_is_a_record_signal_in_copy_and_engine():
     assert set(DUTIES) == RECORD_SIGNALS - ORIGINAL
     assert RECORD_SIGNALS == ENGINE_RECORD
     # 74 + 27 wired in 2026-11-02 + 2 Healthcare (the Inventory's APPROVED_SIGNALS has the same)
-    assert len(DUTIES) == 118      # + expanding businesses (2026-11-05, not an inventory HELD type); - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
+    assert len(DUTIES) == 125      # + 5 growth sources and Form D back for startup firms (2026-11-05); + expanding businesses (2026-11-05, not an inventory HELD type); - 2 Form D held, + 8 liquor licences (2026-11-05); + nonprofit_deficit_low_cash (2026-11-03); FL Bar held (lawyers); + 2 SBALoans (2026-11-04); + TX PEO new (2026-11-03); + VA Class B (2026-11-05); + TX forfeitures, MN postings and revoked permits (2026-11-05)
     for t in DUTIES:
         assert t in TYPE_ORDER, t
         assert _MAGNET_WHAT[t] == t
