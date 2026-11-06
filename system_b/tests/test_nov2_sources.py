@@ -48,9 +48,9 @@ ENABLED = {
     "liquor_license_new_tx", "liquor_license_new_ca", "liquor_license_new_ny",
     "liquor_license_new_owner_ny", "liquor_license_new_fl", "liquor_license_new_co",
     "liquor_license_new_chicago", "liquor_license_new_owner_chicago",
+    "tx_new_mixed_beverage_permit",  # approved 2026-11-06
 }
 HELD = {
-    "tx_new_mixed_beverage_permit",
     "chicago_new_food_license", "tx_new_brewer_license",
     "nm_ocd_new_operator", "fcc_499a_missed", "fcc_499_new_registrant",
     "h2b_seasonal_employer_other_industry",

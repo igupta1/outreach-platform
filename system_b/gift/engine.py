@@ -227,10 +227,9 @@ _HELD: frozenset[str] = frozenset({"adv_annual_amendment_overdue",
                                    "cannabis_license_suspended",
                                    # Restaurants (the liquor licence slices
                                    # approved 2026-11-05)
-                                   "tx_new_mixed_beverage_permit",
+                                   # (tx_new_mixed_beverage_permit and
+                                   # new_business_expanding approved 2026-11-06)
                                    "chicago_new_food_license",
-                                   # 2026-11-05: on its own it shows no need
-                                   "new_business_expanding",
 
                                    # TexasPermits
                                    "tx_new_brewer_license",

@@ -1154,7 +1154,8 @@ DUTIES.update({                        # ENABLED (hand checks 7% and 8% false po
     **{t: _NEW_OWNER for t in ("liquor_license_new_owner_ny",
                                "liquor_license_new_owner_chicago")},
 })
-HELD_DUTIES.update({                   # HELD (wording ready)
+# 2026-11-06, approved by the user ("add lead types that are built and ready").
+DUTIES.update({
     "tx_new_mixed_beverage_permit": Duty(
         plural="got new mixed beverage permits from the state",
         singular="got a new mixed beverage permit from the state",
@@ -1163,6 +1164,8 @@ HELD_DUTIES.update({                   # HELD (wording ready)
         line="new texas mixed beverage permit, monthly tax reports",
         short=("with new liquor permits", "with a new liquor permit"), bare=True,
         dm="getting new texas mixed beverage permits"),
+})
+HELD_DUTIES.update({                   # HELD (wording ready)
     "chicago_new_food_license": Duty(
         plural="got new city food licenses", singular="got a new city food license",
         line="new chicago food license",
@@ -1758,7 +1761,9 @@ def _home(lead: Lead) -> str:
 
 
 # 2026-11-05 the user: held again. On its own a registration shows no need.
-HELD_DUTIES["new_business_expanding"] = Duty(
+# 2026-11-06 approved ("add lead types that are built and ready"): it says
+# only where it registered and what it is; no why.
+DUTIES["new_business_expanding"] = Duty(
     plural=_registered_in,
     singular=lambda ld: _registered_in([ld]),
     line=lambda ld: _registered_in([ld]),
