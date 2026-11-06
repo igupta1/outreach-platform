@@ -19,7 +19,7 @@ from typing import Any, Callable
 
 from system_b.gift.taxonomy import map_industry_candidates, map_prospect
 from system_b.research.models import Evidence, ResearchResult
-from system_b.research.rung import clear_focus, detect_rung
+from system_b.research.rung import clear_focus, detect_cpa, detect_rung
 from system_b.research.revenue import parse_revenue_range
 
 # Below this much total visible text, the site is "thin" -> generalist
@@ -179,6 +179,7 @@ def classify(
     result = _classify(site, taxonomy, llm=llm, client_fit=client_fit)
     result.rung, result.rung_evidence = detect_rung(site)
     result.rung_focus = clear_focus(site)
+    result.cpa = detect_cpa(site)
     return result
 
 

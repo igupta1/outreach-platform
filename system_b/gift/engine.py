@@ -882,12 +882,31 @@ def _licensed_elsewhere(lead: Lead, prospect: Prospect) -> bool:
     return bool(issuer and prospect.state) and norm_state(issuer) != norm_state(prospect.state)
 
 
+# Leads whose need is an audit or an auditor's report, which only a CPA firm
+# can sign (2026-11-05, the user: "CPA-only leads go to CPAs only"; 26 of 63
+# bookkeepers in two batches were handed plan or single audits). By the
+# inventory's service tags, plus the audit types it tags only by sector.
+CPA_ONLY_TAGS = frozenset({"audit", "audit_assurance", "benefit_plan_audit", "peo_audit"})
+CPA_ONLY_TYPES = frozenset({
+    "nonprofit_single_audit_not_done", "nonprofit_single_audit_late",
+    "local_gov_single_audit_late", "nonprofit_state_audit_line_no_audit",
+    "charter_audit_missing", "plan_audit_opinion_modified"})
+
+
+def cpa_only(lead: Lead) -> bool:
+    return (lead.signal_type in CPA_ONLY_TYPES
+            or bool(CPA_ONLY_TAGS & set(lead.service_tags or ())))
+
+
 def _off_limits(lead: Lead, prospect: Prospect) -> bool:
     """A lead this prospect must never see: its own audit client, an
     organization this firm was already handed (or, with
     `config.EXCLUSIVE_PER_REGION`, one handed to another firm in its region:
-    `gift.allocation`), or a license another state issued."""
+    `gift.allocation`), a license another state issued, or audit work when
+    the firm is not a CPA firm (`cpa_only`)."""
     key = lead.allocation_key
+    if cpa_only(lead) and not prospect.is_cpa:
+        return True
     return _audited_by(lead, prospect) or _licensed_elsewhere(lead, prospect) or (
         key is not None and key in prospect.blocked_identities)
 

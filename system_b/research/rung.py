@@ -159,3 +159,22 @@ def detect_rung(site: dict[str, str], default: str = CFO) -> tuple[str, list[str
     if contenders:
         best = contenders[0]                                  # SENIORITY order
     return best, hits[best]
+
+
+# A CPA firm, from its own words (2026-11-05: CPA-only leads -- audits, an
+# auditor's report on a licensee's statements -- go to CPAs only). Strict on
+# purpose: "work with your CPA" on a bookkeeper's site is not one. A firm
+# name or title with "CPA", "CPA firm", "our CPAs", "licensed CPA",
+# "certified public accountant(s)", or a person's name followed by ", CPA".
+_CPA_SITE_RE = re.compile(
+    r"\b(?:cpa firm|our cpas|licensed cpas?|certified public accountants?|"
+    r"cpa(?:s)? (?:and|&) (?:advisors|consultants))\b"
+    r"|[A-Z][a-z]+,\s*CPA\b", re.I)
+_CPA_NAME_RE = re.compile(r"\bcpas?\b|certified public accountant", re.I)
+
+
+def detect_cpa(site: dict[str, str] | None, *, firm_name: str | None = None,
+               title: str | None = None) -> bool:
+    if _CPA_NAME_RE.search(firm_name or "") or _CPA_NAME_RE.search(title or ""):
+        return True
+    return any(_CPA_SITE_RE.search(text or "") for text in (site or {}).values())

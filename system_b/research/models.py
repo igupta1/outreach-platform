@@ -58,5 +58,8 @@ class ResearchResult:
     # finance firm: staffing | marketing | software | training | investing, or
     # "" (a finance firm, or not clear). Set only with `business_phrase`, the
     # site's own words, verified verbatim (classifier._attach_business).
+    # The site says the firm is a CPA firm (research.rung.detect_cpa, site
+    # text only; run-time adds its name and the contact's title).
+    cpa: bool = False
     business: str = ""
     business_phrase: str | None = None

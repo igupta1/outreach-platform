@@ -47,6 +47,9 @@ class Prospect:
     # (research.rung.clear_focus); None = no preference. A tiebreak among
     # leads at the SAME match level, never a filter.
     focus: str | None = None
+    # A CPA firm (its site, its name or its contact's title: research.rung.
+    # detect_cpa). Only a CPA is shown a CPA-only lead (engine.cpa_only).
+    is_cpa: bool = False
 
 
 @dataclass

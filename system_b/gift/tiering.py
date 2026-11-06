@@ -29,6 +29,7 @@ from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
 from system_b.research.models import ResearchResult
+from system_b.research.rung import detect_cpa
 
 # Gate B fit-check: (niche_label, leads) -> per-lead booleans. Injectable so
 # tests run offline; production passes the real LLM check.
@@ -55,6 +56,8 @@ def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> 
         sent_lead_ids=list(row.get("sent_lead_ids") or []),
         blocked_identities=frozenset(row.get("blocked_identities") or ()),
         focus=getattr(research, "rung_focus", None),
+        is_cpa=bool(getattr(research, "cpa", False))
+               or detect_cpa(None, firm_name=row.get("firm_name"), title=row.get("title")),
         **kw,
     )
 

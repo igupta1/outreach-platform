@@ -66,6 +66,9 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
         # name, and "Paul" + a company column is a bad key to search a
         # thousand-row history by. Never rendered into copy.
         "last_name": _clean(record.get("Last Name")) or None,
+        # Only to tell a CPA ("Partner, CPA"): CPA-only leads go to CPAs
+        # (gift.engine.CPA_ONLY_TAGS). Never rendered into copy.
+        "title": _clean(record.get("Title")) or None,
         "email": email,
         "linkedin": _clean(record.get("Person Linkedin Url")),
         # Which Apollo finance-firm list(s) the contact came from, joined with

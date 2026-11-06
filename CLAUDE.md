@@ -68,6 +68,16 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+CPA-only leads (2026-11-05, the user): a lead whose need is an audit or an
+auditor's report (`gift.engine.cpa_only`: service tags audit / audit_assurance
+/ benefit_plan_audit / peo_audit, plus the single-audit and state-audit types)
+is off limits (`_off_limits`) unless the prospect is a CPA firm
+(`Prospect.is_cpa`: its site says "CPA firm", "our CPAs", "licensed CPA",
+"certified public accountants" or "Name, CPA", or its name or the contact's
+Apollo title says CPA; `research.rung.detect_cpa`). "Work with your CPA" on
+a bookkeeper's site does not count. Two batches had handed 26 of 63
+bookkeepers plan or single audits.
+
 Retries and the status line (2026-11-05): launchd also starts the job at
 04:00 and 06:00 (`nightly.RUN_HOURS`); `nightly.sh` exits at once when
 `system_b.nightly --built-tonight` says tonight's batch is already built, and
