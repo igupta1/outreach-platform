@@ -87,7 +87,7 @@ def test_place_is_named_only_when_every_lead_is_there():
     assert framing == ("saw you're based in knoxville. these 2 companies in tennessee "
                        "won federal construction jobs, so each now owes weekly certified "
                        "payroll for every worker:")
-    assert lines == ["A, nashville", "B, memphis (first on record)"]
+    assert lines == ["A, nashville", "B, memphis (first federal job on record)"]
     # Arlington WA is not Arlington TX: same city name, two states -> no place.
     g2 = gift([lead(FG, name="A", city="Arlington", state="WA"),
                lead(FG, name="B", city="Arlington", state="TX")], geo="none")

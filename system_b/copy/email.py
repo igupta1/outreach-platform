@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations, bare_gift
+from system_b.copy.facts import record_fact
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
     city_display,
@@ -572,7 +573,7 @@ def _record_detail(lead: Lead, kind: str) -> str:
         return ", ".join(bits)
     if kind == DAVIS_BACON_SIGNAL:
         if p.get("first_contract_on_record"):
-            return "first on record"
+            return "first federal job on record"
         n = p.get("awards_in_window")
         return "more than one" if isinstance(n, int) and n > 1 else ""
     if kind == COST_CONTRACT_SIGNAL:
@@ -689,10 +690,12 @@ def record_opener(gift: Gift, prospect: Prospect) -> tuple[str, list[str]] | Non
             else city_display(lead.city) if level == "state" \
             else (city_state_display(lead.city, lead.state) or state_display(lead.state))
         name = f"{said}, {loc}" if loc else said
+        # One fact from the lead's own record (copy.facts, 2026-11-05).
+        fact = record_fact(lead)
         if kind == "mixed":
-            lines.append(f"{name}: {magnet_phrase(lead)}")
+            lines.append(f"{name}: {magnet_phrase(lead)}" + (f" ({fact})" if fact else ""))
         else:
-            detail = _record_detail(lead, kind)
+            detail = ", ".join(b for b in (_record_detail(lead, kind), fact) if b)
             lines.append(f"{name} ({detail})" if detail else name)
     return framing, lines
 
@@ -1428,6 +1431,9 @@ def _record_followup(lead: Lead, prospect: Prospect) -> str | None:
     said = _record_predicate(lead)
     if said is None:
         return None
+    fact = record_fact(lead)                 # one fact from the record (copy.facts)
+    if fact:
+        said = f"{said} ({fact})"
     name = spoken_name(lead.company)
     city, state = city_display(prospect.city), state_display(prospect.state)
     lead_city, lead_state = city_display(lead.city), state_display(lead.state)

@@ -87,6 +87,10 @@ class Lead(BaseModel):
     service_tags: list[str] = Field(default_factory=list)
     # The inventory's organization kind (business | nonprofit | government | ...).
     org_type: str | None = None
+    # The record's named contact (the inventory's chosen contact), printed only
+    # with a plain role (copy.facts). Never guessed.
+    contact_name: str | None = None
+    contact_title: str | None = None
     # The fragment of a word the SOURCE cut off in the name ("Conservati"), or
     # None. Never completed by guesswork: the lead line raises a review flag.
     name_cut_off: str | None = None

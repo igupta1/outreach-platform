@@ -68,6 +68,19 @@ ready, with anything to fix listed. `ops/com.outreach.nightly.plist` (launchd,
   lists at the top ("to fix" / "to look at"), and a summary in
   `logs/nightly-latest.txt`.
 
+One fact per lead (2026-11-05, the user changed the old "no figure, no
+contact" rule): every email 1 lead line and email 2's lead carry ONE fact from
+the lead's own record (`copy/facts.record_fact`), read and formatted by code:
+an award with its agency ("$988k, veterans affairs", "$527k, transportation
+dept"), an SBA loan ("$3.7m loan"), late plan contributions, a nonprofit's
+filed revenue ("$4.6m in revenue"), a plan's size ("121 in the plan"), else a
+named contact with a plain role ("Vickie Smith, executive director"; a
+source's own wording like "Signed the Form 5500..." is never printed).
+Davis-Bacon's "first on record" now reads "first federal job on record".
+Form D is held (the user: "very commoditized"); the liquor-licence slices and
+expanding businesses ("registered to do business in colorado", "a delaware
+llc") are approved.
+
 Non-buyers, old records, outside the US (2026-11-05, the user): dropped at
 load (`clients.inventory._not_a_buyer`): an (large) accelerated SEC filer, a
 blank-check shell (SIC 6770), a GSE (Fannie Mae...), a retirement plan over
