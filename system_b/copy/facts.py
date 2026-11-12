@@ -16,22 +16,54 @@ filed revenue), then a plan's size, then a named contact with a plain role.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from system_b.models import Lead
 
-# Roles worth printing beside a name. A source's own wording ("Signed the Form
-# 5500 as plan administrator", "AR") is not a role a reader can use.
-_ROLE_RE = re.compile(
-    r"^(?:owner|co-owner|founder|co-founder|ceo|cfo|coo|president|vice president|"
-    r"executive director|interim executive director|director|managing member|"
-    r"managing partner|partner|principal|general manager|manager|"
-    r"accounting manager|finance director|director of finance|controller|treasurer|"
-    r"administrator|plan administrator|mgr|officer|member|managing director|chair|"
-    r"chairman|chairperson|secretary|authorized official)$", re.I)
-_ROLE_WORDS = {"mgr": "manager"}
+# Roles worth printing beside a name, as the reader would say them. A
+# source's own wording is mapped to a plain role ("Signed the Form 5500 as plan
+# administrator" -> "plan administrator", "AMBR" -> "authorized member");
+# anything unknown prints no name. 2026-11-11: widened from 30 titles, which
+# kept 1 in 3 of the named people on the record.
+_ROLES = (
+    (r"owner|co-owner|sole owner", None),
+    (r"founder|co-founder", None),
+    (r"ceo|chief executive officer|president(?: ?[&/] ?ceo)?|ceo ?[&/] ?president", None),
+    (r"coo|chief operating officer", None),
+    (r"vice president|executive vice president|evp|svp|vp", "vice president"),
+    (r"executive director|interim executive director", None),
+    (r"director|managing director|officer, director|executive officer", None),
+    (r"managing member|member|sole member|authorized member|ambr|mbr|mgrm", None),
+    (r"managing partner|partner|general partner", None),
+    (r"principal|principal investigator", None),
+    (r"general manager|manager|mgr|office manager|business manager", None),
+    (r"administrator|plan administrator|signed the form 5500 as plan administrator",
+     "plan administrator"),
+    (r"officer|chair|chairman|chairperson|chairwoman|secretary|trustee|permittee", None),
+    (r"certified [a-z ]+ contractor|qualifier|qualifying individual", "license holder"),
+    (r"authorized official|contact person on form [\w-]+|contact named on form [\w-]+",
+     "contact"),
+)
+_ROLE_RES = [(re.compile(rf"^(?:{pat})$", re.I), word) for pat, word in _ROLES]
+_ROLE_WORDS = {"mgr": "manager", "ambr": "authorized member", "mbr": "member",
+               "mgrm": "managing member", "administrator": "administrator",
+               "vp": "vice president"}
 # A lead whose named contact is its own CFO reads as one that already has
 # finance help (2026-11-05): never printed.
-_FINANCE_ROLE_RE = re.compile(r"\b(?:cfo|controller|treasurer|finance|accounting)\b", re.I)
+_FINANCE_ROLE_RE = re.compile(r"\b(?:cfo|controller|treasurer|finance|financial|accounting)\b", re.I)
+# Legal endings, so "Shabbat Angels" is seen to be the org's own name.
+_LEGAL_END_RE = re.compile(r"[,.]?\s+(?:llc|l\.l\.c\.|inc|inc\.|corp|corporation|co|ltd|pllc|pc|lp|llp)\.?$", re.I)
+
+
+def role_word(title: str | None) -> str:
+    """The plain role for a source's title, or "" when it is not one we print."""
+    t = " ".join((title or "").split()).strip(" .,")
+    if not t or _FINANCE_ROLE_RE.search(t):
+        return ""
+    for rx, word in _ROLE_RES:
+        if rx.match(t):
+            return word or _ROLE_WORDS.get(t.lower(), t.lower())
+    return ""
 
 
 def money(v: object) -> str:
@@ -104,17 +136,75 @@ def _payload(lead: Lead) -> dict:
     return out
 
 
-def _contact(lead: Lead) -> str:
+def _person(lead: Lead) -> tuple[str, str] | None:
+    """(name, plain role) of the record's named contact, or None. Single-letter
+    initials are dropped ("Douglas K Bardin" -> "Douglas Bardin"); a "contact"
+    that is the organization's own name is not a person."""
     name = " ".join((lead.contact_name or "").split())
-    title = " ".join((lead.contact_title or "").split())
-    if not name or not title or not _ROLE_RE.match(title) or _FINANCE_ROLE_RE.search(title):
-        return ""
+    role = role_word(lead.contact_title)
+    if not name or not role:
+        return None
     if name.isupper() or name.islower():
         name = name.title()
-    return f"{name}, {_ROLE_WORDS.get(title.lower(), title.lower())}"
+    name = " ".join(w for w in name.split() if len(w.rstrip(".")) > 1)
+    org = _LEGAL_END_RE.sub("", " ".join((lead.company or "").split())).lower()
+    if len(name.split()) < 2 or name.lower() == org:
+        return None
+    return name, role
 
 
-def record_fact(lead: Lead) -> str:
+def _contact(lead: Lead) -> str:
+    who = _person(lead)
+    return f"{who[0]}, {who[1]}" if who else ""
+
+
+def contact(lead: Lead) -> str:
+    """The named person on the record, role first: "principal Edward Alex
+    Polevoy" (2026-11-11, the user: "include the contact name when we can").
+    A name the reader can ask for turns a company into a lead they can act on.
+    "" when the record names no usable person."""
+    who = _person(lead)
+    if not who:
+        return ""
+    return f"{_ROLE_WORDS_BEFORE.get(who[1], who[1])} {who[0]}"
+
+
+# Roles that read oddly before a name.
+_ROLE_WORDS_BEFORE = {"authorized official": "contact"}
+
+# The record's own date says the news is new (2026-11-11, the user: "sound as
+# fresh as possible without doing too much"): "oct 23" when the event is at
+# most FRESH_DAYS old, nothing otherwise (an old date only says "stale").
+# Only for types whose record date IS the news (a licence issued, a loan
+# approved, an award signed, an owner changed, a lien filed). Never for a
+# filing about a standing situation: "Rising Point Capital (4 funds, oct 15)"
+# would say the funds are new when only the form is, and a 990's or a 5500's
+# year end is not when anything happened.
+FRESH_DAYS = 45
+_NEWS_DATED = re.compile(
+    r"new|first|licen[cs]e|permit|registration|award|contract|loan|sba|owner|began|"
+    r"clearance|credit_allocated|credit_approved|certified|placed_in_service|subaward|"
+    r"lien|forfeited|revoked|suspended|stop_work|upgrade")
+_PERIOD_DATED = ("plan_", "welfare_", "pension_", "nonprofit_", "adv_")
+_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+def fresh_date(lead: Lead, today: date) -> str:
+    t = lead.signal_type or ""
+    if t.startswith(_PERIOD_DATED) or not _NEWS_DATED.search(t) \
+            or lead.effective_date_confidence != "high":
+        return ""
+    iso = (lead.headline_signal.date if lead.headline_signal else None) or lead.newest_date
+    try:
+        when = date.fromisoformat(str(iso)[:10])
+    except (TypeError, ValueError):
+        return ""
+    if not 0 <= (today - when).days <= FRESH_DAYS:
+        return ""
+    return f"{_MONTHS[when.month - 1]} {when.day}"
+
+
+def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     p = _payload(lead)
     award = money(p.get("award_amount"))
     if award:
@@ -173,7 +263,7 @@ def record_fact(lead: Lead) -> str:
     if (lead.signal_type or "") == "hud_new_owner" and isinstance(units, (int, float)) \
             and not isinstance(units, bool) and units > 0:
         return f"{int(units)} units"
-    return _contact(lead)
+    return _contact(lead) if with_contact else ""
 
 
 def _industry(text: object) -> str:

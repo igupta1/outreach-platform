@@ -151,3 +151,54 @@ def test_a_first_plan_audit_is_cpa_work_and_new_york_registrations_stay_in_new_y
     law = mk("l", "ny_new_law_firm", city="Palm Beach", state="FL")
     assert _licensed_elsewhere(law, Prospect(firm_name="X", city="Tampa", state="FL"))
     assert not _licensed_elsewhere(law, Prospect(firm_name="X", city="Albany", state="NY"))
+
+
+# --- 2026-11-11: the person on the record, and a fresh date -------------------
+
+def _contact_lead(signal_type="construction_new_licensed_business", *, when="2026-10-23",
+                  name="Edward Alex Polevoy", title="Principal", company="Alderlis Construction"):
+    from system_b.models import Lead, Signal
+    return Lead(id=f"x:{company}", company=company, city="Bothell", state="WA",
+                signal_type=signal_type, contact_name=name, contact_title=title,
+                signals=[Signal(type=signal_type, date=when, date_confidence="high",
+                                plain_words_description="Licensed.", payload={})])
+
+
+def test_contact_reads_role_first_and_drops_initials():
+    from system_b.copy.facts import contact
+    assert contact(_contact_lead()) == "principal Edward Alex Polevoy"
+    assert contact(_contact_lead(name="DOUGLAS K BARDIN", title="PRINCIPAL")) == \
+        "principal Douglas Bardin"
+    assert contact(_contact_lead(title="Registered agent")) == ""       # not a role
+    assert contact(_contact_lead(title="CFO")) == ""                    # has finance help
+    assert contact(_contact_lead(name="Alderlis", title="Owner")) == ""  # the org's own name
+    assert contact(_contact_lead(title="Authorized Official")) == "contact Edward Alex Polevoy"
+
+
+def test_fresh_date_only_when_recent_and_the_date_is_the_news():
+    from datetime import date
+
+    from system_b.copy.facts import fresh_date
+    today = date(2026, 11, 11)
+    assert fresh_date(_contact_lead(), today) == "oct 23"
+    assert fresh_date(_contact_lead(when="2026-08-01"), today) == ""           # too old
+    assert fresh_date(_contact_lead("plan_late_contributions", when="2026-10-31"), today) == ""
+    assert fresh_date(_contact_lead("adv_no_fund_administrator"), today) == ""
+    assert fresh_date(_contact_lead("sba_7a_loan_approved"), today) == "oct 23"
+
+
+def test_email_1_lines_carry_the_fact_date_and_person():
+    from datetime import date
+
+    from system_b.copy.email import record_opener
+    from system_b.gift.models import Gift, Prospect
+    leads = [_contact_lead(company=c, name=n) for c, n in
+             (("Alderlis Construction", "Edward Alex Polevoy"),
+              ("Paragon Home Services", "Matthew Donald Flores"))]
+    g = Gift(leads=leads, best_lead=leads[0], gift_size=2, all_niche=False, geo_level="city",
+             subject_shape="plural", what_category="construction", best_lead_level=1)
+    p = Prospect(firm_name="Match", city="Bothell", state="WA", first_name="Terry")
+    _, lines = record_opener(g, p, today=date(2026, 11, 11))
+    assert lines[0] == "Alderlis Construction (oct 23, principal Edward Alex Polevoy)"
+    _, note = record_opener(g, p)          # the LinkedIn note: as before, no date
+    assert note[0] == "Alderlis Construction (Edward Alex Polevoy, principal)"

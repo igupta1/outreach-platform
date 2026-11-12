@@ -180,9 +180,9 @@ def test_email_2_is_one_plain_sentence_in_email_1s_words():
     diff = build_followup_email(lead(NB, name="New Co Llc"), PROSPECT, step=2,
                                 today=TODAY, pack=pack, gift_signals={DB})
     tail = "\n\nshould i keep these to florida, or go wider?"
-    assert same.body == "one more in tampa: B won a federal construction job." + tail
+    assert same.body == "one more in tampa: B won a federal construction job (oct 6)." + tail
     # another kind is "also", not "one more" (2026-11-06)
-    assert diff.body == ("also in tampa: New Co just registered as a new company."
+    assert diff.body == ("also in tampa: New Co just registered as a new company (oct 6)."
                          + tail)
     for body in (same.body, diff.body):
         assert "same signal" not in body and "offer still stands" not in body
@@ -202,12 +202,12 @@ def test_email_2_names_the_place_only_when_it_matches_the_prospect():
     state = build_followup_email(lead(FG, name="Grant Co", city="Macon", state="GA"), atl,
                                  step=2, today=TODAY, pack=pack)
     assert state.body.startswith(
-        "one more in georgia: Grant Co in macon got its first federal grant in 3+ years.")
+        "one more in georgia: Grant Co in macon got its first federal grant in 3+ years (oct 6).")
     away = build_followup_email(lead(CR, {"pricing_kind": "labor-hour"}, name="Far Co",
                                      city="Reno", state="NV"), atl, step=2, today=TODAY,
                                 pack=pack)
     assert away.body.startswith(
-        "one more: Far Co in reno won a federal contract the government can audit.")
+        "one more: Far Co in reno won a federal contract the government can audit (oct 6).")
 
 
 def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():

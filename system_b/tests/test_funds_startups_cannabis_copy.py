@@ -129,13 +129,13 @@ def test_cannabis_tax_why_only_when_every_license_collects_the_tax():
     text = body(gift(shops), p)
     assert ("these 3 cannabis businesses in seattle got new state cannabis licenses, "
             "so each now has state cannabis tax returns to file:") in text
-    assert "The Premium Bud (dispensary)" in text
+    assert "The Premium Bud (dispensary, oct 15)" in text
     mixed = shops[:2] + [_can("cannabis_new_license", "Post Mountain Cannabis LLC",
                               {"license_kind": "cultivation",
                                "collects_state_cannabis_tax": False}, "s:pm")]
     text = body(gift(mixed), p)
     assert "got new state cannabis licenses:" in text and "tax returns" not in text
-    assert "(cultivator)" in text
+    assert "(cultivator, oct 15)" in text
 
 
 def test_cannabis_never_says_280e_and_holds_two_types():

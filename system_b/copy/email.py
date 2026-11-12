@@ -14,7 +14,7 @@ from datetime import date
 
 from system_b.copy.duty import DUTIES, DUTY_SIGNALS, all_organizations, bare_gift
 from system_b.copy import offer
-from system_b.copy.facts import record_fact
+from system_b.copy.facts import contact, fresh_date, record_fact
 from system_b.copy.honesty import date_suffix, is_raise, strip_dollar_amounts, strip_em_dashes
 from system_b.copy.lex import (
     city_display,
@@ -683,7 +683,8 @@ def _unrepeated(fact: str, phrase: str) -> str:
     return fact
 
 
-def record_opener(gift: Gift, prospect: Prospect, pack=None) -> tuple[str, list[str]] | None:
+def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
+                  today: date | None = None) -> tuple[str, list[str]] | None:
     """(framing, lead lines without numbers) for a record gift, or None to keep
     the legacy path."""
     kind = _record_kind(gift)
@@ -733,13 +734,17 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None) -> tuple[str, list[
             else city_display(lead.city) if level == "state" \
             else (city_state_display(lead.city, lead.state) or state_display(lead.state))
         name = f"{said}, {loc}" if loc else said
-        # One fact from the lead's own record (copy.facts, 2026-11-05).
-        fact = record_fact(lead)
+        # One fact from the lead's own record (copy.facts, 2026-11-05), then
+        # (with `today`, email 1) a recent date and the person the record
+        # names (2026-11-11). The LinkedIn note passes no `today`: 300 chars.
+        fact = record_fact(lead, with_contact=today is None)
+        extra = [fresh_date(lead, today), contact(lead)] if today else []
         if kind == "mixed":
             phrase = magnet_phrase(lead)
-            lines.append(f"{name}: {phrase}" + (f" ({_unrepeated(fact, phrase)})" if fact else ""))
+            detail = ", ".join(b for b in (_unrepeated(fact, phrase) if fact else "", *extra) if b)
+            lines.append(f"{name}: {phrase}" + (f" ({detail})" if detail else ""))
         else:
-            detail = ", ".join(b for b in (_record_detail(lead, kind), fact) if b)
+            detail = ", ".join(b for b in (_record_detail(lead, kind), fact, *extra) if b)
             lines.append(f"{name} ({detail})" if detail else name)
     return framing, lines
 
@@ -1306,7 +1311,7 @@ def build_email_1(
     pack = pack or default_pack()
     flags: list[str] = []
     subject = build_subject(gift, prospect, pack=pack)
-    record = record_opener(gift, prospect, pack)
+    record = record_opener(gift, prospect, pack, today=today)
     framing = record[0] if record else pack.framing(gift, prospect)
 
     lines: list[str] = []
@@ -1482,12 +1487,15 @@ def _followup_ask(prospect: Prospect, pack=None, vary_key: str | None = None,
 
 def _record_followup(lead: Lead, prospect: Prospect, pack=None,
                      vary_key: str | None = None, *, ask_state: bool = True,
-                     gift_signals: frozenset[str] | set[str] | None = None) -> str | None:
+                     gift_signals: frozenset[str] | set[str] | None = None,
+                     today: date | None = None) -> str | None:
     """Email 2's core for a record lead, or None to keep the old shape."""
     said = _record_predicate(lead)
     if said is None:
         return None
-    fact = record_fact(lead)                 # one fact from the record (copy.facts)
+    # One fact from the record (copy.facts), and the person it names.
+    fact = ", ".join(b for b in (record_fact(lead, with_contact=False),
+                                 fresh_date(lead, today) if today else "", contact(lead)) if b)
     if fact:
         fact = _unrepeated(fact, said)
         # One bracket, never "(990 for fy2025) ($359k in revenue)".
@@ -1551,7 +1559,7 @@ def build_followup_email(
         core = offer.final_note(vary_key) if pack.key in _FINANCE_PACKS else _FINAL_PIVOT
     elif lead is not None and (record := _record_followup(
             lead, prospect, pack, vary_key, ask_state=ask_state,
-            gift_signals=gift_signals)) is not None:
+            gift_signals=gift_signals, today=today)) is not None:
         # `_lead_line` still runs for its flags (unfindable, cut-off name).
         flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
         core = record
