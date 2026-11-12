@@ -93,10 +93,14 @@ def test_the_inventorys_approved_list_is_this_list():
         pytest.skip("no inventory checkout")
     import ast
     tree = ast.parse(inv.read_text())
-    approved = next(ast.literal_eval(n.value) for n in ast.walk(tree)
-                    if isinstance(n, ast.Assign)
-                    and any(getattr(t, "id", "") == "APPROVED_SIGNALS" for t in n.targets))
-    assert set(approved) == set(DUTIES)
+    def assigned(name):
+        return next(n.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
+                    and any(getattr(t, "id", "") == name for t in n.targets))
+
+    approved = ast.literal_eval(assigned("APPROVED_SIGNALS"))
+    # frozenset({...}): published to the magnets though off in the export.
+    off = ast.literal_eval(assigned("PUBLISHED_OFF_BY_DEFAULT").args[0])
+    assert set(approved) | set(off) == set(DUTIES)
 
 
 def test_strong_duties_rank_ahead_of_weak_ones_and_row_8_stays_last():

@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import time
 from datetime import date
 from pathlib import Path
 
@@ -79,6 +80,29 @@ COLUMNS = [
 # from one an overlapping Apollo pull has already sequenced. A flat email list,
 # NOT a status record: this file never learns whether anyone accepted or
 # replied, which stays where a human can edit it without a tool racing them.
+# A dropped connection to the model is not a verdict on the firm (2026-11-11:
+# 8 firms skipped for "APIConnectionError" across a week's batches). Such a
+# firm is drafted again after a pause; anything else (no credits, a bug)
+# fails at once as before.
+TRANSIENT_ERRORS = {"APIConnectionError", "APITimeoutError", "RateLimitError",
+                    "InternalServerError", "ConnectError", "ReadTimeout", "ConnectTimeout"}
+RETRY_PAUSES = (5, 30)
+
+
+def with_retry(call, firm: str, pauses=RETRY_PAUSES, sleep=time.sleep):
+    """`call()`, tried again after each pause while it fails on a dropped
+    connection; the last failure is raised."""
+    for pause in pauses:
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001 -- only transient ones are retried
+            if type(exc).__name__ not in TRANSIENT_ERRORS:
+                raise
+            print(f"  · {firm:32} {type(exc).__name__}: trying again in {pause}s")
+            sleep(pause)
+    return call()
+
+
 DEFAULT_LEDGER = Path(__file__).resolve().parent / "data" / "seen-prospects.csv"
 
 # The outreach history sheet: one row per prospect ever sequenced, filled by
@@ -428,9 +452,9 @@ def main() -> None:
         p = {**p, "blocked_identities": allocations.blocked(firm, p.get("state"),
                                                             own=own_holdings)}
         try:
-            res = generate_sequence(p, scraper, taxonomy, today, pack_key=args.pack,
-                                    force_pack=args.force_pack,
-                                    naturalness=naturalness, name_fixer=name_fixer)
+            res = with_retry(lambda: generate_sequence(
+                p, scraper, taxonomy, today, pack_key=args.pack, force_pack=args.force_pack,
+                naturalness=naturalness, name_fixer=name_fixer), firm)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))
