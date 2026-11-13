@@ -974,20 +974,20 @@ DUTIES.update({
 # the lead's own `niche` (see `_SOURCE_NICHES`), not the wording.
 # 2026-11-05: no why. "will likely owe" read as a guess, and the record does
 # not show the loan's terms; the fact ("$500k loan, dental") carries it.
-_SBA_WHY = ("so each has a lender expecting regular financials",
-            "so it has a lender expecting regular financials")
+# 2026-11-13, the user (option 3): the need is in the sentence itself.
+_SBA_WHY = None
 
 DUTIES.update({
     "sba_7a_loan_approved": Duty(
-        plural="were approved for sba loans",
-        singular="was approved for an sba loan",
+        plural="just got sba loans and will need clean books for their lender",
+        singular="just got an sba loan and will need clean books for its lender",
         why=_SBA_WHY,
         line="approved for an sba loan",
         short=("approved for sba loans", "approved for an sba loan"),
         noun=("business", "businesses"), dm="getting approved for sba 7(a) loans"),
     "sba_504_loan_approved": Duty(
-        plural="were approved for sba loans",
-        singular="was approved for an sba loan",
+        plural="just got sba loans and will need clean books for their lender",
+        singular="just got an sba loan and will need clean books for its lender",
         why=_SBA_WHY,
         line="approved for an sba loan",
         short=("approved for sba loans", "approved for an sba loan"),
