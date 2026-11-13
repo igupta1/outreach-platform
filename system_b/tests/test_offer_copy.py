@@ -170,6 +170,8 @@ def test_contact_reads_role_first_and_drops_initials():
     from system_b.copy.facts import contact
     assert contact(_contact_lead()) == "principal Edward Polevoy"            # no middle name
     assert contact(_contact_lead(name="Maria Luisa de la Cruz Jr.")) == "principal Maria de la Cruz"
+    assert contact(_contact_lead(name="Sherrilyn Ms")) == ""             # a title, not a name
+    assert contact(_contact_lead(name="Dr. Jane Q. Smith")) == "principal Jane Smith"
     assert contact(_contact_lead(name="DOUGLAS K BARDIN", title="PRINCIPAL")) == \
         "principal Douglas Bardin"
     assert contact(_contact_lead(title="Registered agent")) == ""       # not a role

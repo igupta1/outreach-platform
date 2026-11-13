@@ -154,6 +154,7 @@ def _person(lead: Lead) -> tuple[str, str] | None:
 
 
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
+_TITLES = {"mr", "mrs", "ms", "miss", "dr", "rev", "hon"}   # "Sherrilyn Ms" (2026-11-12)
 _PARTICLES = {"de", "del", "della", "da", "di", "du", "la", "le", "van", "von", "der", "st"}
 
 
@@ -161,7 +162,8 @@ def _first_last(name: str) -> str:
     """First and last name only (2026-11-12, the user: no middle names):
     "Edward Alex Polevoy" -> "Edward Polevoy", "Douglas K Bardin" -> "Douglas
     Bardin". A surname particle stays ("Maria de la Cruz"), a suffix goes."""
-    words = [w for w in name.split() if len(w.rstrip(".,")) > 1 or w.lower() in _PARTICLES]
+    words = [w for w in name.split() if (len(w.rstrip(".,")) > 1 or w.lower() in _PARTICLES)
+             and w.lower().strip(".,") not in _TITLES]
     while len(words) > 2 and words[-1].lower().strip(".,") in _SUFFIXES:
         words.pop()
     if len(words) <= 2:

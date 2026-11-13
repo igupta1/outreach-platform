@@ -384,3 +384,12 @@ def test_emphasis_puts_the_industry_with_its_own_page_first():
                                ["cannabis dispensary services", "nonprofit organizations"], site)
     assert mps[0] == ("industry", "nonprofit")
     assert phrases[0] == "nonprofit organizations"
+
+
+def test_a_firms_own_trade_ranks_after_its_client_industries():
+    from system_b.research.classifier import by_emphasis
+    site = {"https://marjiam.com": "Our accounting firm serves accounting firms, law firms "
+                                   "and restaurants. Accounting firms trust our accounting firm."}
+    mps, _ = by_emphasis([("industry", "accounting"), ("industry", "legal")],
+                         ["Accounting Firms", "Law Firms"], site)
+    assert mps[0] == ("industry", "legal")

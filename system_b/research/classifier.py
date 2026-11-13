@@ -72,11 +72,20 @@ def _emphasis_terms(phrase: str, mp: tuple[str, str]) -> list[str]:
     return [t for t in dict.fromkeys(terms) if len(t.replace(" ", "")) >= 3]
 
 
+# Industries a finance firm's site names about ITSELF ("our accounting firm",
+# "professional services for..."), so counting them says nothing about its
+# clients (2026-11-12: Marjiam CFO and US Fractional CFO Alliance came out as
+# "accounting firms" and "professional services"). They rank after every
+# other stated industry and stay claimable when nothing else fills a gift.
+_SELF_WORDS = re.compile(r"\b(?:accounting|accountants?|cpas?|bookkeep\w*|tax|financial|"
+                         r"finance|professional services?|consult\w*|advisory)\b")
+
+
 def emphasis(phrase: str, mp: tuple[str, str], site: dict[str, str]) -> tuple[int, int]:
     """(has a page of its own, times the site names it) for one stated industry."""
     terms = _emphasis_terms(phrase, mp)
-    if not terms:
-        return 0, 0
+    if not terms or any(_SELF_WORDS.search(t) for t in terms):
+        return -1, 0
     paths = [re.sub(r"[^a-z]", "", url.lower().split("//", 1)[-1].partition("/")[2])
              for url in site]
     page = int(any(len(t.replace(" ", "")) >= 5 and t.replace(" ", "") in path
