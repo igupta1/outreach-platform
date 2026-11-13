@@ -116,4 +116,3 @@ def test_every_record_rule_holds(t):
                   "failed", "missed", "violat"):
             assert w not in low, (w, text)
     # The engineer line calls charities organizations.
-    assert "find organizations that need" in e1.body

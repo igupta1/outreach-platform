@@ -75,7 +75,6 @@ def test_one_apollo_list_picks_the_voice_when_the_site_is_silent(
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == pack and res["voice_source"] == "apollo list"
-    assert f"that need {help_word} help," in res["email_1"]
     # the opener says what they do, in the voice (2026-11-06)
     assert {"cfo": "saw you do fractional cfo work.", "accounting": "saw you run an accounting firm.",
             "bookkeeping": "saw you do bookkeeping."}[pack] in res["email_1"]
@@ -93,7 +92,6 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
     res = _draft(monkeypatch, rung=None, source=source)
     assert res["status"] == "ok"
     assert res["pack"] == "finance" and res["voice_source"] == "neutral"
-    assert "that need finance help," in res["email_1"]
     assert "saw you help companies with their finances." in res["email_1"]
     copy = _copy(res)
     assert not [w for w in RUNG_WORDS if w in copy], copy
@@ -103,14 +101,14 @@ def test_several_lists_or_none_get_the_neutral_voice(monkeypatch, source):
 def test_the_site_wins_when_the_lists_include_it(monkeypatch):
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting+Bookkeeping")
     assert (res["pack"], res["voice_source"]) == ("bookkeeping", "site")
-    assert "that need bookkeeping help," in res["email_1"]
+    assert "saw you do bookkeeping." in res["email_1"]
 
 
 def test_a_site_the_apollo_list_contradicts_gets_the_neutral_voice(monkeypatch):
     """A firm only on the Accounting list whose site counted as bookkeeping."""
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
     assert (res["pack"], res["voice_source"]) == ("finance", "disagrees")
-    assert "that need finance help," in res["email_1"]
+    assert "saw you help companies with their finances." in res["email_1"]
     assert res["review"]["voice_source"] == "disagrees"
 
 

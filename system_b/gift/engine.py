@@ -1278,23 +1278,40 @@ def single_kind_gift(
     g = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only)
     general_first = prospect.classification != "niched" and not niche_only
     one_kind = g is not None and len({ld.signal_type for ld in g.leads}) <= 1
-    if g is None or (one_kind and not (general_first and g.leads
-                                       and g.leads[0].signal_type not in GENERAL_TYPES)):
+    if g is None:
+        return g
+    if one_kind and not general_first:
+        return g
+    # A firm with no stated industry (2026-11-12/13, the user): general kinds
+    # in its CITY first, then general kinds in its state, then the rest.
+    if one_kind and g.leads[0].signal_type in GENERAL_TYPES \
+            and (g.geo_level == "city" or not prospect.city):
         return g
     wide = build(prospect, scraper, target=target * 4, pack=pack, niche_only=niche_only)
     kinds = list(dict.fromkeys(ld.signal_type for ld in (wide.leads if wide else g.leads)
                                if ld.signal_type))
     if general_first:
-        # Still the firm's own state (`in_state` below); general kinds first,
-        # each kind keeping the walk's order (city before the rest).
         # A general kind the first walk did not reach is tried too.
         kinds += sorted(GENERAL_TYPES - set(kinds),
                         key=lambda k: TYPE_ORDER.get(k, _OTHER_TYPE))
         kinds.sort(key=lambda k: k not in GENERAL_TYPES)
+    built: dict[str, Gift | None] = {}
+
+    def full(kind: str) -> Gift | None:
+        if kind not in built:
+            built[kind] = build(prospect, scraper, target=target, pack=pack,
+                                niche_only=niche_only, signal_types=frozenset({kind}),
+                                in_state=not niche_only)
+        one = built[kind]
+        ok = one is not None and one.gift_size >= target and (one.all_niche or not niche_only)
+        return one if ok else None
+
+    if general_first and prospect.city:
+        for kind in kinds:
+            if kind in GENERAL_TYPES and (one := full(kind)) and one.geo_level == "city":
+                return one
     for kind in kinds:
-        one = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only,
-                    signal_types=frozenset({kind}), in_state=not niche_only)
-        if one is not None and one.gift_size >= target and (one.all_niche or not niche_only):
+        if one := full(kind):
             return one
     return g
 

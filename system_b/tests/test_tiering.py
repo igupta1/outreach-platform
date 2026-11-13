@@ -407,3 +407,18 @@ def test_a_firm_with_no_industry_gets_general_leads_in_its_state_first():
                  state="CO", date="2026-07-05", company=f"Builder {i} Co") for i in range(3)]
     g = single_kind_gift(prospect, FakeScraper(leads))
     assert g is not None and {ld.signal_type for ld in g.leads} == {"sba_7a_loan_approved"}
+
+
+def test_general_leads_in_the_firms_city_before_its_state():
+    """2026-11-13: a general kind that fills the gift in the firm's city wins
+    over one that only fills it across the state."""
+    from system_b.gift.engine import single_kind_gift
+    research = _research([], exclusivity="none", classification="generalist")
+    prospect, _ = resolve_gift(research, _row(), FakeScraper([]), fit=_FIT_YES)
+    leads = [mk(f"s{i}", "sba_7a_loan_approved", industry="construction", city="Boulder",
+                state="CO", date="2026-07-05", company=f"Loan {i} Co") for i in range(3)]
+    leads += [mk(f"b{i}", "construction_new_licensed_business", industry="construction", city=prospect.city,
+                 state="CO", date="2026-07-05", company=f"New {i} Co") for i in range(3)]
+    g = single_kind_gift(prospect, FakeScraper(leads))
+    assert g is not None and g.geo_level == "city"
+    assert {ld.signal_type for ld in g.leads} == {"construction_new_licensed_business"}

@@ -58,24 +58,23 @@ def cta(variant: str, where: str) -> str:
     if variant == "B":
         return ("happy to send 3 like these every monday, with who to contact. "
                 "what kind of client should they be?")
-    return ("happy to send 3 like these every monday, matched to the clients you want, "
-            "with who to contact. want next week's?")
+    return "happy to send 3 like these every monday, matched to your clients. want next week's?"
 
 
 # The engineer line (house rule: kept), in equivalent wordings. 2026-11-11, the
 # user ("i want to come off not salesy"): a builder who is early and asking
-# whether it helps, which turns a pitch into a question.
+# whether it helps, which turns a pitch into a question. 2026-11-13: shortened
+# (emails ran 97 words); the leads already say what it finds.
 _ENGINEER = (
-    "i'm an engineer. i built this to find {things} that need {help} help, and i'm "
-    "trying to see if it's useful for firms like yours.",
-    "i'm an engineer. i built this to find {things} that need {help} help, and i'm "
-    "seeing if it's useful for firms like yours.",
-    "i'm an engineer. i built this to spot {things} that need {help} help, and i'm "
-    "trying to see if it helps firms like yours.",
+    "i'm an engineer. i built this and i'm seeing if it helps firms like yours.",
+    "i'm an engineer. i built this and i'm trying to see if it helps firms like yours.",
+    "i'm an engineer. i built this, and i'm seeing if it's useful for firms like yours.",
 )
 
 
-def engineer_line(key: str | None, things: str, help_word: str) -> str:
+def engineer_line(key: str | None, things: str = "", help_word: str = "") -> str:
+    """`things` and `help_word` are kept for callers; the short wordings
+    (2026-11-13) name neither."""
     return _ENGINEER[_pick(key, "engineer", len(_ENGINEER))].format(things=things, help=help_word)
 
 

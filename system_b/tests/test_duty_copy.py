@@ -177,8 +177,8 @@ def test_a_first_plan_audit_gift_renders_exactly():
         "that passed 120 participants, so each now needs its first independent "
         "plan audit:\n\n"
         "1. Car Source\n2. Bright Dental Group\n3. Summit Roofing\n\n"
-        "i'm an engineer. i built this to find companies that need finance help, and i'm trying to see if it's useful for firms like yours.\n\n"
-        "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?")
+        "i'm an engineer. i built this and i'm seeing if it helps firms like yours.\n\n"
+        "happy to send 3 like these every monday, matched to your clients. want next week's?")
     assert short_subject(g, DANA) == "3 columbus companies needing their first plan audit"
 
 
@@ -219,7 +219,6 @@ def test_a_late_union_report_says_how_late_and_calls_them_unions():
     assert framing.endswith("these 2 unions in columbus filed their yearly labor "
                             "department financial reports late:")
     assert lines == ["Teamsters, LU 683 (18 months late)", "Boilermakers, LG 92 (3 months late)"]
-    assert "organizations that need" in body(g)          # the engineer line
 
 
 def test_a_mixed_line_speaks_like_row_1():

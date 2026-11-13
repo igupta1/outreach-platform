@@ -64,8 +64,8 @@ def test_the_users_example_renders_exactly():
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
-        "i'm an engineer. i built this to find organizations that need finance help, and i'm trying to see if it's useful for firms like yours.\n\n"
-        "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?"
+        "i'm an engineer. i built this and i'm seeing if it helps firms like yours.\n\n"
+        "happy to send 3 like these every monday, matched to your clients. want next week's?"
     )
 
 
@@ -152,18 +152,18 @@ def test_the_audit_why_is_true_of_an_audit_of_any_age():
     assert "file a plan" not in framing and "now" not in framing
 
 
-def test_the_engineer_line_names_organizations_only_for_nonprofits():
+def test_the_engineer_line_is_the_same_for_every_kind_of_lead():
     from system_b.copy.email import left_field_for
     cfo = pack_for("cfo")
     charities = gift([lead(NP, MW, name="A"), lead(NP, MW, name="B")])
     builders = gift([lead(DB, {}, name="A", industry="construction"),
                      lead(NP, MW, name="B")])
     assert left_field_for(cfo, charities) == (
-        "i'm an engineer. i built this to find organizations that need finance help, and i'm trying to see if it's useful for firms like yours.")
+        "i'm an engineer. i built this and i'm seeing if it helps firms like yours.")
     assert left_field_for(cfo, builders) == (
-        "i'm an engineer. i built this to find companies that need finance help, and i'm trying to see if it's useful for firms like yours.")
-    assert left_field_for(pack_for("accounting"), builders).endswith("for firms like yours.")
-    assert left_field_for(pack_for("bookkeeping"), builders).endswith("for firms like yours.")
+        "i'm an engineer. i built this and i'm seeing if it helps firms like yours.")
+    assert left_field_for(pack_for("accounting"), builders).endswith("firms like yours.")
+    assert left_field_for(pack_for("bookkeeping"), builders).endswith("firms like yours.")
 
 
 def test_email_two_for_an_audit_not_yet_on_file_is_one_plain_sentence():

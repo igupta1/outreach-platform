@@ -249,7 +249,7 @@ def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
     from system_b.copy import offer
     a = offer.cta("A", offer.scope("construction companies", "florida"))
     b = offer.cta("B", "")
-    assert a == "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?"
+    assert a == "happy to send 3 like these every monday, matched to your clients. want next week's?"
     assert a.count("?") == 1 and b.count("?") == 1
     assert "every monday" in b and "$" not in a + b          # an offer, no price
 
@@ -278,9 +278,7 @@ def test_every_pack_shares_the_one_left_field_line():
             # 2026-10-24: what makes the gift different and what it does for
             # them. Never "real time" (the inventory is refreshed by hand).
             help_word = {"cfo": "finance", "finance": "finance"}.get(key, key)
-            assert line == (f"i'm an engineer. i built this to find companies that need "
-                            f"{help_word} help, and i'm trying to see if it's useful for "
-                            "firms like yours.")
+            assert line == "i'm an engineer. i built this and i'm seeing if it helps firms like yours."
             assert "real time" not in line
         if key in ("msp", "mssp", "cloud"):
             assert pack.dm_audience in line
@@ -293,9 +291,9 @@ def test_every_pack_shares_the_one_left_field_line():
         assert "hearing the same thing" not in line
         assert line == line.lower() and "—" not in line
         seen[key] = line
-    # within each family, packs differ ONLY by one word; cfo and the neutral
-    # finance pack both say "finance help"
-    assert len(set(seen.values())) == 6
+    # 2026-11-13: the four finance packs share one line (it names no trade);
+    # the three IT packs differ only by their audience word
+    assert len(set(seen.values())) == 4
     assert seen["cfo"] == seen["finance"]
     for key, line in seen.items():
         if key in ("msp", "mssp", "cloud"):

@@ -27,7 +27,7 @@ def _lead(t, name="Acme Llc", payload=None, **kw):
 
 def test_the_offer_is_weekly_leads_with_one_ask_and_no_sales_words():
     a = offer.cta("A", offer.scope("construction companies", "florida"))
-    assert a == "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?"
+    assert a == "happy to send 3 like these every monday, matched to your clients. want next week's?"
     b = offer.cta("B", "")
     for line in (a, b):
         assert line.count("?") == 1 and "every monday" in line and "$" not in line
