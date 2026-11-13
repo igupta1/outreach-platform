@@ -164,10 +164,12 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO", company="Acme")
     d2 = build_followup_email(lead, _prospect(), step=2, today=TODAY)
     d3 = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    # 2026-11-05: email 2 asks a different, easy question; email 3 is a short
-    # goodbye or a referral ask, never the "custom tools" pivot.
+    # 2026-11-05: email 2 asks a different, easy question. 2026-11-12, the
+    # user: email 3 is the version the campaign sent (the custom-tools pivot).
     assert d2.body.rstrip().endswith("?") and "worth a look?" not in d2.body
-    assert d3.body.startswith("last one from me.") and "custom tools" not in d3.body
+    assert d3.body == ("last one from me.\n\nno worries if leads aren't what you're short on. "
+                       "i build custom tools, so if something else is draining your week, "
+                       "what is it?")
     assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body

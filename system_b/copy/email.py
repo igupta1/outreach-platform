@@ -1555,9 +1555,9 @@ def build_followup_email(
     final = step == 3
 
     if final:
-        # 2026-11-05: a short goodbye or a referral ask, never the old "i build
-        # custom tools" pivot (`_FINAL_PIVOT`, kept for the IT packs).
-        core = offer.final_note(vary_key) if pack.key in _FINANCE_PACKS else _FINAL_PIVOT
+        # 2026-11-12, the user: email 3 stays the version the campaign sent
+        # (`_FINAL_PIVOT`) for every pack. `offer.final_note` is kept, unused.
+        core = _FINAL_PIVOT
     elif lead is not None and (record := _record_followup(
             lead, prospect, pack, vary_key, ask_state=ask_state,
             gift_signals=gift_signals, today=today)) is not None:
