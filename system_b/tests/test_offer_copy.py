@@ -264,3 +264,10 @@ def test_a_lead_shows_at_most_two_details_fact_then_person():
     bare = _contact_lead(when="2026-10-28", name="")
     assert _two_details("$7.8m", "", bare, today) == "$7.8m, oct 28"        # date fills in
     assert _two_details("", "first federal job", bare, today) == "first federal job, oct 28"
+
+
+def test_cut_off_names_seen_on_2026_11_13():
+    from system_b.clients.inventory import irs_cut_name
+    assert irs_cut_name("Colorado Coalition Against Domestic")
+    assert irs_cut_name("Sneed, Vine & Perry, A Professional")
+    assert irs_cut_name("Sneed Vine & Perry Law Corporation") is None

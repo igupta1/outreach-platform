@@ -351,10 +351,9 @@ _GRANT_RULES = ("so each now has strict federal reporting rules",
 DUTIES: dict[str, Duty] = {
     # --- Nonprofit duty (batch 1): the org's own 990 or its federal audit ------
     "nonprofit_single_audit_not_done": Duty(
-        plural="said on their 990s that a required federal audit wasn't done",
-        singular="said on its 990 that a required federal audit wasn't done",
-        why=("and none is on file with the clearinghouse yet",
-             "and none is on file with the clearinghouse yet"),
+        plural="skipped a required federal audit, per their 990s",
+        singular="skipped a required federal audit, per its 990",
+        why=("so each still needs that audit done", "so it still needs that audit done"),
         line="990 says a required federal audit wasn't done",
         short=("with a federal audit not done", "with a federal audit not done"),
         dm="whose 990s say a required federal audit wasn't done"),

@@ -420,7 +420,7 @@ _WHOLE_WORDS = frozenset({
 # or on a stray letter, is treated as cut off: ranked last and flagged.
 # 2026-11-06: "The Alabama Coalition Against" (the IRS's 35 characters).
 _NEVER_LAST = frozenset({"of", "for", "and", "&", "greater", "against", "to", "with", "from",
-                         "into", "toward", "towards", "between", "among"})
+                         "into", "toward", "towards", "between", "among", "domestic"})
 _USUALLY_CONTINUES = frozenset({
     "community", "health", "development", "educational", "housing", "family",
     "families", "american", "national", "area", "child", "children", "early",
@@ -446,6 +446,9 @@ def irs_cut_name(name: str, raw_length: int | None = None) -> str | None:
     if re.search(r",\s*(?:city|town|village|county|borough|township)\s+of\s*$", name or "", re.I):
         return None
     if last in _NEVER_LAST or (last == "the" and words[-2].lower() in _NEVER_LAST):
+        return words[-1]
+    # "Sneed, Vine & Perry, A Professional" (Corporation cut off), 2026-11-13.
+    if re.search(r"\ba professional$", (name or "").strip(), re.I):
         return words[-1]
     at_limit = raw_length is not None and 33 <= raw_length <= 40
     if at_limit and (last in _USUALLY_CONTINUES

@@ -721,7 +721,10 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
         # why]:" sentence, the why only where `copy.duty` gives one.
         count = f"these {n}" if n != 1 else ("this" if noun else "this one")
         why = duty.why_for(gift.leads)
-        ask = " ".join(w for w in (count, noun, at, duty.predicate(gift.leads)) if w) \
+        said = duty.predicate(gift.leads)
+        if at:   # "these 3 in atlanta from other states registered..." contradicts itself
+            said = said.removeprefix("from other states ").removeprefix("from another state ")
+        ask = " ".join(w for w in (count, noun, at, said) if w) \
             + (f", {why}:" if why else ":")
     elif kind in _RECORD_WHY:
         predicates, whys = _RECORD_WHY[kind]
