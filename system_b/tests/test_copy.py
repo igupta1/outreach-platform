@@ -249,7 +249,7 @@ def test_5c_cta_is_a_binary_ask_not_a_calendar_ask():
     from system_b.copy import offer
     a = offer.cta("A", offer.scope("construction companies", "florida"))
     b = offer.cta("B", "")
-    assert a == "happy to send 3 like these every monday, matched to your clients. want next week's?"
+    assert a == "happy to send 3 like these every monday, matched to your clients. worth a look?"
     assert a.count("?") == 1 and b.count("?") == 1
     assert "every monday" in b and "$" not in a + b          # an offer, no price
 
@@ -774,10 +774,10 @@ def test_revenue_opener_fires_for_every_pack():
     p.client_revenue = (2_000_000.0, 10_000_000.0)
     gift = G(all_niche=False, geo="city")
 
+    # 2026-11-13, the user: the client-size range is no longer printed.
     for key in ("cfo", "accounting", "bookkeeping", "msp", "mssp", "cloud"):
         line = pack_for(key).framing(gift, p)
-        assert line.startswith("saw you work with $2m-$10m companies."), f"{key}: {line}"
-        assert "denver" in line, f"{key}: {line}"
+        assert "$" not in line, f"{key}: {line}"
 
 
 def test_revenue_opener_keeps_each_packs_own_words():

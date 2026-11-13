@@ -342,8 +342,8 @@ def _local_body(lead: Lead) -> tuple[str, str]:
     """A school district is a school to the reader, not a "local government"."""
     return _SCHOOLS if lead.niche == "k12_school" else _LOCAL_GOV
 
-_AUDIT_WHY = ("and each must show it's fixed by its next audit",
-              "and it must show it's fixed by its next audit")
+_AUDIT_WHY = ("so each must fix it before its next audit",
+              "so it must fix it before its next audit")
 _GRANT_RULES = ("so each now has strict federal reporting rules",
                 "so it now has strict federal reporting rules")
 
@@ -415,8 +415,8 @@ DUTIES: dict[str, Duty] = {
         short=("that lost tax-exempt status", "that lost its tax-exempt status"),
         dm="losing their tax-exempt status"),
     "nonprofit_questioned_costs": Duty(
-        plural="had costs questioned in their federal audits",
-        singular="had costs questioned in its federal audit",
+        plural="had spending questioned in their federal audits",
+        singular="had spending questioned in its federal audit",
         why=_AUDIT_WHY,
         line="auditors questioned costs on their federal grants",
         short=("with questioned costs", "with questioned costs"),
@@ -424,10 +424,8 @@ DUTIES: dict[str, Duty] = {
 
     # --- Benefits: the employer's own Form 5500 --------------------------------
     "plan_audit_first_due": Duty(
-        plural="have retirement plans that passed 120 participants",
-        singular="has a retirement plan that passed 120 participants",
-        why=("so each now needs its first independent plan audit",
-             "so it now needs its first independent plan audit"),
+        plural="have retirement plans big enough to need their first audit",
+        singular="has a retirement plan big enough to need its first audit",
         line="plan passed 120 participants, first audit due",
         short=("needing their first plan audit", "needing its first plan audit"),
         dm="whose retirement plans just crossed the audit line"),
@@ -440,14 +438,16 @@ DUTIES: dict[str, Duty] = {
         short=("with their first plan audits", "with its first plan audit"),
         dm="filing their first plan audits"),
     "plan_late_contributions": Duty(
-        plural="reported late deposits of employee contributions on their latest form 5500s",
-        singular="reported late deposits of employee contributions on its latest form 5500",
+        plural="deposited employees' plan contributions late",
+        singular="deposited employees' plan contributions late",
+        why=("so each must correct it with lost earnings",
+             "so it must correct it with lost earnings"),
         line="late employee contributions, per their form 5500",
         short=("with late plan deposits", "with late plan deposits"),
         dm="reporting late plan deposits on their form 5500s"),
     "plan_termination_pending": Duty(
-        plural="reported a decision to end a benefit plan on their latest form 5500s",
-        singular="reported a decision to end a benefit plan on its latest form 5500",
+        plural="decided to end a benefit plan",
+        singular="decided to end a benefit plan",
         why=("so each still owes a final plan return", "so it still owes a final plan return"),
         line="ending a benefit plan, final return still owed",
         short=("ending a benefit plan", "ending a benefit plan"),
@@ -972,7 +972,7 @@ DUTIES.update({
 # the lead's own `niche` (see `_SOURCE_NICHES`), not the wording.
 # 2026-11-05: no why. "will likely owe" read as a guess, and the record does
 # not show the loan's terms; the fact ("$500k loan, dental") carries it.
-_SBA_WHY = None
+_SBA_WHY = ("so each has new loan money to manage", "so it has new loan money to manage")
 
 DUTIES.update({
     "sba_7a_loan_approved": Duty(
@@ -1164,10 +1164,10 @@ DUTIES.update({                        # ENABLED (hand checks 7% and 8% false po
 # 2026-11-06, approved by the user ("add lead types that are built and ready").
 DUTIES.update({
     "tx_new_mixed_beverage_permit": Duty(
-        plural="got new mixed beverage permits from the state",
-        singular="got a new mixed beverage permit from the state",
-        why=("so each now files monthly mixed beverage tax reports",
-             "so it now files monthly mixed beverage tax reports"),
+        plural="got new texas liquor permits",
+        singular="got a new texas liquor permit",
+        why=("so each now files monthly liquor tax reports",
+             "so it now files monthly liquor tax reports"),
         line="new texas mixed beverage permit, monthly tax reports",
         short=("with new liquor permits", "with a new liquor permit"), bare=True,
         dm="getting new texas mixed beverage permits"),
@@ -1213,8 +1213,8 @@ def _brewer_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "tx_late_sales_tax_registration": Duty(
-        plural="got texas sales tax permits months after their first taxable sales",
-        singular="got a texas sales tax permit months after its first taxable sale",
+        plural="registered for texas sales tax months after they started selling",
+        singular="registered for texas sales tax months after it started selling",
         why=("so each has earlier returns to cover", "so it has earlier returns to cover"),
         detail=_tx_late_months,
         line="got a sales tax permit months late",
@@ -1710,8 +1710,8 @@ def _practice_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "new_practice_npi": Duty(
-        plural="registered with the federal npi registry as new organizations",
-        singular="registered with the federal npi registry as a new organization",
+        plural="just registered as new businesses",
+        singular="just registered as a new business",
         line="new practice entity, first organization npi",
         short=("with new npi registrations", "with a new npi registration"),
         noun=_practice_noun, extra={"noun_mixed": _PRACTICES},
@@ -1777,7 +1777,18 @@ def _home(lead: Lead) -> str:
 # 2026-11-05 the user: held again. On its own a registration shows no need.
 # 2026-11-06 approved ("add lead types that are built and ready"): it says
 # only where it registered and what it is; no why.
+def _expanding_why(leads: list[Lead]) -> tuple[str, str] | None:
+    """2026-11-13: what registering means for their books, in plain words."""
+    states = {_state_name(_payload(ld).get("state")) for ld in leads}
+    if len(states) != 1 or not next(iter(states)):
+        return None
+    where = next(iter(states))
+    return (f"so each now has {where} filings to keep up with",
+            f"so it now has {where} filings to keep up with")
+
+
 DUTIES["new_business_expanding"] = Duty(
+    why=_expanding_why,
     plural=_registered_in,
     singular=lambda ld: _registered_in([ld]),
     line=lambda ld: _registered_in([ld]).removeprefix("from another state ").removeprefix(
@@ -1834,6 +1845,8 @@ DUTIES.update({
     "sam_new_entity_registration": Duty(
         plural="just registered as federal contractors",
         singular="just registered as a federal contractor",
+        why=("so each needs books ready for government contracts",
+             "so it needs books ready for government contracts"),
         line="newly registered federal contractor",
         short=("new to federal contracting", "new to federal contracting"),
         dm="registering as federal contractors"),

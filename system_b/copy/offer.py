@@ -56,20 +56,16 @@ def cta(variant: str, where: str) -> str:
     and leaves the call to settle which. A "yes" is answered with a short call
     to get their industries and area right."""
     if variant == "B":
-        return ("happy to send 3 like these every monday, with who to contact. "
+        return ("happy to send 3 like these every monday. "
                 "what kind of client should they be?")
-    return "happy to send 3 like these every monday, matched to your clients. want next week's?"
+    return "happy to send 3 like these every monday, matched to your clients. worth a look?"
 
 
 # The engineer line (house rule: kept), in equivalent wordings. 2026-11-11, the
 # user ("i want to come off not salesy"): a builder who is early and asking
 # whether it helps, which turns a pitch into a question. 2026-11-13: shortened
 # (emails ran 97 words); the leads already say what it finds.
-_ENGINEER = (
-    "i'm an engineer. i built this and i'm seeing if it helps firms like yours.",
-    "i'm an engineer. i built this and i'm trying to see if it helps firms like yours.",
-    "i'm an engineer. i built this, and i'm seeing if it's useful for firms like yours.",
-)
+_ENGINEER = ("i'm an engineer. i built this and i'm seeing if it helps firms like yours.",)
 
 
 def engineer_line(key: str | None, things: str = "", help_word: str = "") -> str:
@@ -78,17 +74,15 @@ def engineer_line(key: str | None, things: str = "", help_word: str = "") -> str
     return _ENGINEER[_pick(key, "engineer", len(_ENGINEER))].format(things=things, help=help_word)
 
 
-def followup_question(key: str | None, state: str | None, *, cfo: bool) -> str:
-    """Email 2's ask: a different, easy question from email 1's. `state` only
-    when email 1's leads were in it (asking "keep these to north carolina?"
-    after new york leads read as not having looked)."""
-    options = []
-    if state:
-        options.append(f"should i keep these to {state}, or go wider?")
-    if cfo:
-        options.append("what's the smallest client you'd take?")
-    options.append("are these the kind of clients you want, or should i look for others?")
-    return options[_pick(key, "followup", len(options))]
+def followup_question(niche: str | None, place: str | None) -> str:
+    """Email 2's question, one wording per case (2026-11-13, the user: "let's
+    not vary the copy"). Leads in their industry: offer another industry.
+    Otherwise leads near them: keep to that place or go wider."""
+    if niche:
+        return f"want more {niche}, or a different industry?"
+    if place:
+        return f"should i keep these to {place}, or go wider?"
+    return "are these the kind of clients you want, or should i look for others?"
 
 
 def final_note(key: str | None) -> str:

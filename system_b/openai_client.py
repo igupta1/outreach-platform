@@ -14,6 +14,7 @@ or the ledger, and the gate's status line says what to do.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 # OpenAI's error codes for "this account cannot make calls right now".
@@ -48,6 +49,47 @@ def check_response(response: Any) -> None:
             else f"OpenAI refused the API key ({code or response.status_code})")
 
 
+def _usage_path() -> "Path":
+    import os
+    from pathlib import Path
+
+    if os.environ.get("OPENAI_USAGE_LOG"):
+        return Path(os.environ["OPENAI_USAGE_LOG"])
+    home = Path.home() / "Developer" / "outreach-platform"
+    root = home if home.is_dir() else Path(__file__).resolve().parents[1]
+    return root / "logs" / "openai-usage.jsonl"
+
+
+def log_usage(response: Any) -> None:
+    """httpx response hook (2026-11-13, the user: "where can we make this
+    cheaper"): one line per successful call with the model, its tokens and
+    the system_b function that made it, in logs/openai-usage.jsonl. Never
+    raises: a failed log line must not cost a draft."""
+    try:
+        if response.status_code != 200:
+            return
+        import inspect
+        from datetime import datetime
+
+        response.read()
+        data = json.loads(response.content or b"{}")
+        usage = data.get("usage") or {}
+        caller = next((f"{Path(f.filename).stem}.{f.function}" for f in inspect.stack()
+                       if "/system_b/" in f.filename and "/.venv/" not in f.filename
+                       and "site-packages" not in f.filename
+                       and not f.filename.endswith("openai_client.py")), "?")
+        details = usage.get("prompt_tokens_details") or {}
+        line = {"at": datetime.now().isoformat(timespec="seconds"), "model": data.get("model"),
+                "caller": caller, "in": usage.get("prompt_tokens", 0),
+                "cached": details.get("cached_tokens", 0), "out": usage.get("completion_tokens", 0)}
+        path = _usage_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+    except Exception:  # noqa: BLE001 -- logging only
+        pass
+
+
 def client(timeout: float = 60) -> Any:
     from openai import DefaultHttpxClient, OpenAI
 
@@ -55,7 +97,8 @@ def client(timeout: float = 60) -> Any:
 
     config.require("OPENAI_API_KEY")
     return OpenAI(api_key=config.OPENAI_API_KEY, timeout=timeout,
-                  http_client=DefaultHttpxClient(event_hooks={"response": [check_response]}))
+                  http_client=DefaultHttpxClient(
+                      event_hooks={"response": [check_response, log_usage]}))
 
 
 def preflight() -> str | None:

@@ -27,7 +27,7 @@ def _lead(t, name="Acme Llc", payload=None, **kw):
 
 def test_the_offer_is_weekly_leads_with_one_ask_and_no_sales_words():
     a = offer.cta("A", offer.scope("construction companies", "florida"))
-    assert a == "happy to send 3 like these every monday, matched to your clients. want next week's?"
+    assert a == "happy to send 3 like these every monday, matched to your clients. worth a look?"
     b = offer.cta("B", "")
     for line in (a, b):
         assert line.count("?") == 1 and "every monday" in line and "$" not in line
@@ -43,12 +43,10 @@ def test_each_prospect_keeps_one_variant_and_only_a_runs_for_now():
     assert offer.variant_for(None) == "A"
 
 
-def test_the_fixed_sentences_vary_by_prospect_but_keep_the_engineer():
+def test_the_engineer_line_is_one_wording_for_everyone():
+    """2026-11-13, the user: "let's not try to vary the copy"."""
     lines = {offer.engineer_line(f"x{i}@y.com", "companies", "finance") for i in range(60)}
-    assert len(lines) == 3 and all(ln.startswith("i'm an engineer") for ln in lines)
-    finals = {offer.final_note(f"x{i}@y.com") for i in range(60)}
-    assert len(finals) == 2 and all(f.startswith("last one from me.") for f in finals)
-    assert all("custom tools" not in f for f in finals)
+    assert lines == {"i'm an engineer. i built this and i'm seeing if it helps firms like yours."}
 
 
 def test_a_mixed_gift_gives_way_to_three_of_one_kind():
@@ -104,10 +102,11 @@ def test_email_3_names_no_firm_and_is_not_a_jab():
     assert all("matter" not in f and " at " not in f for f in finals)
 
 
-def test_email_2_asks_about_their_state_only_when_email_1_was_from_it():
-    assert "keep these to ohio" in offer.followup_question(None, "ohio", cfo=False)
-    assert all("keep these" not in offer.followup_question(f"k{i}", None, cfo=True)
-               for i in range(20))
+def test_email_2_asks_industry_first_then_place():
+    assert offer.followup_question("construction companies", "denver") == \
+        "want more construction companies, or a different industry?"
+    assert offer.followup_question(None, "ohio") == "should i keep these to ohio, or go wider?"
+    assert "keep these" not in offer.followup_question(None, None)
 
 
 def test_a_no_niche_email_opens_on_what_they_do():

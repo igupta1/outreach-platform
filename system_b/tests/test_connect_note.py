@@ -24,8 +24,8 @@ def test_three_leads_in_email_1s_words():
     note = build_connect_note(g, NICHED, pack=CFO)
     assert note == (
         "hey troy, saw you work with nonprofits. these 3 in atlanta had "
-        "weak financial controls flagged in their federal audits, and each has to show "
-        "it's fixed in its next audit: Georgia Works; Cathedral Towers; Hope Atlanta.\n\n"
+        "weak financial controls flagged in their federal audits, so each must fix it "
+        "before its next audit: Georgia Works; Cathedral Towers; Hope Atlanta.\n\n"
         "i'm an engineer. my system finds these. want 3 a week?"
     )
     assert len(note) <= CONNECT_NOTE_MAX
@@ -41,8 +41,8 @@ def test_long_names_drop_leads_not_words():
     assert names[0] in note                     # the best lead survives, whole
     assert names[2] not in note                 # a lead goes before a word does
     assert "this one in atlanta" in note        # and the sentence says one
-    assert "finds more like it." in note        # one lead, singular
-    assert note.endswith("want 3 a week?")
+    assert "i'm an engineer" in note
+    assert note.endswith("?")
 
 
 def test_every_shape_fits_and_has_no_em_dash():

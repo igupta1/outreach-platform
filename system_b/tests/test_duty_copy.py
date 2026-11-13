@@ -173,12 +173,11 @@ def test_a_first_plan_audit_gift_renders_exactly():
               ("Car Source Llc", "Bright Dental Group", "Summit Roofing Inc")])
     assert body(g) == (
         "hey dana,\n\n"
-        "saw you do fractional cfo work. these 3 companies in columbus have retirement plans "
-        "that passed 120 participants, so each now needs its first independent "
-        "plan audit:\n\n"
+        "saw you do fractional cfo work.\n\nthese 3 companies in columbus have retirement "
+        "plans big enough to need their first audit:\n\n"
         "1. Car Source\n2. Bright Dental Group\n3. Summit Roofing\n\n"
         "i'm an engineer. i built this and i'm seeing if it helps firms like yours.\n\n"
-        "happy to send 3 like these every monday, matched to your clients. want next week's?")
+        "happy to send 3 like these every monday, matched to your clients. worth a look?")
     assert short_subject(g, DANA) == "3 columbus companies needing their first plan audit"
 
 

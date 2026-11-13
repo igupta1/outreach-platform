@@ -84,11 +84,20 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
 
     # "keep these to ohio?" only when email 1's leads were in Ohio.
     ask_state = gift.geo_level in ("city", "state")
+    # 2026-11-13, the user: leads in their industry -> "want more X, or a
+    # different industry?"; else leads near them -> "keep these to <city or
+    # state>, or go wider?".
+    from system_b.copy.lex import city_display, niche_noun, state_display
+    from system_b.copy.subject import niche_claim
+    niche = niche_claim(gift, prospect) if gift.all_niche else None
+    place = (city_display(prospect.city) if gift.geo_level == "city"
+             else state_display(prospect.state) if gift.geo_level == "state" else None)
+    question = offer.followup_question(niche_noun(niche) if niche else None, place)
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,
                              include_signoff=False,
                              gift_signals={ld.signal_type for ld in gift.leads},
-                             vary_key=vary_key, ask_state=ask_state),
+                             vary_key=vary_key, ask_state=ask_state, question=question),
         build_followup_email(None, prospect, step=3, today=today, pack=pack,
                              include_signoff=False, vary_key=vary_key),
     ]

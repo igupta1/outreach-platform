@@ -195,8 +195,8 @@ def test_a_late_registration_says_how_many_months_late():
              for n, m in (("Sa Products", 9), ("Carrovino", 14), ("Nirvana E Commerce", 22))]
     text = opener(leads)
     assert text.splitlines()[0].endswith(
-        "these 3 online sellers in houston got texas sales tax permits months after their "
-        "first taxable sales, so each has earlier returns to cover:")
+        "these 3 online sellers in houston registered for texas sales tax months after "
+        "they started selling, so each has earlier returns to cover:")
     assert "Sa Products (9 months late)" in text
 
 
@@ -362,12 +362,11 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
                         "Mueller Pediatric Dentistry PLLC")]
     atx = Prospect(firm_name="X", city="Austin", state="TX", first_name="Al")
     first = opener(dental, atx).splitlines()[0]
-    assert first.endswith("these 3 dental practices in austin registered with the federal "
-                          "npi registry as new organizations:")
+    assert first.endswith("these 3 dental practices in austin just registered as new businesses:")
     assert "so each" not in first and "billing" not in first
     mixed = dental[:2] + [lead("new_practice_npi", "Calm Minds PLLC",
                                {"provider_type": "behavioral"}, city="Austin")]
-    assert "these 3 practices in austin registered" in opener(mixed, atx).splitlines()[0]
+    assert "these 3 practices in austin just registered" in opener(mixed, atx).splitlines()[0]
 
 
 def test_a_new_medicare_enrollment_keeps_its_clause():

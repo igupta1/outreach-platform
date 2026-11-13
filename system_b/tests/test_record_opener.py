@@ -58,14 +58,14 @@ def test_the_users_example_renders_exactly():
                          include_signoff=False).body
     assert body == (
         "hey troy,\n\n"
-        "saw you work with $3m+ nonprofits. these 3 in atlanta had weak financial "
-        "controls flagged in their federal audits, and each has to show it's fixed "
-        "in its next audit:\n\n"
+        "saw you work with nonprofits.\n\nthese 3 in atlanta had weak financial "
+        "controls flagged in their federal audits, so each must fix it before its "
+        "next audit:\n\n"
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
         "i'm an engineer. i built this and i'm seeing if it helps firms like yours.\n\n"
-        "happy to send 3 like these every monday, matched to your clients. want next week's?"
+        "happy to send 3 like these every monday, matched to your clients. worth a look?"
     )
 
 
@@ -73,7 +73,7 @@ def test_mixed_audit_findings_say_problems_and_name_each():
     g = gift([lead(NP, MW, name="A"), lead(NP, GRANTS, name="B")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("these 2 in atlanta had problems flagged in their federal "
-                            "audits, and each has to show it's fixed in its next audit:")
+                            "audits, so each must fix it before its next audit:")
     assert lines == ["A (financial controls)", "B (grant handling)"]
 
 
@@ -84,8 +84,8 @@ def test_place_is_named_only_when_every_lead_is_there():
     p = Prospect(firm_name="X", city="Knoxville", state="TN", first_name="Jo")
     framing, lines = record_opener(g, p)
     assert framing == ("these 2 companies in tennessee "
-                       "won federal construction jobs, so each now owes weekly certified "
-                       "payroll for every worker:")
+                       "won federal construction jobs, so each must file payroll reports "
+                       "every week:")
     assert lines == ["A, nashville", "B, memphis (first federal job)"]
     # Arlington WA is not Arlington TX: same city name, two states -> no place.
     g2 = gift([lead(FG, name="A", city="Arlington", state="WA"),
@@ -132,7 +132,7 @@ def test_one_lead_reads_in_the_singular():
     g = gift([lead(NP, REPEAT, name="Georgia Works")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("this one in atlanta had weak financial controls flagged in "
-                            "its federal audit, and it has to show it's fixed in its next audit:")
+                            "its federal audit, so it must fix it before its next audit:")
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo")).body
     assert "\n\nGeorgia Works (two years in a row)\n\n" in body   # unnumbered
 
@@ -148,7 +148,7 @@ def test_the_audit_why_is_true_of_an_audit_of_any_age():
     report it fixed (2 CFR 200.511(b)). Same words, old audit or new."""
     g = gift([lead(NP, MW, name="A"), lead(NP, {**MW, **OLD}, name="B")], all_niche=True)
     framing, _ = record_opener(g, TROY)
-    assert framing.endswith("and each has to show it's fixed in its next audit:")
+    assert framing.endswith("so each must fix it before its next audit:")
     assert "file a plan" not in framing and "now" not in framing
 
 

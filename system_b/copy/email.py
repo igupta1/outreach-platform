@@ -271,6 +271,11 @@ def need_for(gift: Gift, *, default: str) -> str:
     return default
 
 
+# 2026-11-13, the user: no client-size range in the opener ("saw you work
+# with $1m-$20m construction companies" was hard to skim). Kept, switched off.
+REVENUE_OPENER = False
+
+
 def _revenue_framing(gift: Gift, prospect: Prospect, niche: str | None, *, need: str) -> str:
     """The opener when the prospect stated a client-revenue range on their site.
 
@@ -324,7 +329,7 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
     # It stacks with niche and geography rather than replacing them, and it is
     # skipped for a client-list opener, which already names two of their actual
     # clients and needs no further proof that we read the page.
-    if prospect.client_revenue and prospect.niche_source != "client_list":
+    if REVENUE_OPENER and prospect.client_revenue and prospect.niche_source != "client_list":
         return _revenue_framing(gift, prospect, niche, need=_CFO_NEED)
     # Framing ALWAYS uses the clean mapped niche word (niche_claim -> niche_display),
     # NEVER the raw scraped phrase — the verbatim phrase is often a nav blob
@@ -404,7 +409,7 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
     # most are the GENERALISTS in every pack, whose opener is otherwise an Apollo
     # merge field. Same two gates as `_framing`: skipped for a client-list opener,
     # which already names two real clients.
-    if prospect.client_revenue and prospect.niche_source != "client_list":
+    if REVENUE_OPENER and prospect.client_revenue and prospect.niche_source != "client_list":
         return _revenue_framing(gift, prospect, niche, need=need)
     if niche:
         if prospect.niche_source == "client_list":
@@ -483,8 +488,8 @@ _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
 # file it already exists and "has to file" is false. What stays true until the
 # finding is resolved: the next audit's summary schedule of prior findings has
 # to report it fixed (200.511(b)). Present tense, any audit age, and a deadline.
-_AUDIT_WHY = ("and each has to show it's fixed in its next audit",
-              "and it has to show it's fixed in its next audit")
+_AUDIT_WHY = ("so each must fix it before its next audit",
+              "so it must fix it before its next audit")
 _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     "audit_controls": (("had weak financial controls flagged in their federal audits",
                         "had weak financial controls flagged in its federal audit"),
@@ -497,8 +502,8 @@ _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
                     _AUDIT_WHY),
     DAVIS_BACON_SIGNAL: (("won federal construction jobs",
                           "won a federal construction job"),
-                         ("so each now owes weekly certified payroll for every worker",
-                          "so it now owes weekly certified payroll for every worker")),
+                         ("so each must file payroll reports every week",
+                          "so it must file payroll reports every week")),
     # 2026-11-06: "can audit, so each needs books that can pass a government
     # audit" said audit twice; "audit-ready books" says it once.
     "cost_every": (("won federal contracts where the government can check every cost",
@@ -629,10 +634,8 @@ def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str], pack=No
     """The first sentence: what we saw about THEM. Same evidence and the same
     soft verbs as `_framing`; empty when we can honestly say nothing."""
     niche = niche_claim(gift, prospect)
-    if prospect.client_revenue and prospect.niche_source != "client_list" \
-            and _sane_revenue(prospect.client_revenue):
-        rev = revenue_display(prospect.client_revenue)
-        return f"saw you work with {rev} {niche_noun(niche) if niche else 'companies'}."
+    # 2026-11-13, the user: no client-size range ("saw you work with $1m-$20m
+    # construction companies") in the opener: it made the line hard to skim.
     if niche:
         if prospect.niche_source == "client_list":
             named = _client_names_phrase(prospect)
@@ -732,7 +735,10 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
             count = "here's a" + ("n" if noun[0] in "aeiou" else "")
         ask = " ".join(w for w in (count, noun, at, clause) if w) + ":"
     read = _record_read(gift, prospect, place, pack)
-    framing = f"{read} {ask}" if read else ask
+    # Email 1 (with `today`): what we saw about them on its own line, then the
+    # leads' sentence (2026-11-13, the user: easier to skim). The LinkedIn
+    # note keeps one paragraph.
+    framing = (f"{read}\n\n{ask}" if today else f"{read} {ask}") if read else ask
 
     lines = []
     for lead in gift.leads:
@@ -1493,15 +1499,18 @@ def _record_predicate(lead: Lead) -> str | None:
 
 
 def _followup_ask(prospect: Prospect, pack=None, vary_key: str | None = None,
-                  ask_state: bool = True) -> str:
-    return offer.followup_question(vary_key, state_display(prospect.state) if ask_state else None,
-                                   cfo=getattr(pack, "key", "") == "cfo")
+                  ask_state: bool = True, question: str | None = None) -> str:
+    """`question` when the caller knows email 1's gift (industry, place);
+    else the place question from the prospect's state."""
+    if question:
+        return question
+    return offer.followup_question(None, state_display(prospect.state) if ask_state else None)
 
 
 def _record_followup(lead: Lead, prospect: Prospect, pack=None,
                      vary_key: str | None = None, *, ask_state: bool = True,
                      gift_signals: frozenset[str] | set[str] | None = None,
-                     today: date | None = None) -> str | None:
+                     today: date | None = None, question: str | None = None) -> str | None:
     """Email 2's core for a record lead, or None to keep the old shape."""
     said = _record_predicate(lead)
     if said is None:
@@ -1527,7 +1536,7 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     else:
         at = f" in {lead_city or lead_state}" if (lead_city or lead_state) else ""
         first = f"{more}: {name}{at} {said}."
-    return f"{first}\n\n{_followup_ask(prospect, pack, vary_key, ask_state)}"
+    return f"{first}\n\n{_followup_ask(prospect, pack, vary_key, ask_state, question)}"
 
 
 def build_followup_email(
@@ -1541,6 +1550,7 @@ def build_followup_email(
     gift_signals: frozenset[str] | set[str] | None = None,
     vary_key: str | None = None,
     ask_state: bool = True,
+    question: str | None = None,
 ) -> EmailDraft:
     """Email #2 / #3 (B3, B4). Threaded under Email #1, so the SUBJECT IS BLANK
     (Smartlead sends a blank-subject step as a reply on the same thread).
@@ -1572,7 +1582,7 @@ def build_followup_email(
         core = _FINAL_PIVOT
     elif lead is not None and (record := _record_followup(
             lead, prospect, pack, vary_key, ask_state=ask_state,
-            gift_signals=gift_signals, today=today)) is not None:
+            gift_signals=gift_signals, today=today, question=question)) is not None:
         # `_lead_line` still runs for its flags (unfindable, cut-off name).
         flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
         core = record
@@ -1595,13 +1605,13 @@ def build_followup_email(
         # to keep sending these?") recruited a subscriber, which is the wrong
         # yes: a sequence whose steps chase different outcomes converts on the
         # easiest one, and that was never the call.
-        tail = _followup_ask(prospect, pack, vary_key, ask_state)
+        tail = _followup_ask(prospect, pack, vary_key, ask_state, question)
         core = f"{opener}\n\n{line}\n\n{tail}"
         if pack.priority_signal and lead.signal_type == pack.priority_signal and pack.priority_flag:
             flags.append(pack.priority_flag)
     elif pack.key in _FINANCE_PACKS:
         # No new lead that fits (2026-11-06): a plain bump, no signal jargon.
-        core = f"following up on the leads above. {_followup_ask(prospect, pack, vary_key, ask_state)}"
+        core = f"following up on the leads above. {_followup_ask(prospect, pack, vary_key, ask_state, question)}"
     else:
         niche = niche_claim_or_geo(prospect)
         sig = pack.followup_signal
