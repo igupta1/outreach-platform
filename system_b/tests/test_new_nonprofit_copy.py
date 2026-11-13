@@ -67,12 +67,12 @@ def test_new_501c3_renders_exactly():
     g = gift([lead("nonprofit_new_501c3", n) for n in NAMES])
     framing, lines = record_opener(g, DANA)
     assert framing == ("these 3 nonprofits in denver are newly "
-                       "incorporated and recognized as 501(c)(3)s by the irs, so each has a 990 "
-                       "or 990-ez to file each year:")
+                       "incorporated and recognized as 501(c)(3)s by the irs, so each must file a "
+                       "990 every year:")
     assert lines == list(NAMES)
     one, _ = record_opener(gift([lead("nonprofit_new_501c3", NAMES[0])]), DANA)
     assert one.endswith("this nonprofit in denver is newly incorporated and recognized as a "
-                        "501(c)(3) by the irs, so it has a 990 or 990-ez to file each year:")
+                        "501(c)(3) by the irs, so it must file a 990 every year:")
     assert short_subject(g, DANA) == "3 denver nonprofits newly recognized as 501(c)(3)s"
 
 

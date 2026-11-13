@@ -214,3 +214,28 @@ def test_a_named_lead_wins_a_tie():
     bare = _contact_lead(company="Bare Co", name="")
     assert sort_key(named, salt="firm") < sort_key(bare, salt="firm")
     assert sort_key(named) < sort_key(bare)
+
+
+# --- 2026-11-12: shorter reasons, no codes or agency jargon --------------------
+
+def test_no_reason_runs_over_ten_words():
+    from system_b.copy.duty import DUTIES, WHY_MAX_WORDS
+    for t, d in DUTIES.items():
+        if isinstance(d.why, tuple):
+            for said in d.why:
+                assert len(said.split()) <= WHY_MAX_WORDS or d.why_for([]) == "", (t, said)
+
+
+def test_an_industry_code_is_looked_up_never_printed():
+    from system_b.copy.facts import _industry
+    assert "naics" not in _industry("naics 722511") and _industry("naics 722511")
+    assert not any(c.isdigit() for c in _industry("722515"))
+
+
+def test_no_ncua_or_prevailing_wage_jargon_in_openers():
+    from system_b.copy.duty import DUTIES
+    for t in ("cu_stale_audit", "cu_approaching_fs_audit", "cu_over_500m_no_fs_audit",
+              "construction_first_prevailing_wage_intent", "tx_late_sales_tax_registration"):
+        d = DUTIES[t]
+        words = " ".join(str(x) for x in (d.plural, d.singular, d.line, d.why))
+        assert "ncua" not in words and "prevailing wage" not in words and "liable" not in words, t

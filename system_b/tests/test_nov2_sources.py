@@ -189,15 +189,15 @@ def test_texas_permits_wording_never_says_owe_penalty_or_back_taxes(t):
         assert not BANNED_TAX.search(opener([ld, ld, ld]))
 
 
-def test_a_late_registration_says_the_state_lists_them_as_liable_and_how_many_months():
+def test_a_late_registration_says_how_many_months_late():
     leads = [lead("tx_late_sales_tax_registration", n,
                   {"niche_group": "ecommerce", "months_first_sale_to_permit": m})
              for n, m in (("Sa Products", 9), ("Carrovino", 14), ("Nirvana E Commerce", 22))]
     text = opener(leads)
     assert text.splitlines()[0].endswith(
-        "these 3 online sellers in houston got texas sales tax permits months after the "
-        "state lists them as liable, so each has earlier returns to cover:")
-    assert "Sa Products (liable 9 months before the permit)" in text
+        "these 3 online sellers in houston got texas sales tax permits months after their "
+        "first taxable sales, so each has earlier returns to cover:")
+    assert "Sa Products (9 months late)" in text
 
 
 # --- house rules for every new sentence -----------------------------------------------

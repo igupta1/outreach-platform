@@ -69,6 +69,9 @@ def _one(values: list[str]) -> str:
     return next(iter(vals)) if len(vals) == 1 and all(values) else ""
 
 
+WHY_MAX_WORDS = 10
+
+
 @dataclass(frozen=True)
 class Duty:
     plural: Text
@@ -101,7 +104,11 @@ class Duty:
         why = self.why(leads) if callable(self.why) else self.why
         if not why:
             return ""
-        return why[1] if len(leads) == 1 else why[0]
+        said = why[1] if len(leads) == 1 else why[0]
+        # 2026-11-12, the user: emails ran 101 words, the long reasons first
+        # among the causes. A reason over WHY_MAX_WORDS is left out; the
+        # predicate and the leads still say what happened.
+        return said if len(said.split()) <= WHY_MAX_WORDS else ""
 
     def detail_for(self, lead: Lead) -> str:
         return self.detail(lead) if self.detail else ""
@@ -335,10 +342,10 @@ def _local_body(lead: Lead) -> tuple[str, str]:
     """A school district is a school to the reader, not a "local government"."""
     return _SCHOOLS if lead.niche == "k12_school" else _LOCAL_GOV
 
-_AUDIT_WHY = ("and each has to show it's fixed in its next audit",
-              "and it has to show it's fixed in its next audit")
-_GRANT_RULES = ("so each now has strict tracking and reporting rules to follow",
-                "so it now has strict tracking and reporting rules to follow")
+_AUDIT_WHY = ("and each must show it's fixed by its next audit",
+              "and it must show it's fixed by its next audit")
+_GRANT_RULES = ("so each now has strict federal reporting rules",
+                "so it now has strict federal reporting rules")
 
 
 DUTIES: dict[str, Duty] = {
@@ -507,16 +514,16 @@ DUTIES: dict[str, Duty] = {
     "charter_forfeited_for_tax": Duty(
         plural="had their texas charters forfeited over franchise tax",
         singular="had its texas charter forfeited over franchise tax",
-        why=("so each must catch up its franchise tax filings to reinstate",
-             "so it must catch up its franchise tax filings to reinstate"),
+        why=("so each must catch up its filings to reinstate",
+             "so it must catch up its filings to reinstate"),
         line="texas charter forfeited over franchise tax",
         short=("with forfeited texas charters", "with a forfeited texas charter"),
         dm="who lost their texas charter over franchise tax"),
     "franchise_tax_forfeited": Duty(
         plural="lost the right to do business in texas over franchise tax",
         singular="lost the right to do business in texas over franchise tax",
-        why=("so each must catch up franchise tax filings to get it back",
-             "so it must catch up franchise tax filings to get it back"),
+        why=("so each must catch up filings to get it back",
+             "so it must catch up filings to get it back"),
         line="lost texas business rights over franchise tax",
         short=("that lost texas business rights", "that lost texas business rights"),
         dm="who lost the right to do business in texas over franchise tax"),
@@ -661,22 +668,22 @@ DUTIES: dict[str, Duty] = {
         short=("with material weaknesses", "with a material weakness"),
         noun=_BD, dm="flagging material weaknesses"),
     "cu_approaching_fs_audit": Duty(
-        plural="are nearing the size where ncua requires a full financial statement audit",
-        singular="is nearing the size where ncua requires a full financial statement audit",
+        plural="are nearing the size where they must get a full audit",
+        singular="is nearing the size where it must get a full audit",
         line="nearing the size that needs a full audit",
         short=("nearing the full-audit line", "nearing the full-audit line"),
         noun=_CU, org=True, dm="nearing the size that needs a full audit"),
     "cu_over_500m_no_fs_audit": Duty(
-        plural="passed the size where ncua requires a full audit, and their last one wasn't",
-        singular="passed the size where ncua requires a full audit, and its last one wasn't",
+        plural="passed the size where they must get a full audit, and their last one wasn't",
+        singular="passed the size where it must get a full audit, and its last one wasn't",
         line="past the full-audit line, last audit wasn't one",
         short=("past the full-audit line", "past the full-audit line"),
         noun=_CU, org=True, dm="past the size that needs a full audit"),
     "cu_stale_audit": Duty(
-        plural="list a last audit over two years old on their ncua call reports",
-        singular="lists a last audit over two years old on its ncua call report",
-        why=("and the rules require one every year", "and the rules require one every year"),
-        line="last audit over two years old, per ncua",
+        plural="haven't had an audit in over two years",
+        singular="hasn't had an audit in over two years",
+        why=("though they need one every year", "though it needs one every year"),
+        line="no audit in over two years",
         short=("with audits over two years old", "with an audit over two years old"),
         noun=_CU, org=True, dm="with audits over two years old"),
     "rega_tier2_1k_missing": Duty(
@@ -689,8 +696,8 @@ DUTIES: dict[str, Duty] = {
     "college_heightened_cash_monitoring": Duty(
         plural="were newly put on federal heightened cash monitoring",
         singular="was newly put on federal heightened cash monitoring",
-        why=("so each must pay out student aid from its own cash first",
-             "so it must pay out student aid from its own cash first"),
+        why=("so each must pay student aid from its own cash",
+             "so it must pay student aid from its own cash"),
         detail=_hcm_reason,
         line="newly on federal heightened cash monitoring",
         short=("on federal cash monitoring", "on federal cash monitoring"),
@@ -707,8 +714,8 @@ DUTIES: dict[str, Duty] = {
     "wi_choice_school_new": Duty(
         plural="joined the state's private school choice program",
         singular="joined the state's private school choice program",
-        why=("so each now owes the state an independent audit every year",
-             "so it now owes the state an independent audit every year"),
+        why=("so each now needs an independent audit every year",
+             "so it now needs an independent audit every year"),
         line="new to the state's choice program, yearly audit",
         short=("new to school choice", "new to school choice"),
         noun=_SCHOOLS, org=True, dm="joining the state's school choice program"),
@@ -797,8 +804,8 @@ DUTIES: dict[str, Duty] = {
     "film_ca_credit_allocated": Duty(
         plural="were allocated state film tax credits",
         singular="was allocated a state film tax credit",
-        why=("so each needs a cpa report to get its credit certificate",
-             "so it needs a cpa report to get its credit certificate"),
+        why=("so each needs a cpa report to claim it",
+             "so it needs a cpa report to claim it"),
         line="california film tax credit, cpa report needed",
         short=("with new film tax credits", "with a new film tax credit"),
         noun=("production company", "production companies"),
@@ -815,11 +822,11 @@ DUTIES: dict[str, Duty] = {
 
     # --- Construction duty ---------------------------------------------------------------
     "construction_first_prevailing_wage_intent": Duty(
-        plural="filed their first prevailing wage intents with the state",
-        singular="filed its first prevailing wage intent with the state",
-        why=("so each owes a wage affidavit when the job is done",
-             "so it owes a wage affidavit when the job is done"),
-        line="first washington prevailing wage job on record",
+        plural="started their first public jobs paying state wage rates",
+        singular="started its first public job paying state wage rates",
+        why=("so each must report wages paid when the job ends",
+             "so it must report wages paid when the job ends"),
+        line="first public job paying state wage rates",
         short=("on their first public jobs", "on its first public job"),
         noun=_CONTRACTORS, dm="starting their first state public jobs"),
     "construction_nv_license_limit": Duty(
@@ -905,8 +912,8 @@ HELD_DUTIES: dict[str, Duty] = {
     "nonprofit_new_501c3": Duty(
         plural="are newly incorporated and recognized as 501(c)(3)s by the irs",
         singular="is newly incorporated and recognized as a 501(c)(3) by the irs",
-        why=("so each has a 990 or 990-ez to file each year",
-             "so it has a 990 or 990-ez to file each year"),
+        why=("so each must file a 990 every year",
+             "so it must file a 990 every year"),
         line="newly incorporated, new 501(c)(3) status",
         short=("newly recognized as 501(c)(3)s", "newly recognized as a 501(c)(3)"),
         dm="newly recognized as 501(c)(3)s"),
@@ -931,8 +938,8 @@ def _startup_noun(lead: Lead) -> tuple[str, str]:
     return ("tech startup", "tech startups") if young else _TECH_CO
 
 
-_RAISE_WHY = ("so each has a new raise to get on its books",
-              "so it has a new raise to get on its books")
+_RAISE_WHY = ("so each has a new raise to book",
+              "so it has a new raise to book")
 
 # 2026-11-05 the user held Form D ("a very commoditized signal"), then allowed
 # it for firms that serve startups only (gift.engine.not_a_buyer_for).
@@ -1196,7 +1203,7 @@ def _tx_noun(lead: Lead) -> tuple[str, str] | None:
 
 def _tx_late_months(lead: Lead) -> str:
     m = _payload(lead).get("months_first_sale_to_permit")
-    return f"liable {m} months before the permit" if isinstance(m, int) and m > 1 else ""
+    return f"{m} months late" if isinstance(m, int) and m > 1 else ""
 
 
 def _brewer_noun(lead: Lead) -> tuple[str, str]:
@@ -1206,18 +1213,17 @@ def _brewer_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "tx_late_sales_tax_registration": Duty(
-        plural="got texas sales tax permits months after the state lists them as liable",
-        singular="got a texas sales tax permit months after the state lists it as liable",
+        plural="got texas sales tax permits months after their first taxable sales",
+        singular="got a texas sales tax permit months after its first taxable sale",
         why=("so each has earlier returns to cover", "so it has earlier returns to cover"),
         detail=_tx_late_months,
-        line="sales tax permit issued months after liable date",
+        line="got a sales tax permit months late",
         short=("registered late for sales tax", "registered late for sales tax"),
         noun=_tx_noun, dm="registering late for texas sales tax"),
     "tx_new_sales_tax_permit": Duty(
         plural="got new texas sales tax permits",
         singular="got a new texas sales tax permit",
-        why=("so each now files sales tax returns, even in months with no sales",
-             "so it now files sales tax returns, even in months with no sales"),
+        why=("so each now files sales tax returns", "so it now files sales tax returns"),
         line="new texas sales tax permit, returns start",
         short=("with new sales tax permits", "with a new sales tax permit"),
         noun=_tx_noun, dm="getting new texas sales tax permits"),
@@ -1244,24 +1250,24 @@ DUTIES.update({
     "fl_new_money_transmitter": Duty(
         plural="got new florida money transmitter licenses",
         singular="got a new florida money transmitter license",
-        why=("so each files an audited statement every year and a report every quarter",
-             "so it files an audited statement every year and a report every quarter"),
+        why=("so each files audited statements yearly and reports quarterly",
+             "so it files audited statements yearly and reports quarterly"),
         line="new florida money transmitter license, yearly audit",
         short=("with money transmitter licenses", "with a money transmitter license"),
         dm="getting new florida money transmitter licenses"),
     "fl_new_mortgage_lender": Duty(
         plural="got new florida mortgage lender licenses",
         singular="got a new florida mortgage lender license",
-        why=("so each must keep its required net worth and report its condition quarterly",
-             "so it must keep its required net worth and report its condition quarterly"),
+        why=("so each reports quarterly and must keep a net worth",
+             "so it reports quarterly and must keep a net worth"),
         line="new florida mortgage lender license",
         short=("with new lender licenses", "with a new lender license"),
         dm="getting new florida mortgage lender licenses"),
     "fl_new_consumer_finance_lender": Duty(
         plural="got new florida consumer finance licenses",
         singular="got a new florida consumer finance license",
-        why=("so each now files an annual report with the state by march 15",
-             "so it now files an annual report with the state by march 15"),
+        why=("so each files an annual report with the state",
+             "so it files an annual report with the state"),
         line="new florida consumer finance license",
         short=("with consumer finance licenses", "with a consumer finance license"),
         dm="getting new florida consumer finance licenses"),
@@ -1332,10 +1338,8 @@ _H2B_WHY = ("so each agreed to prevailing wage and pay-record rules",
             "so it agreed to prevailing wage and pay-record rules")
 # The hookup's figures ($45,000 / $15,000 of net worth) are left out: no sent text
 # carries a dollar figure (the amounts are in the insight and the payload).
-_VA_A_WHY = ("so each had to show virginia its net worth on a financial statement "
-             "(or a bond)",
-             "so it had to show virginia its net worth on a financial statement "
-             "(or a bond)")
+_VA_A_WHY = ("so each had to prove its net worth to virginia",
+             "so it had to prove its net worth to virginia")
 _VA_B_WHY = _VA_A_WHY
 
 DUTIES.update({
@@ -1411,16 +1415,16 @@ DUTIES.update({
     "fl_health_studio_new": Duty(    # Fla. Stat. 501.015(1)-(2), 501.016(1)-(2), (5)
         plural="just registered as florida health studios",
         singular="just registered as a florida health studio",
-        why=("so each needs a bond or an exemption and re-registers every year",
-             "so it needs a bond or an exemption and re-registers every year"),
+        why=("so each needs a bond or exemption, renewed yearly",
+             "so it needs a bond or exemption, renewed yearly"),
         line="new florida health studio registration",
         short=("just registered as health studios", "just registered as a health studio"),
         noun=_FITNESS, dm="just registering as health studios in florida"),
     "ct_health_club_new": Duty(      # Conn. Gen. Stat. 21a-223(a), 21a-226(b)
         plural="just got connecticut health club licenses",
         singular="just got a connecticut health club license",
-        why=("so each now renews yearly and pays into the state's guaranty fund",
-             "so it now renews yearly and pays into the state's guaranty fund"),
+        why=("so each renews yearly and pays into a state fund",
+             "so it renews yearly and pays into a state fund"),
         line="new connecticut health club license",
         short=("with new club licenses", "with a new club license"),
         noun=_FITNESS, dm="just getting connecticut health club licenses"),
@@ -1443,8 +1447,8 @@ DUTIES.update({
     "nsgp_security_grant_subaward": Duty(  # 2 CFR 200.302, 200.318, 200.334
         plural="recently received FEMA security grants",
         singular="recently received a FEMA security grant",
-        why=("so each now has federal grant rules on how it spends and records the money",
-             "so it now has federal grant rules on how it spends and records the money"),
+        why=("so each must account for the grant by federal rules",
+             "so it must account for the grant by federal rules"),
         line="fema nonprofit security grant subaward",
         short=("with FEMA security grants", "with a FEMA security grant"),
         noun=_CONG, org=True, dm="receiving fema nonprofit security grants"),
@@ -1584,8 +1588,8 @@ DUTIES.update({
     "fl_employee_leasing_new_license": Duty(
         plural="got new florida employee leasing licenses",
         singular="got a new florida employee leasing license",
-        why=("so each files cpa-audited statements within 120 days of year end",
-             "so it files cpa-audited statements within 120 days of year end"),
+        why=("so each files cpa-audited statements every year",
+             "so it files cpa-audited statements every year"),
         line="new florida employee leasing license",
         short=("with employee leasing licenses", "with an employee leasing license"),
         noun=_PEOS, dm="getting new florida employee leasing licenses"),
@@ -1600,8 +1604,8 @@ DUTIES.update({
     "tx_dir_first_contract": Duty(
         plural="got their first texas dir technology contracts",
         singular="got its first texas dir technology contract",
-        why=("so each files a monthly sales report with dir, even with no sales",
-             "so it files a monthly sales report with dir, even with no sales"),
+        why=("so each files a monthly sales report with the state",
+             "so it files a monthly sales report with the state"),
         line="first texas dir contract, monthly sales reports",
         short=("with first state tech contracts", "with a first state tech contract"),
         noun=_VENDORS, dm="getting first texas dir contracts"),
@@ -1658,8 +1662,8 @@ DUTIES.update({
     "church_990t_first": Duty(
         plural="filed their first form 990-t (business-income tax return)",
         singular="filed its first form 990-t (business-income tax return)",
-        why=("so each has one due any year side income passes the minimum",
-             "so it has one due any year side income passes the minimum"),
+        why=("so each owes one whenever side income passes the limit",
+             "so it owes one whenever side income passes the limit"),
         detail=_church_990t_detail,
         line="first form 990-t (business-income tax return)",
         short=("filing their first 990-ts", "filing its first 990-t"),
@@ -1670,8 +1674,8 @@ DUTIES.update({
         singular="filed its own form 990-t with no paid preparer listed",
         # The record shows one return with no paid preparer, not a habit: the
         # "why" states only the verified duty (Treas. Reg. 1.6012-2(e)).
-        why=("so each has one due any year side income passes the minimum",
-             "so it has one due any year side income passes the minimum"),
+        why=("so each owes one whenever side income passes the limit",
+             "so it owes one whenever side income passes the limit"),
         detail=_church_990t_detail,
         line="filed its own 990-t, no paid preparer listed",
         short=("filing their own 990-ts", "filing its own 990-t"),
@@ -1745,9 +1749,13 @@ def _state_name(code: str | None) -> str:
 
 def _registered_in(leads: list[Lead]) -> str:
     states = {_state_name(_payload(ld).get("state")) for ld in leads}
-    if len(states) == 1 and next(iter(states)):
-        return f"registered to do business in {next(iter(states))}"
-    return "registered to do business in a new state"
+    # "from other states": each line prints the company's home city, so
+    # "these 3 registered to do business in connecticut" over three Colorado
+    # and Florida towns read as a contradiction (2026-11-12).
+    if len(states) != 1 or not next(iter(states)):
+        return "registered to do business in a new state"
+    who = "from another state" if len(leads) == 1 else "from other states"
+    return f"{who} registered to do business in {next(iter(states))}"
 
 
 def _home(lead: Lead) -> str:
@@ -1766,7 +1774,8 @@ def _home(lead: Lead) -> str:
 DUTIES["new_business_expanding"] = Duty(
     plural=_registered_in,
     singular=lambda ld: _registered_in([ld]),
-    line=lambda ld: _registered_in([ld]),
+    line=lambda ld: _registered_in([ld]).removeprefix("from another state ").removeprefix(
+        "from other states "),
     detail=_home,
     short=("newly registered in the state", "newly registered in the state"),
     bare=True, dm="registering to do business in a new state")
@@ -1787,8 +1796,8 @@ def _fda_first(leads: list[Lead]) -> str:
         else f"got its first {k.removeprefix('an ')} for a medical device"
 
 
-_SELL_DEVICE = ("so each can now legally sell that device in the us",
-                "so it can now legally sell that device in the us")
+_SELL_DEVICE = ("so each can now sell that device in the us",
+                "so it can now sell that device in the us")
 
 DUTIES.update({
     # Healthcare (openFDA 510(k) / De Novo): a small US applicant.

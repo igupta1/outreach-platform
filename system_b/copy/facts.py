@@ -289,8 +289,14 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
 
 def _industry(text: object) -> str:
     """A record's industry title, lowercased, when it is short enough to read
-    in a line ("software publishers", "full-service restaurants"); "" else."""
+    in a line ("software publishers", "full-service restaurants"); "" else.
+    A bare code ("naics 722511", 2026-11-12) is looked up, never printed."""
     t = " ".join(str(text or "").split()).strip().lower()
+    code = re.fullmatch(r"(?:naics\s*)?(\d{2,6})", t)
+    if code:
+        from system_b.gift.fit import naics_title
+
+        t = " ".join(str(naics_title(code.group(1)) or "").split()).strip().lower()
     if not t or len(t) > 45 or t in ("all other", "other", "unclassified"):
         return ""
     return t.replace(" and ", " & ") if len(t) > 35 else t

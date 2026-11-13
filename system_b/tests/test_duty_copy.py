@@ -257,7 +257,7 @@ def test_a_film_credit_with_no_city_prints_no_state_three_times():
     framing, lines = record_opener(g, ca)
     assert framing == ("these 2 production companies in "
                        "california were allocated state film tax credits, so each needs a "
-                       "cpa report to get its credit certificate:")
+                       "cpa report to claim it:")
     assert lines == ["Glue The Film", "Farewell To Thieves"]
 
 
@@ -428,7 +428,8 @@ def test_an_expanding_business_says_where_it_registered_and_what_it_is():
                                       payload={"state": "CO", "home_jurisdiction": home,
                                                "entity_kind": kind})])
     d = _D["new_business_expanding"]
-    assert d.predicate([ld("DE", "LLC"), ld("WY", "LLC")]) == "registered to do business in colorado"
+    assert d.predicate([ld("DE", "LLC"), ld("WY", "LLC")]) == (
+        "from other states registered to do business in colorado")
     assert d.detail_for(ld("DE", "LLC")) == "a delaware llc"
     assert d.detail_for(ld("AZ", "corporation")) == "an arizona corporation"
     assert d.detail_for(ld("DE", "partnership")) == ""
