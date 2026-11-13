@@ -204,8 +204,15 @@ def choose_voice(
     lists = {part.strip().lower() for part in (source or "").split("+") if part.strip()}
     list_rungs = {APOLLO_LIST_PACKS[x] for x in lists if x in APOLLO_LIST_PACKS}
     if rung:
+        # 2026-11-13, the user: trust the website, the firm's own words. An
+        # Apollo list no longer overrules it (166 of 596 past prospects went
+        # neutral that way, and neutral emails got no interested reply). The
+        # firm's NAME is its own words too: one rung in the name wins
+        # ("Abrisma Accounting"), a name with several is neutral as before.
         named = name_rungs(firm_name)
-        if (named and rung not in named) or (list_rungs and rung not in list_rungs):
+        if named and rung not in named:
+            if len(named) == 1:
+                return next(iter(named)), "name"
             return NEUTRAL_PACK, "disagrees"
         return rung, "site"
     if len(lists) == 1 and list_rungs:

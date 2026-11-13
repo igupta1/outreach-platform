@@ -18,8 +18,11 @@ candidate passes Gate B we drop to the generalist gift.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from system_b.copy.lex import niche_display
@@ -71,6 +74,29 @@ def fit_label(mp: tuple[str, str], label: str, phrase: str | None) -> str:
         return label
     return (f"{label}, specifically the kind of client this firm names in its own words: "
             f"\"{phrase.strip()}\" (a company of another kind within {label} does not fit)")
+
+
+_TAXONOMY_JSON = Path(__file__).resolve().parents[1] / "data" / "taxonomy.json"
+
+
+@lru_cache(maxsize=1)
+def _parents() -> dict[str, str]:
+    """{niche: its industry} from data/taxonomy.json; {} when unreadable."""
+    try:
+        data = json.loads(_TAXONOMY_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    tax = data.get("taxonomy", data) if isinstance(data, dict) else {}
+    return {child: parent for parent, children in tax.items() for child in (children or [])}
+
+
+def _broad(mp: tuple[str, str]) -> tuple[str, str] | None:
+    """The plain-industry fallback for a candidate: the niche's parent
+    industry, or the same industry judged without the firm's exact words."""
+    if mp[0] == "niche":
+        parent = _parents().get(mp[1])
+        return ("industry", parent) if parent else None
+    return mp
 
 
 def _supply_key(gift: Gift, rank: dict[str, int]) -> tuple[int, int]:
@@ -198,6 +224,17 @@ def resolve_gift(
         candidates_tried += 1
         # GATE B (taxonomy + fit), swapping out any non-fitting lead (niche-lift):
         g = _fitting_niche_gift(trial, scraper, pack, fit_label(mp, label, phrase), counting_fit)
+        if g is None:
+            # 2026-11-13, the user: when the firm's exact words fail ("framing,
+            # sheetrock and painting subcontractors"), fall back to the broad
+            # industry (construction) rather than drop the industry line.
+            broad = _broad(mp)
+            if broad is not None and (blabel := niche_display(broad)) \
+                    and fit_calls < MAX_FIT_CALLS and claim(phrase, blabel, listed):
+                btrial = _base_prospect(row, research, classification="niched", match_param=broad)
+                g = _fitting_niche_gift(btrial, scraper, pack, blabel, counting_fit)
+                if g is not None:
+                    mp, label = broad, blabel
         if g is None:
             continue                                             # no all-fitting niche gift -> drop
         # 2026-11-12, the user: the industry the firm stresses most, not the

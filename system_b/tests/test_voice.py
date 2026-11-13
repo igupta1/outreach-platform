@@ -104,22 +104,22 @@ def test_the_site_wins_when_the_lists_include_it(monkeypatch):
     assert "saw you do bookkeeping." in res["email_1"]
 
 
-def test_a_site_the_apollo_list_contradicts_gets_the_neutral_voice(monkeypatch):
-    """A firm only on the Accounting list whose site counted as bookkeeping."""
+def test_the_site_wins_over_an_apollo_list_that_contradicts_it(monkeypatch):
+    """A firm only on the Accounting list whose site counted as bookkeeping
+    (2026-11-13, the user: trust the website, their own words)."""
     res = _draft(monkeypatch, rung="bookkeeping", source="Accounting")
-    assert (res["pack"], res["voice_source"]) == ("finance", "disagrees")
-    assert "saw you help companies with their finances." in res["email_1"]
-    assert res["review"]["voice_source"] == "disagrees"
+    assert (res["pack"], res["voice_source"]) == ("bookkeeping", "site")
+    assert "saw you do bookkeeping." in res["email_1"]
 
 
 @pytest.mark.parametrize("firm, rung, lists, expected", [
-    # The 2026-10-25 batch: four firms told the wrong rung.
-    ("3CFO Solutions LLC", "bookkeeping", "FractionalCFO", ("finance", "disagrees")),
+    # The 2026-10-25 batch: four firms told the wrong rung. Since 2026-11-13 a
+    # name with one rung says it; Apollo lists no longer overrule the site.
+    ("3CFO Solutions LLC", "bookkeeping", "FractionalCFO", ("cfo", "name")),
     ("Accountit\u2122, CPA", "bookkeeping", "FractionalCFO+Accounting+Bookkeeping",
-     ("finance", "disagrees")),
-    ("Abrisma Accounting LLC", "cfo", "Accounting", ("finance", "disagrees")),
-    ("Anne Napolitano Consulting, Inc.", "cfo", "Accounting+Bookkeeping",
-     ("finance", "disagrees")),
+     ("accounting", "name")),
+    ("Abrisma Accounting LLC", "cfo", "Accounting", ("accounting", "name")),
+    ("Anne Napolitano Consulting, Inc.", "cfo", "Accounting+Bookkeeping", ("cfo", "site")),
     # Agreement keeps the site's rung.
     ("Allegro CFO", "cfo", "FractionalCFO", ("cfo", "site")),
     ("Accountix | Bookkeeping + CFO Experts", "bookkeeping", "Accounting+Bookkeeping",
