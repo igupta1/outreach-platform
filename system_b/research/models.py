@@ -32,6 +32,9 @@ class ResearchResult:
     # "single" (one clear stated focus) | "multiple" (lists several served
     # industries/client types) | "" (generalist). Drives sole vs one_of_several.
     exclusivity: str = ""
+    # One stated industry clearly leads the site (classifier.dominant). When
+    # none does, the gift picks the stated industry with the strongest leads.
+    dominant: bool = True
     # The subset of verified client names that copy may NAME. Verbatim on the
     # site is not enough — a name in a footer could be a partner, a vendor, or
     # an "as seen in" logo, and "you worked with X" would then be false. Only

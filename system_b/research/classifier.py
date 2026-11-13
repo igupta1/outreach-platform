@@ -103,6 +103,18 @@ def by_emphasis(mps: list, phrases: list, site: dict[str, str]) -> tuple[list, l
     return [mps[i] for i in order], [phrases[i] for i in order if i < len(phrases)]
 
 
+def dominant(mps: list, phrases: list, site: dict[str, str]) -> bool:
+    """Does one stated industry clearly lead (2026-11-13, the user)? Only
+    one; or the first has a page of its own and the next does not; or the
+    first is named at least twice as often as the next (and 3+ times). A firm
+    listing many industries about evenly is not dominated by any."""
+    if len(mps) < 2:
+        return True
+    marks = [emphasis(phrases[i] if i < len(phrases) else "", mps[i], site) for i in range(2)]
+    (p1, c1), (p2, c2) = marks
+    return (p1 == 1 and p2 < 1) or (c1 >= 3 and c1 >= 2 * max(c2, 0))
+
+
 def _is_client_page(url: str) -> bool:
     """True when the page URL presents its contents as clients/customers/work."""
     u = (url or "").lower()
@@ -389,6 +401,7 @@ def _classify_niche(
                 "niched", verified_mp[0], verified_phrases[0], "site", evidence, flags,
                 candidate_match_params=verified_mp, candidate_phrases=verified_phrases,
                 exclusivity="multiple" if multiple else "single",
+                dominant=dominant(verified_mp, verified_phrases, site),
             )
         if on_site_phrase is not None:
             # verbatim on the site but no taxonomy match — save it, never claim.

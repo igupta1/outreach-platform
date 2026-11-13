@@ -24,7 +24,7 @@ from system_b.research.models import Evidence, ResearchResult
 
 CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "research-cache.json"
 CACHE_DAYS = 30
-CACHE_VERSION = "2026-11-13"
+CACHE_VERSION = "2026-11-13b"   # + dominant
 _cache: dict | None = None
 
 

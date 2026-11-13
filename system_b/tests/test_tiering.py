@@ -422,3 +422,30 @@ def test_general_leads_in_the_firms_city_before_its_state():
     g = single_kind_gift(prospect, FakeScraper(leads))
     assert g is not None and g.geo_level == "city"
     assert {ld.signal_type for ld in g.leads} == {"construction_new_licensed_business"}
+
+
+def test_no_dominant_industry_picks_the_strongest_leads():
+    """2026-11-13: a firm listing industries evenly gets the industry whose
+    leads are strongest, not the one named first."""
+    research = _research([("industry", "real_estate"), ("industry", "construction")],
+                         exclusivity="multiple", phrases=["real estate", "construction"])
+    research.dominant = False
+    leads = [mk(f"r{i}", "new_business_formed", industry="real_estate", city="Denver", state="CO",
+                date="2026-07-05", company=f"Realty {i} Co") for i in range(3)]
+    leads += [mk(f"c{i}", "construction_federal_award_davis_bacon", industry="construction",
+                 city="Denver", state="CO", date="2026-07-05", company=f"Builder {i} Co")
+              for i in range(3)]
+    prospect, _ = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
+    assert prospect.match_param == ("industry", "construction")
+
+
+def test_dominance():
+    from system_b.research.classifier import dominant
+    even = {"https://a.com": "We serve construction, restaurants and real estate. Construction "
+                             "and restaurants."}
+    assert not dominant([("industry", "construction"), ("industry", "restaurant")],
+                        ["construction", "restaurants"], even)
+    led = {"https://a.com": "nonprofit nonprofit nonprofit nonprofits cannabis",
+           "https://a.com/nonprofits": "x"}
+    assert dominant([("industry", "nonprofit"), ("industry", "cannabis")],
+                    ["nonprofits", "cannabis"], led)

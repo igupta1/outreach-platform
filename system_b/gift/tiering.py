@@ -99,6 +99,17 @@ def _broad(mp: tuple[str, str]) -> tuple[str, str] | None:
     return mp
 
 
+def _strength(gift: Gift, prospect: Prospect) -> tuple:
+    """Lower is stronger: a full gift first, then its strongest lead's band
+    and type order (gift.engine), then more leads."""
+    from system_b.gift.engine import _OTHER_TYPE, TYPE_ORDER, band_for
+
+    lead = min(gift.leads, key=lambda ld: (band_for(ld, prospect),
+                                           TYPE_ORDER.get(ld.signal_type or "", _OTHER_TYPE)))
+    return (0 if gift.gift_size >= GIFT_TARGET else 1, band_for(lead, prospect),
+            TYPE_ORDER.get(lead.signal_type or "", _OTHER_TYPE), -gift.gift_size)
+
+
 def _supply_key(gift: Gift, rank: dict[str, int]) -> tuple[int, int]:
     """Rank candidate gifts by lead supply: more leads first, then a stronger
     best-lead signal (per the active pack's rank). All contenders are all-niche."""
@@ -242,6 +253,14 @@ def resolve_gift(
         # stressed first (research.classifier.by_emphasis), so the first that
         # fills a FULL fitting gift is claimed; one that fills only part of a
         # gift is kept as the fallback in case none fills it all.
+        if not getattr(research, "dominant", True):
+            # 2026-11-13, the user: a firm listing many industries about
+            # evenly gets the one with the strongest leads, not the one its
+            # site happens to name most (Terry: restaurants over construction).
+            key = _strength(g, trial)
+            if best is None or key < best[3]:
+                best = (g, mp, phrase, key)
+            continue
         if best is None or (best[0].gift_size < GIFT_TARGET <= g.gift_size):
             best = (g, mp, phrase, ())
         if g.gift_size >= GIFT_TARGET:

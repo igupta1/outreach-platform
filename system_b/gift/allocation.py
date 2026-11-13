@@ -110,6 +110,13 @@ class Allocations:
             self._pending.append({"lead": ident, "region": region, "firm": me,
                                   "allocated_on": today.isoformat()})
 
+    def keep_only(self, firms: Iterable[str | None]) -> None:
+        """Drop what this run recorded for any firm not in `firms` (run.py
+        reads every firm, then drafts only the strongest; 2026-11-13). The
+        in-run holds stay, so the rest of the run still respects them."""
+        keep = {_firm(f) for f in firms}
+        self._pending = [row for row in self._pending if row["firm"] in keep]
+
     def save(self, path: Path) -> int:
         """Append what this run recorded. Returns the number of rows written."""
         if not self._pending:

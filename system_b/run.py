@@ -454,9 +454,13 @@ def main() -> None:
     skipped: list[tuple[str, str]] = []
     backlog: list[dict] = []
     not_finance: list[dict] = []
+    # 2026-11-13, the user: every unsent firm is read (research is kept for
+    # 30 days, so a re-read costs no model call), then the industry matches
+    # with the strongest leads are drafted first; location-only firms fill
+    # what is left, strongest first too. Before, the first 200 matches in FILE
+    # order won (an old nonprofit/funds bias, then the alphabet).
+    matched: list[tuple[dict, dict]] = []
     for p in prospects:
-        if target is not None and len(results) >= target:
-            break
         firm = p.get("firm_name", "?")
         p = {**p, "blocked_identities": allocations.blocked(firm, p.get("state"),
                                                             own=own_holdings)}
@@ -489,12 +493,27 @@ def main() -> None:
             location_only.append((p, res))
             print(f"  · {firm:32} location-only match, drafted only if the target needs it")
             continue
-        results.append(res)
+        matched.append((p, res))
+        # Held now so a second contact at this firm is shown other leads in
+        # this run; only the drafted firms' holds are saved (keep_only below).
         allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, "
               f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
 
-    # Fill what the industry matches left, in file order.
+    def _strongest(pr: tuple[dict, dict]) -> list:
+        return pr[1].get("strength") or [9, 9, 9, 0]
+
+    matched.sort(key=_strongest)                       # stable: file order breaks ties
+    location_only.sort(key=_strongest)
+    for p, res in matched:
+        if target is not None and len(results) >= target:
+            break
+        results.append(res)
+    if target is not None and len(matched) > len(results):
+        print(f"[run] {len(matched)} industry matches; the {len(results)} with the "
+              "strongest leads are drafted, the rest wait for another night")
+
+    # Fill what the industry matches left, strongest leads first.
     for p, res in location_only:
         if target is not None and len(results) >= target:
             break
@@ -564,6 +583,7 @@ def main() -> None:
         )
         # Same rule as the prospect ledger: a run that records nothing for
         # prospects (iterating on copy) holds no organizations either.
+        allocations.keep_only(r.get("company") for r in results)
         n = allocations.save(Path(args.allocations))
         if n:
             print(f"[allocations] {n} organization(s) recorded -> {args.allocations}")

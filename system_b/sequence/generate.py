@@ -26,7 +26,7 @@ from system_b.copy.linkedin import (
     build_dm_2,
 )
 from system_b.gift.engine import build_gift, strongest_first
-from system_b.gift.tiering import resolve_gift
+from system_b.gift.tiering import _strength, resolve_gift
 from system_b.niches.base import pack_for
 from system_b.research.service import research_prospect
 from system_b.review.payload import build_review
@@ -331,6 +331,9 @@ def generate_sequence(
         "rung_evidence": list(getattr(research, "rung_evidence", None) or []),
         "voice_source": voice_source,
         "gift_size": gift.gift_size,
+        # How strong this gift's leads are (lower first): run.py sends the
+        # strongest industry matches first (2026-11-13).
+        "strength": list(_strength(gift, prospect)),
         # Every organization this sequence names, for the allocation ledger.
         "lead_identities": [ld.allocation_key for ld in [*gift.leads, *followup_leads]
                             if ld is not None and ld.allocation_key],
