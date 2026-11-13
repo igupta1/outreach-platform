@@ -78,7 +78,9 @@ def merge(paths: list[Path]) -> tuple[list[dict], Counter]:
                                             or row.get("Company Linkedin Url") or "").strip(),
                     "Company City": (row.get("Company City") or row.get("City") or "").strip(),
                     "Company State": (row.get("Company State") or row.get("State") or "").strip(),
-                    "_source": source,
+                    # A row that already carries its list (a re-merge of
+                    # prospects.csv) keeps it: the voice falls back on it.
+                    "_source": (row.get("_source") or source).strip(),
                 }
                 held = best.get(domain)
                 if held is None:
@@ -87,11 +89,11 @@ def merge(paths: list[Path]) -> tuple[list[dict], Counter]:
                     # Better-titled contact at a firm we already have. Keep the
                     # sources joined so the review card can show that this firm
                     # appeared in more than one export.
-                    candidate["_source"] = f"{held['_source']}+{source}" \
-                        if source not in held["_source"] else held["_source"]
+                    candidate["_source"] = f"{held['_source']}+{candidate['_source']}" \
+                        if candidate["_source"] not in held["_source"] else held["_source"]
                     best[domain] = candidate
-                elif source not in held["_source"]:
-                    held["_source"] = f"{held['_source']}+{source}"
+                elif candidate["_source"] not in held["_source"]:
+                    held["_source"] = f"{held['_source']}+{candidate['_source']}"
     stats["firms"] = len(best)
     return list(best.values()), stats
 
