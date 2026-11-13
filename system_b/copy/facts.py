@@ -146,11 +146,32 @@ def _person(lead: Lead) -> tuple[str, str] | None:
         return None
     if name.isupper() or name.islower():
         name = name.title()
-    name = " ".join(w for w in name.split() if len(w.rstrip(".")) > 1)
     org = _LEGAL_END_RE.sub("", " ".join((lead.company or "").split())).lower()
+    name = _first_last(name)
     if len(name.split()) < 2 or name.lower() == org:
         return None
     return name, role
+
+
+_SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
+_PARTICLES = {"de", "del", "della", "da", "di", "du", "la", "le", "van", "von", "der", "st"}
+
+
+def _first_last(name: str) -> str:
+    """First and last name only (2026-11-12, the user: no middle names):
+    "Edward Alex Polevoy" -> "Edward Polevoy", "Douglas K Bardin" -> "Douglas
+    Bardin". A surname particle stays ("Maria de la Cruz"), a suffix goes."""
+    words = [w for w in name.split() if len(w.rstrip(".,")) > 1 or w.lower() in _PARTICLES]
+    while len(words) > 2 and words[-1].lower().strip(".,") in _SUFFIXES:
+        words.pop()
+    if len(words) <= 2:
+        return " ".join(words)
+    last = [words[-1]]
+    for w in reversed(words[1:-1]):
+        if w.lower() not in _PARTICLES:
+            break
+        last.insert(0, w)
+    return " ".join([words[0], *last])
 
 
 def _contact(lead: Lead) -> str:

@@ -168,13 +168,14 @@ def _contact_lead(signal_type="construction_new_licensed_business", *, when="202
 
 def test_contact_reads_role_first_and_drops_initials():
     from system_b.copy.facts import contact
-    assert contact(_contact_lead()) == "principal Edward Alex Polevoy"
+    assert contact(_contact_lead()) == "principal Edward Polevoy"            # no middle name
+    assert contact(_contact_lead(name="Maria Luisa de la Cruz Jr.")) == "principal Maria de la Cruz"
     assert contact(_contact_lead(name="DOUGLAS K BARDIN", title="PRINCIPAL")) == \
         "principal Douglas Bardin"
     assert contact(_contact_lead(title="Registered agent")) == ""       # not a role
     assert contact(_contact_lead(title="CFO")) == ""                    # has finance help
     assert contact(_contact_lead(name="Alderlis", title="Owner")) == ""  # the org's own name
-    assert contact(_contact_lead(title="Authorized Official")) == "contact Edward Alex Polevoy"
+    assert contact(_contact_lead(title="Authorized Official")) == "contact Edward Polevoy"
 
 
 def test_fresh_date_only_when_recent_and_the_date_is_the_news():
@@ -202,9 +203,9 @@ def test_email_1_lines_carry_the_fact_date_and_person():
              subject_shape="plural", what_category="construction", best_lead_level=1)
     p = Prospect(firm_name="Match", city="Bothell", state="WA", first_name="Terry")
     _, lines = record_opener(g, p, today=date(2026, 11, 11))
-    assert lines[0] == "Alderlis Construction (oct 23, principal Edward Alex Polevoy)"
+    assert lines[0] == "Alderlis Construction (oct 23, principal Edward Polevoy)"
     _, note = record_opener(g, p)          # the LinkedIn note: as before, no date
-    assert note[0] == "Alderlis Construction (Edward Alex Polevoy, principal)"
+    assert note[0] == "Alderlis Construction (Edward Polevoy, principal)"
 
 
 def test_a_named_lead_wins_a_tie():
