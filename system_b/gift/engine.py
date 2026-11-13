@@ -1245,6 +1245,24 @@ def pull_one_lead(
     return gift.leads[0] if gift else None
 
 
+# Leads any small-business finance firm can serve: a new business, a loan, a
+# new licence or practice. For a firm whose site names no industry these come
+# before specialist kinds (charity audits, plan audits, credit unions, HUD
+# owners) when they fill a gift in the firm's own state (2026-11-12, the
+# user: "still prioritize leads in their area ... but if we have the option
+# choose more general leads like new businesses and SBA loans").
+GENERAL_TYPES: frozenset[str] = frozenset({
+    "new_business_formed", "new_business_expanding", "sba_7a_loan_approved",
+    "sba_504_loan_approved", "construction_new_licensed_business",
+    "construction_large_permit", "new_practice_npi", "new_practice_medicare_enrollment",
+    "sam_new_entity_registration", "tx_new_sales_tax_permit", "tx_new_mixed_beverage_permit",
+    "liquor_license_new_ca", "liquor_license_new_chicago", "liquor_license_new_co",
+    "liquor_license_new_fl", "liquor_license_new_ny", "liquor_license_new_tx",
+    "liquor_license_new_owner_ca", "liquor_license_new_owner_chicago",
+    "liquor_license_new_owner_ny", "liquor_license_new_owner_tx",
+})
+
+
 def single_kind_gift(
     prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
     pack: NichePack | None = None, niche_only: bool = False, build=None,
@@ -1263,6 +1281,13 @@ def single_kind_gift(
     wide = build(prospect, scraper, target=target * 4, pack=pack, niche_only=niche_only)
     kinds = list(dict.fromkeys(ld.signal_type for ld in (wide.leads if wide else g.leads)
                                if ld.signal_type))
+    if prospect.classification != "niched" and not niche_only:
+        # Still the firm's own state (`in_state` below); general kinds first,
+        # each kind keeping the walk's order (city before the rest).
+        # A general kind the first walk did not reach is tried too.
+        kinds += sorted(GENERAL_TYPES - set(kinds),
+                        key=lambda k: TYPE_ORDER.get(k, _OTHER_TYPE))
+        kinds.sort(key=lambda k: k not in GENERAL_TYPES)
     for kind in kinds:
         one = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only,
                     signal_types=frozenset({kind}), in_state=not niche_only)

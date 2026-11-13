@@ -393,3 +393,17 @@ def test_a_firms_own_trade_ranks_after_its_client_industries():
     mps, _ = by_emphasis([("industry", "accounting"), ("industry", "legal")],
                          ["Accounting Firms", "Law Firms"], site)
     assert mps[0] == ("industry", "legal")
+
+
+def test_a_firm_with_no_industry_gets_general_leads_in_its_state_first():
+    """2026-11-12: new businesses / loans before charity or plan audits, but
+    only in the firm's own state."""
+    from system_b.gift.engine import single_kind_gift
+    research = _research([], exclusivity="none", classification="generalist")
+    prospect, _ = resolve_gift(research, _row(), FakeScraper([]), fit=_FIT_YES)
+    leads = [mk(f"n{i}", "nonprofit_going_concern", industry="nonprofit", city="Denver",
+                state="CO", date="2026-07-05", company=f"Charity {i}") for i in range(3)]
+    leads += [mk(f"s{i}", "sba_7a_loan_approved", industry="construction", city="Denver",
+                 state="CO", date="2026-07-05", company=f"Builder {i} Co") for i in range(3)]
+    g = single_kind_gift(prospect, FakeScraper(leads))
+    assert g is not None and {ld.signal_type for ld in g.leads} == {"sba_7a_loan_approved"}
