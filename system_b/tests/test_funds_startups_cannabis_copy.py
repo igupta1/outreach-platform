@@ -59,15 +59,14 @@ def test_funds_open_on_their_form_adv_with_a_count_never_dollars():
              for n, k in (("Rising Point Capital", 4), ("Lone Star Advisors", 3),
                           ("Acacia Partners", 5))]
     text = body(gift(leads))
-    assert ("these 3 fund managers in austin run private funds with no outside "
-            "administrator on their latest form adv, so each handles its fund "
-            "accounting in house:") in text
+    assert ("these 3 fund managers in austin run private funds without an outside "
+            "administrator, so each does its fund accounting in house:") in text
     assert "Rising Point Capital (4 funds)" in text
     assert "$" not in text
     assert short_subject(gift(leads), DANA) == "3 austin fund managers with no fund administrator"
     two = build_followup_email(leads[0], DANA, step=2, today=TODAY,
                                pack=pack_for("cfo")).body
-    assert "runs 4 private funds with no outside administrator on its latest form adv" in two
+    assert "runs 4 private funds without an outside administrator" in two
 
 
 def test_the_form_adv_amendment_type_is_worded_but_held():
@@ -86,17 +85,17 @@ def test_startups_raise_opener_names_no_dollars_and_says_startups_only_when_all_
                                                "total_amount_sold": 14031768})
              for n in ("Bevel, Inc.", "Payloop, Inc.", "Sky Analytica Corp")]
     text = body(gift(young))
-    assert ("these 3 tech startups in austin filed their first form d with the sec, "
+    assert ("these 3 tech startups in austin just started raising money from investors, "
             "so each has a new raise to book:") in text
     assert "$" not in text and not re.search(r"\b20\d\d\b", text.split(":")[0])
     assert "round" not in text and "first funding" not in text
     mixed = young[:2] + [lead("startup_first_form_d", "Old Co Inc.",
                               {"incorporated_within_five_years": False})]
-    assert "these 3 tech companies in austin filed their first form d" in body(gift(mixed))
+    assert "these 3 tech companies in austin just started raising money" in body(gift(mixed))
     new = [lead("startup_new_form_d", n, {"incorporated_within_five_years": True})
            for n in ("Clasp, Inc.", "Valoros, Inc.", "UrgentIQ Inc.")]
-    assert ("these 3 tech startups in austin filed new form ds with the sec for new "
-            "private offerings, so each has a new raise to book:") in body(gift(new))
+    assert ("these 3 tech startups in austin just started a new round of raising money "
+            "from investors, so each has a new raise to book:") in body(gift(new))
 
 
 def test_startup_types_are_live_for_startup_firms_only_and_rank_after_every_duty():
@@ -187,4 +186,4 @@ def test_every_published_fund_lead_renders_a_clean_line():
         for text in (magnet_phrase(ld), _record_predicate(ld) or "",
                      _record_detail(ld, "adv_no_fund_administrator")):
             assert "—" not in text and "$" not in text and "None" not in text, text
-        assert _record_predicate(ld).endswith("on its latest form adv")
+        assert _record_predicate(ld).endswith("without an outside administrator")

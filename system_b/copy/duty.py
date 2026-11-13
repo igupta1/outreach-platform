@@ -241,7 +241,7 @@ def _new_medicare(lead: Lead) -> str:
     """Email 2: "newly enrolled in medicare as a hospice" (every kind here
     takes "a")."""
     kind = _provider_kind(lead)
-    return f"newly enrolled in medicare as a {kind}" if kind else "newly enrolled in medicare"
+    return f"just enrolled in medicare as a {kind}" if kind else "just enrolled in medicare"
 
 
 def _omig_why(leads: list[Lead]) -> tuple[str, str] | None:
@@ -280,14 +280,14 @@ def _fy(lead: Lead) -> str:
 
 def _rega_plural(leads: list[Lead]) -> str:
     year = _one([_fy(ld) for ld in leads]) if leads else ""
-    return (f"don't have a form 1-k for fiscal {year} on edgar yet" if year
-            else "don't have their latest form 1-k on edgar yet")
+    return (f"haven't filed their {year} yearly report with the sec yet" if year
+            else "haven't filed their latest yearly report with the sec yet")
 
 
 def _rega_one(lead: Lead) -> str:
     year = _fy(lead)
-    return (f"doesn't have a form 1-k for fiscal {year} on edgar yet" if year
-            else "doesn't have its latest form 1-k on edgar yet")
+    return (f"hasn't filed its {year} yearly report with the sec yet" if year
+            else "hasn't filed its latest yearly report with the sec yet")
 
 
 def _charter_fy(lead: Lead) -> str:
@@ -314,12 +314,12 @@ def _report_year(lead: Lead) -> str:
 
 def _water_plural(leads: list[Lead]) -> str:
     y = _one([_report_year(ld) for ld in leads]) if leads else ""
-    return f"don't have {'a ' + y if y else 'their latest'} annual report posted by the cpuc yet"
+    return f"don't have {'a ' + y if y else 'their latest'} annual report posted by the state utilities commission yet"
 
 
 def _water_one(lead: Lead) -> str:
     y = _report_year(lead)
-    return f"doesn't have {'a ' + y if y else 'its latest'} annual report posted by the cpuc yet"
+    return f"doesn't have {'a ' + y if y else 'its latest'} annual report posted by the state utilities commission yet"
 
 
 def _hcm_reason(lead: Lead) -> str:
@@ -1788,7 +1788,6 @@ def _expanding_why(leads: list[Lead]) -> tuple[str, str] | None:
     states = {_state_name(_payload(ld).get("state")) for ld in leads}
     if len(states) != 1 or not next(iter(states)):
         return None
-    where = next(iter(states))
     return ("so each now has filings in two states", "so it now has filings in two states")
 
 
@@ -1902,3 +1901,112 @@ def all_organizations(leads: list[Lead]) -> bool:
     """Every lead is an organization rather than a company (the engineer line)."""
     return bool(leads) and all(ld.signal_type in DUTIES and DUTIES[ld.signal_type].org
                                for ld in leads)
+
+# --- Plain wording (2026-11-13, the user: "make sure its clear and simple why
+# the leads need finance help" and "the entire email is super simple"). One
+# place for every rewrite: (plural, singular, why plural, why singular); None
+# keeps the text above, "" drops the reason. Applied to DUTIES and HELD_DUTIES.
+_PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
+    'nonprofit_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
+    'local_gov_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
+    'plan_late_contributions': ("paid employees' retirement money into the plan late", "paid employees' retirement money into the plan late", 'so each must make it up with interest', 'so it must make it up with interest'),
+    'new_practice_npi': ('just registered as new practices', 'just registered as a new practice', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'hrsa_new_health_center': (None, None, 'so each must track and report every dollar', 'so it must track and report every dollar'),
+    'sbir_phase1_award': ('won their first federal research awards', 'won its first federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
+    'govcon_first_sbir_phase2': ('won their first large federal research awards', 'won its first large federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
+    'nsgp_security_grant_subaward': ('got federal security grants', 'got a federal security grant', 'so each must track and report every dollar', 'so it must track and report every dollar'),
+    'plan_termination_pending': ('are closing a benefit plan', 'is closing a benefit plan', 'so each must file its final plan paperwork', 'so it must file its final plan paperwork'),
+    'medicare_new_part_a_provider': ('just enrolled in medicare', 'just enrolled in medicare', 'so each must file a yearly medicare cost report', 'so it must file a yearly medicare cost report'),
+    'nonprofit_single_audit_not_done': ('skipped a federal audit they were required to get', 'skipped a federal audit it was required to get', 'so each still needs one done', 'so it still needs one done'),
+    'tx_health_spa_new': ('just registered as new gyms in texas', 'just registered as a new gym in texas', 'so each is setting up its books', 'so it is setting up its books'),
+    'fl_health_studio_new': ('just registered as new gyms in florida', 'just registered as a new gym in florida', 'so each must renew yearly and may need a bond', 'so it must renew yearly and may need a bond'),
+    'ct_health_club_new': ('just got gym licenses in connecticut', 'just got a gym license in connecticut', 'so each renews yearly and pays into a state fund', 'so it renews yearly and pays into a state fund'),
+    'nonprofit_excess_benefit': ('reported on their 990s that an insider was overpaid', 'reported on its 990 that an insider was overpaid', 'so each must correct it with the irs', 'so it must correct it with the irs'),
+    'construction_first_prevailing_wage_intent': ('started their first government jobs', 'started its first government job', "so each must report its workers' pay to the state", "so it must report its workers' pay to the state"),
+    'nonprofit_deficit_low_cash': ('spent more than they took in two years running and have under a month of cash left', 'spent more than it took in two years running and has under a month of cash left', '', ''),
+    'nonprofit_990_missed_1yr': ('are a year behind on their irs returns', 'is a year behind on its irs return', 'so each risks losing its tax exemption', 'so it risks losing its tax exemption'),
+    'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so one more year costs each its tax exemption', 'so one more year costs it its tax exemption'),
+    'nonprofit_exemption_revoked': ('lost their tax-exempt status after three years of no returns', 'lost its tax-exempt status after three years of no returns', 'so each must refile to get it back', 'so it must refile to get it back'),
+    'cpa_firm_license_delinquent': ('let their cpa firm licenses lapse', 'let its cpa firm license lapse', '', ''),
+    'h2b_seasonal_employer': ('were approved to hire seasonal foreign workers', 'was approved to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
+    'h2b_first_time_employer': ('got their first approval to hire seasonal foreign workers', 'got its first approval to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
+    'nonprofit_asset_diversion': ('reported on their 990s that money or assets went missing', 'reported on its 990 that money or assets went missing', 'so each needs tighter money controls', 'so it needs tighter money controls'),
+    'church_990t_first': ('filed their first tax return for side business income', 'filed its first tax return for side business income', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
+    'church_990t_no_preparer': ('filed side-income tax returns with no accountant', 'filed a side-income tax return with no accountant', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
+    'new_practice_medicare_enrollment': ('just enrolled in medicare as new group practices', 'just enrolled in medicare as a new group practice', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'ttb_new_winery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
+    'ttb_new_distillery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
+    'nonprofit_state_audit_line_no_audit': ('earn enough that their state requires an audit, but reported none', 'earns enough that its state requires an audit, but reported none', '', ''),
+    'local_gov_financial_report_late': ('are late on a yearly financial report their state requires', 'is late on a yearly financial report its state requires', 'so each needs the next one on time', 'so it needs the next one on time'),
+    'nonprofit_new_501c3': ('were just approved as nonprofits by the irs', 'was just approved as a nonprofit by the irs', 'so each must file a tax return every year', 'so it must file a tax return every year'),
+    'construction_large_permit': (None, None, 'so each has a big project to track', 'so it has a big project to track'),
+    'franchise_tax_forfeited': ('lost the right to do business in texas over unpaid franchise tax', 'lost the right to do business in texas over unpaid franchise tax', 'so each must catch up its filings', 'so it must catch up its filings'),
+    'charter_forfeited_for_tax': ('had their texas charters taken away over franchise tax', 'had its texas charter taken away over franchise tax', 'so each must catch up its filings', 'so it must catch up its filings'),
+    'union_lm_report_late': ('filed their yearly labor department reports late', 'filed its yearly labor department report late', 'so each needs the next one on time', 'so it needs the next one on time'),
+    'bd_annual_audit_late': ('filed their yearly audited reports with the sec late', 'filed its yearly audited report with the sec late', 'so each needs the next one on time', 'so it needs the next one on time'),
+    'bd_material_weakness': ('reported weak financial controls in their yearly audited reports', 'reported weak financial controls in its yearly audited report', 'so each must fix them', 'so it must fix them'),
+    'va_new_class_a_contractor': ('got new virginia contractor licenses', 'got a new virginia contractor license', 'so each had to prove its net worth', 'so it had to prove its net worth'),
+    'va_new_class_b_contractor': ('got new virginia contractor licenses', 'got a new virginia contractor license', 'so each had to prove its net worth', 'so it had to prove its net worth'),
+    'ny_new_law_firm': ('registered as new law firms in new york', 'registered as a new law firm in new york', 'so each is setting up its books', 'so it is setting up its books'),
+    'ny_omig_final_audit': ('were told by a state medicaid audit to pay money back', 'was told by a state medicaid audit to pay money back', None, None),
+    'union_funds_shortage': ('reported missing or lost funds to the labor department', 'reported missing or lost funds to the labor department', 'so each needs tighter money controls', 'so it needs tighter money controls'),
+    'pension_unpaid_min_contribution': ('fell short on required payments into their pension plans', 'fell short on required payments into its pension plan', 'so each must catch up', 'so it must catch up'),
+    'nonprofit_ubi_no_990t': ("earned business income but didn't file the tax return for it", "earned business income but didn't file the tax return for it", 'so each must catch up with the irs', 'so it must catch up with the irs'),
+    'startup_first_form_d': ('just started raising money from investors', 'just started raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
+    'startup_new_form_d': ('just started a new round of raising money from investors', 'just started a new round of raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
+    'proprietary_90_10_near_limit': ('get nearly all their revenue from federal student aid', 'gets nearly all its revenue from federal student aid', 'and two years over the limit ends that aid', 'and two years over the limit ends that aid'),
+    'construction_fl_stop_work_order': ("were ordered by the state to stop work over workers' comp", "was ordered by the state to stop work over workers' comp", 'and none shows as lifted yet', "and it doesn't show as lifted yet"),
+    'plan_prohibited_transaction': ('reported a banned deal involving their benefit plans', 'reported a banned deal involving its benefit plan', 'so each must correct it', 'so it must correct it'),
+    'fl_new_mortgage_lender': (None, None, 'so each must report its finances every quarter', 'so it must report its finances every quarter'),
+    'auditor_change': ('changed auditors', 'changed auditors', '', ''),
+    'late_filing_notice': ('told the sec their reports will be late', 'told the sec its report will be late', '', ''),
+    'va_hoa_new_registration': ('just registered as homeowner associations in virginia', 'just registered as a homeowner association in virginia', 'so each files a yearly report and fee', 'so it files a yearly report and fee'),
+    'welfare_plan_audit_threshold': ('have employee benefit plans big enough to need their first audit', 'has an employee benefit plan big enough to need its first audit', '', ''),
+    'snf_change_of_ownership': ('took over nursing homes', 'took over a nursing home', 'so each must file its own medicare cost reports', 'so it must file its own medicare cost reports'),
+    'hospital_change_of_ownership': ('took over hospitals', 'took over a hospital', 'so each must file its own medicare cost reports', 'so it must file its own medicare cost reports'),
+    'film_ca_credit_allocated': ('were awarded state film tax credits', 'was awarded a state film tax credit', 'so each needs a cpa report to claim it', 'so it needs a cpa report to claim it'),
+    'fl_condo_new_association': ('are new condo associations', 'is a new condo association', 'so each owes its owners a yearly financial report', 'so it owes its owners a yearly financial report'),
+    'tx_peo_license_renewal_due': ('have texas employee-leasing licenses up for renewal soon', 'has a texas employee-leasing license up for renewal soon', 'so each needs audited financials', 'so it needs audited financials'),
+    'tx_peo_new_license': ('got new texas employee-leasing licenses', 'got a new texas employee-leasing license', 'so each needs audited financials to renew', 'so it needs audited financials to renew'),
+    'fl_employee_leasing_new_license': ('got new florida employee-leasing licenses', 'got a new florida employee-leasing license', 'so each files audited financials every year', 'so it files audited financials every year'),
+    'cpeo_newly_certified': ('were newly certified by the irs as employee-leasing firms', 'was newly certified by the irs as an employee-leasing firm', 'so each files audited financials every year', 'so it files audited financials every year'),
+    'ae_txdot_overhead_approval_lapsed': ('let their texas dot overhead approvals lapse', 'let its texas dot overhead approval lapse', 'so each needs a new overhead audit', 'so it needs a new overhead audit'),
+    'ae_caltrans_first_icr_acceptance': ('got their first caltrans overhead rate approval', 'got its first caltrans overhead rate approval', 'so each must update it every year', 'so it must update it every year'),
+    'college_heightened_cash_monitoring': ('were put under tighter federal money oversight', 'was put under tighter federal money oversight', 'so each must front student aid from its own cash', 'so it must front student aid from its own cash'),
+    'tx_dir_first_contract': ('got their first texas state technology contracts', 'got its first texas state technology contract', None, None),
+    'cannabis_tax_report_violation': ('were cited for missing cannabis tax reports or payments', 'was cited for missing cannabis tax reports or payments', 'so each must catch up its tax reports', 'so it must catch up its tax reports'),
+    'plan_fraud_loss': ('reported fraud losses in their benefit plans', 'reported a fraud loss in its benefit plan', 'so each needs tighter controls', 'so it needs tighter controls'),
+    'top_tax_delinquent': ("are on the state's list of top tax debtors", "is on the state's list of top tax debtors", 'so each has tax debt to sort out', 'so it has tax debt to sort out'),
+    'nasdaq_late_filing_deficiency': ('got nasdaq warnings for late sec reports', 'got a nasdaq warning for a late sec report', 'so each must catch up its filings', 'so it must catch up its filings'),
+    'ca_dre_trust_fund_discipline': ('were disciplined by the state over client money', 'was disciplined by the state over client money', 'so each must fix its trust accounting', 'so it must fix its trust accounting'),
+    'nc_rec_trust_account_discipline': ('were disciplined by the state over client money', 'was disciplined by the state over client money', 'so each must fix its trust accounting', 'so it must fix its trust accounting'),
+    'ca_dre_audit_discipline': ('were disciplined by the state after an audit of their books', 'was disciplined by the state after an audit of its books', '', ''),
+    'plan_audit_opinion_modified': ('had their plan auditors flag problems in their latest audit', 'had its plan auditors flag problems in its latest audit', '', ''),
+    'tcac_placed_in_service': ('opened affordable housing funded with tax credits', 'opened affordable housing funded with tax credits', 'so each has compliance reports to file', 'so it has compliance reports to file'),
+    'fl_new_money_transmitter': (None, None, 'so each files audited statements every year', 'so it files audited statements every year'),
+    'sales_tax_permit_revoked': ('lost their sales tax permits over unpaid sales tax', 'lost its sales tax permit over unpaid sales tax', "so each can't legally sell until reinstated", "so it can't legally sell until reinstated"),
+    'tx_cacfp_new_sponsor': ('were just approved to run a federal child care meal program', 'was just approved to run a federal child care meal program', 'so each files monthly meal claims', 'so it files monthly meal claims'),
+    'state_tax_lien': (None, None, 'so each has tax debt to sort out', 'so it has tax debt to sort out'),
+    'federal_tax_lien': (None, None, 'so each has tax debt to sort out', 'so it has tax debt to sort out'),
+    'unemployment_tax_lien': (None, None, 'so each has tax debt to sort out', 'so it has tax debt to sort out'),
+    'tax_delinquent_posting': ('were listed by the state as behind on their taxes', 'was listed by the state as behind on its taxes', 'so each must catch up', 'so it must catch up'),
+}
+
+
+def _plain(d: Duty, plural, singular, why_p, why_s) -> Duty:
+    from dataclasses import replace
+
+    kw = {}
+    if plural is not None:
+        kw["plural"] = plural
+    if singular is not None:
+        kw["singular"] = singular
+    if why_p is not None:
+        kw["why"] = (why_p, why_s) if why_p else None
+    return replace(d, **kw)
+
+
+for _t, _v in _PLAIN.items():
+    for _table in (DUTIES, HELD_DUTIES):
+        if _t in _table:
+            _table[_t] = _plain(_table[_t], *_v)

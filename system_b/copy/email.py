@@ -466,12 +466,12 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
 # kind -> (plural clause, singular clause) for the kinds with NO why. The
 # clause follows the noun: "here are 3 in tampa {clause}:".
 _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
-    NEW_LICENSE_SIGNAL: ("with a new contractor license",
-                         "with a new contractor license"),
-    LICENSE_UPGRADE_SIGNAL: ("that moved up to a bigger contractor license",
-                             "that moved up to a bigger contractor license"),
-    NEW_BUSINESS_SIGNAL: ("that just registered as new companies",
-                          "that just registered as a new company"),
+    NEW_LICENSE_SIGNAL: ("that just got contractor licenses, so each is setting up its books",
+                         "that just got a contractor license, so it is setting up its books"),
+    LICENSE_UPGRADE_SIGNAL: ("that moved up to a bigger contractor license, so each can take on bigger jobs",
+                             "that moved up to a bigger contractor license, so it can take on bigger jobs"),
+    NEW_BUSINESS_SIGNAL: ("that just registered, so each is setting up its books",
+                          "that just registered, so it is setting up its books"),
     # 2026-11-05: not "that need finance help": the record shows an event,
     # not a need; each line then says its own event.
     "mixed": ("from public records", "from public records"),
@@ -517,14 +517,14 @@ _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     # Form ADV Schedule D 7.B.(1) Q26(a), "does the private fund use an
     # administrator other than your firm?", answered No: the firm does that
     # work itself. A count of funds, never a dollar figure (`_record_detail`).
-    FUNDS_SIGNAL: (("run private funds with no outside administrator on their latest form adv",
-                    "runs private funds with no outside administrator on its latest form adv"),
-                   ("so each handles its fund accounting in house",
-                    "so it handles its fund accounting in house")),
-    FIRST_GRANT_SIGNAL: (("got their first federal grant in 3+ years",
-                          "got its first federal grant in 3+ years"),
-                         ("so each now has strict tracking and reporting rules to follow",
-                          "so it now has strict tracking and reporting rules to follow")),
+    FUNDS_SIGNAL: (("run private funds without an outside administrator",
+                    "runs private funds without an outside administrator"),
+                   ("so each does its fund accounting in house",
+                    "so it does its fund accounting in house")),
+    FIRST_GRANT_SIGNAL: (("got a federal grant for the first time in years",
+                          "got a federal grant for the first time in years"),
+                         ("so each must track and report every dollar",
+                          "so it must track and report every dollar")),
 }
 
 
@@ -1457,9 +1457,8 @@ def _record_predicate(lead: Lead) -> str | None:
         return DUTIES[t].sentence(lead)
     if t == FUNDS_SIGNAL:
         n = _funds_count(p)
-        return (f"runs {n.replace(' funds', ' private funds')} with no outside administrator "
-                "on its latest form adv" if n else
-                "runs private funds with no outside administrator on its latest form adv")
+        return (f"runs {n.replace(' funds', ' private funds')} without an outside administrator"
+                if n else "runs private funds without an outside administrator")
     if t == NONPROFIT_SIGNAL:
         facts = _audit_facts(lead)
         if facts is None:

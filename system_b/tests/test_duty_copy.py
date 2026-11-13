@@ -188,7 +188,7 @@ def test_new_york_tax_warrants_say_warrants_and_no_amount():
               for n in ("Blacktop Sealcoat Llc", "Audax Enterprise Inc")])
     framing, lines = record_opener(g, ny)
     assert framing == ("these 2 companies in syracuse had "
-                       "state tax warrants filed against them:")
+                       "state tax warrants filed against them, so each has tax debt to sort out:")
     assert lines == ["Blacktop Sealcoat", "Audax Enterprise"]
     assert short_subject(g, ny) == "2 syracuse companies with state tax warrants"
     lien = lead("state_tax_lien", {"instrument": "Connecticut Department of Revenue "
@@ -203,11 +203,11 @@ def test_a_new_medicare_provider_names_its_kind():
                    city="Beaumont", state="TX", industry="healthcare")
               for k, n in zip(kinds, ("Help Hospice Llc", "Rhema Home Health Inc"))])
     framing, lines = record_opener(g, tx)
-    assert framing == ("these 2 providers in beaumont newly "
-                       "enrolled in medicare, so each owes its first medicare cost report:")
+    assert framing == ("these 2 providers in beaumont just "
+                       "enrolled in medicare, so each must file a yearly medicare cost report:")
     assert lines == ["Help Hospice (hospice)", "Rhema Home Health (home health agency)"]
     e2 = build_followup_email(g.leads[0], tx, step=2, today=TODAY, pack=pack_for("cfo"))
-    assert e2.body.startswith("one more in beaumont: Help Hospice newly enrolled in "
+    assert e2.body.startswith("one more in beaumont: Help Hospice just enrolled in "
                               "medicare as a hospice.")
 
 
@@ -215,8 +215,8 @@ def test_a_late_union_report_says_how_late_and_calls_them_unions():
     g = gift([lead("union_lm_report_late", {"days_past_due": d}, name=n)
               for d, n in ((560, "Teamsters, LU 683"), (95, "Boilermakers, LG 92"))])
     framing, lines = record_opener(g, DANA)
-    assert framing.endswith("these 2 unions in columbus filed their yearly labor "
-                            "department financial reports late:")
+    assert framing.endswith("these 2 unions in columbus filed their yearly labor department "
+                            "reports late, so each needs the next one on time:")
     assert lines == ["Teamsters, LU 683 (18 months late)", "Boilermakers, LG 92 (3 months late)"]
 
 
@@ -233,11 +233,11 @@ def test_a_medicaid_audit_says_money_is_owed_only_when_every_report_does():
     owed = [lead("ny_omig_final_audit", {"amount": 1139.46}, name=n, industry="healthcare")
             for n in ("Promesa", "Pioneer Homecare Inc")]
     assert record_opener(gift(owed), DANA)[0].endswith(
-        "got final medicaid audit reports from the state, and each report says money is "
+        "were told by a state medicaid audit to pay money back, and each report says money is "
         "owed back:")
     unread = [owed[0], lead("ny_omig_final_audit", {}, name="TCPRNC", industry="healthcare")]
     assert record_opener(gift(unread), DANA)[0].endswith(
-        "got final medicaid audit reports from the state:")
+        "were told by a state medicaid audit to pay money back:")
 
 
 def test_a_late_filing_notice_says_which_report_and_whether_it_landed():
@@ -254,7 +254,7 @@ def test_a_film_credit_with_no_city_prints_no_state_three_times():
               for n in ("Glue The Film, Llc", "Farewell To Thieves, Llc")], geo="state")
     framing, lines = record_opener(g, ca)
     assert framing == ("these 2 production companies in "
-                       "california were allocated state film tax credits, so each needs a "
+                       "california were awarded state film tax credits, so each needs a "
                        "cpa report to claim it:")
     assert lines == ["Glue The Film", "Farewell To Thieves"]
 

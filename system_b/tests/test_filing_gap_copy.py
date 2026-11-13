@@ -107,21 +107,20 @@ def preview():
 
 def test_two_years_renders_exactly_in_the_record_opener_format(preview):
     framing, lines = preview["nonprofit_990_missed_2yr"]["opener"]
-    assert framing.endswith("these 3 nonprofits in denver have no 990 on irs public record for "
-                            "two years running, so a third would cost each its tax exemption:")
+    assert framing.endswith("these 3 nonprofits in denver are two years behind on their irs "
+                            "returns, so one more year costs each its tax exemption:")
     assert lines == ["Mile High Youth Fund (fy2023 and fy2024, next one due soon)",
                      "Front Range Arts (fy2023 and fy2024)",
                      "Colorado Food Bank Network (fy2023 and fy2024)"]
     assert preview["nonprofit_990_missed_2yr"]["opener_one"][0].endswith(
-        "this nonprofit in denver has no 990 on irs public record for two years running, so a "
-        "third would cost it its tax exemption:")
+        "this nonprofit in denver is two years behind on its irs returns, so one more "
+        "year costs it its tax exemption:")
 
 
 def test_one_year_renders_exactly(preview):
     framing, lines = preview["nonprofit_990_missed_1yr"]["opener"]
-    assert framing.endswith("these 3 nonprofits in denver have no 990 on irs public record for "
-                            "a year past due, and three years running costs a charity its "
-                            "exemption:")
+    assert framing.endswith("these 3 nonprofits in denver are a year behind on their irs "
+                            "returns, so each risks losing its tax exemption:")
     assert lines[0] == "Mile High Youth Fund (fy2024, next one due soon)"
     assert lines[1] == "Front Range Arts (fy2024)"
 
@@ -138,5 +137,5 @@ def test_held_wording_keeps_every_record_rule(preview, t):
             assert w not in low, (w, text)
         assert "irs public records show" not in low          # never the raw evidence
     assert r["short"].startswith("3 denver nonprofits with no 990 on file")
-    assert r["email_2"].startswith("one more in denver: Mile High Youth Fund has no 990 on irs "
-                                   "public record")
+    assert r["email_2"].startswith("one more in denver: Mile High Youth Fund is ")
+    assert "behind on its irs return" in r["email_2"]

@@ -214,7 +214,7 @@ def test_a_church_gift_says_churches_only_when_the_irs_codes_every_one_a_church(
     ch = [lead("church_990t_first", n, {"religious_basis": "church", "activity": "parking lot",
                                        "tax_year": 2025}, industry="nonprofit", niche="religious")
           for n in ("Trinity Lutheran Church", "Grace Church", "Hope Church")]
-    assert "these 3 churches in houston filed their first form 990-t" in opener(ch)
+    assert "these 3 churches in houston filed their first tax return for side business income" in opener(ch)
     ch[1] = lead("church_990t_first", "Peace Center", {"religious_basis": "religious_org"},
                  industry="nonprofit", niche="religious")
     assert "faith-based organizations in houston" in opener(ch)
@@ -362,8 +362,8 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
     atx = Prospect(firm_name="X", city="Austin", state="TX", first_name="Al")
     first = opener(dental, atx).splitlines()[0]
     # 2026-11-13, the user asked for a finance reason on every opener.
-    assert first.endswith("these 3 dental practices in austin just registered as new businesses, "
-                          "so each can now bill insurers under its own name:")
+    assert first.endswith("these 3 dental practices in austin just registered as new practices, "
+                          "so each needs its billing and books set up:")
     mixed = dental[:2] + [lead("new_practice_npi", "Calm Minds PLLC",
                                {"provider_type": "behavioral"}, city="Austin")]
     assert "these 3 practices in austin just registered" in opener(mixed, atx).splitlines()[0]
@@ -372,6 +372,6 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
 def test_a_new_medicare_enrollment_keeps_its_clause():
     ls = [lead("new_practice_medicare_enrollment", n, {"provider_type": "behavioral"})
           for n in ("A Pllc", "B Pllc", "C Pllc")]
-    assert ("these 3 behavioral health practices in houston enrolled in medicare as new "
-            "group practices, so each now bills medicare under its own group number:") in \
+    assert ("these 3 behavioral health practices in houston just enrolled in medicare as new "
+            "group practices, so each needs its billing and books set up:") in \
         opener(ls)
