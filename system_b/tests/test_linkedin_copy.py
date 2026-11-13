@@ -56,7 +56,7 @@ def test_dm_1_opens_like_email_1_and_names_one_company():
     assert "Twin Oaks Real Estate in benicia" in dm     # company keeps its casing
     assert "hiring a founding head of finance & strategy" in dm
     # the email's one offer (2026-11-06)
-    assert "want 3 like these every monday? free for 2 weeks, then you decide." in dm
+    assert "want 3 like these every monday?" in dm
     assert "Elm Grove" not in dm                         # ONE company, not the gift
 
 

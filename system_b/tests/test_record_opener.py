@@ -64,8 +64,8 @@ def test_the_users_example_renders_exactly():
         "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
         "2. Cathedral Towers\n"
         "3. Georgia Works (two years in a row)\n\n"
-        "i'm an engineer. my system finds organizations that need finance help.\n\n"
-        'want 3 like these every monday, only nonprofits in georgia? free for 2 weeks, then you decide. just reply "yes".'
+        "i'm an engineer. i built this to find organizations that need finance help, and i'm trying to see if it's useful for firms like yours.\n\n"
+        "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?"
     )
 
 
@@ -159,11 +159,11 @@ def test_the_engineer_line_names_organizations_only_for_nonprofits():
     builders = gift([lead(DB, {}, name="A", industry="construction"),
                      lead(NP, MW, name="B")])
     assert left_field_for(cfo, charities) == (
-        "i'm an engineer. my system finds organizations that need finance help.")
+        "i'm an engineer. i built this to find organizations that need finance help, and i'm trying to see if it's useful for firms like yours.")
     assert left_field_for(cfo, builders) == (
-        "i'm an engineer. my system finds companies that need finance help.")
-    assert left_field_for(pack_for("accounting"), builders).endswith("need accounting help.")
-    assert left_field_for(pack_for("bookkeeping"), builders).endswith("need bookkeeping help.")
+        "i'm an engineer. i built this to find companies that need finance help, and i'm trying to see if it's useful for firms like yours.")
+    assert left_field_for(pack_for("accounting"), builders).endswith("for firms like yours.")
+    assert left_field_for(pack_for("bookkeeping"), builders).endswith("for firms like yours.")
 
 
 def test_email_two_for_an_audit_not_yet_on_file_is_one_plain_sentence():

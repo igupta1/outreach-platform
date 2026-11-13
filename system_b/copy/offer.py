@@ -2,9 +2,9 @@
 
 The old ask ("worth a look? happy to set it up for you either way :)") named
 no offer: "set it up" read as software to install, and the reader could not
-tell what saying yes meant. Now every email states ONE offer, free weekly
-leads in their niche for two weeks, then they decide, and asks for one small
-reply. No price: that is for a call.
+tell what saying yes meant. Now every email states ONE offer, 3 leads every
+monday matched to the clients they want, and asks for one small reply. No
+price: that is for a call.
 
 2026-11-06, the user: one call to action for now, A ("just reply yes").
 B (asking what kind of client) stays written but is not used: `ACTIVE`
@@ -49,23 +49,29 @@ def scope(niche_plural: str | None, place: str | None) -> str:
 
 
 def cta(variant: str, where: str) -> str:
-    """Email 1's last line. `where` is `scope(...)`. 2026-11-06: says what
-    happens after the two weeks ("then you decide"), so free does not read as
-    a trial that turns into a bill."""
+    """Email 1's last line. 2026-11-11, the user: say plainly what the offer is
+    ("what is it you offer?" came back as a reply) and do not sound salesy:
+    an offer to help, no "free", "trial" or "then you decide". The scope
+    (`where`) is no longer printed: "matched to the clients you want" says it
+    and leaves the call to settle which. A "yes" is answered with a short call
+    to get their industries and area right."""
     if variant == "B":
-        return ("i can send 3 like these every monday, free for 2 weeks, then you decide. "
+        return ("happy to send 3 like these every monday, with who to contact. "
                 "what kind of client should they be?")
-    tail = f", {where}" if where else ""
-    return (f'want 3 like these every monday{tail}? free for 2 weeks, then you decide. '
-            'just reply "yes".')
+    return ("happy to send 3 like these every monday, matched to the clients you want, "
+            "with who to contact. want next week's?")
 
 
-# The engineer line (house rule: kept), in equivalent wordings. Shortened
-# 2026-11-06 (emails ran a median 82 words).
+# The engineer line (house rule: kept), in equivalent wordings. 2026-11-11, the
+# user ("i want to come off not salesy"): a builder who is early and asking
+# whether it helps, which turns a pitch into a question.
 _ENGINEER = (
-    "i'm an engineer. my system finds {things} that need {help} help.",
-    "i'm an engineer, and my system spots {things} that need {help} help.",
-    "i'm an engineer. i built a system to find {things} that need {help} help.",
+    "i'm an engineer. i built this to find {things} that need {help} help, and i'm "
+    "trying to see if it's useful for firms like yours.",
+    "i'm an engineer. i built this to find {things} that need {help} help, and i'm "
+    "seeing if it's useful for firms like yours.",
+    "i'm an engineer. i built this to spot {things} that need {help} help, and i'm "
+    "trying to see if it helps firms like yours.",
 )
 
 

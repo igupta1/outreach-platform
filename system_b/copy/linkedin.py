@@ -49,7 +49,7 @@ _FINANCE_PACK_KEYS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
 # for whatever's draining your week. worth a look?".
 DM_2 = (
     "last one from me. if you ever want these, reply \"yes\" and i'll send 3 "
-    "every monday, free for 2 weeks. if not, no worries."
+    "every monday. if not, no worries."
 )
 
 
@@ -153,8 +153,8 @@ def _sign_off(pack: NichePack) -> str:
     Email #1's left-field + CTA — a DM that runs four paragraphs is not read."""
     if pack.key in _FINANCE_PACK_KEYS:
         # The email's one offer (2026-11-06), not "worth a look? happy to run it".
-        return ("i'm an engineer and built this. want 3 like these every monday? "
-                "free for 2 weeks, then you decide.")
+        return ("i'm an engineer and built this, trying to see if it's useful for firms "
+                "like yours. want 3 like these every monday?")
     return (
         f"built this one for {pack.dm_audience}. still tuning it, worth a look? "
         "happy to run it for you either way :)"
@@ -292,12 +292,10 @@ def build_connect_note(
         if pack.key in _FINANCE_PACK_KEYS:
             # The email's offer (2026-11-06), shortest last.
             tails = (
-                f"{left_field_for(pack, sub)} want 3 like these every monday? "
-                "free for 2 weeks, then you decide.",
-                f"{left_field_for(pack, sub)} want 3 like these every monday? free for 2 weeks.",
-                f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} want 3 every monday, free?",
+                f"{left_field_for(pack, sub)} want 3 like these every monday?",
+                f"{_SHORT_LEFT_FIELD.format(things=_org_noun(sub))} want 3 every monday?",
                 ("i'm an engineer. my system finds more like it." if n == 1 else
-                 "i'm an engineer. my system finds these.") + " want 3 a week, free?",
+                 "i'm an engineer. my system finds these.") + " want 3 a week?",
             )
         else:
             tails = (

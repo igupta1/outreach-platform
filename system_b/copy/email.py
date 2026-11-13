@@ -89,7 +89,8 @@ CFO_PRIORITY_FLAG = (
 # accounting firms read "accounting help", bookkeepers "bookkeeping help", and
 # cfo and neutral firms "finance help" ("cfo help" is not a phrase anyone says).
 # 2026-11-06: shortened with the email (`copy.offer._ENGINEER`'s first wording).
-LEFT_FIELD = "i'm an engineer. my system finds {things} that need {help} help."
+LEFT_FIELD = ("i'm an engineer. i built this to find {things} that need {help} help, and "
+              "i'm trying to see if it's useful for firms like yours.")
 _HELP_WORD = {"cfo": "finance", "finance": "finance", "accounting": "accounting",
               "bookkeeping": "bookkeeping"}
 # The IT packs (`--legacy-niche`) gift breaches and IT hires, not finance need,

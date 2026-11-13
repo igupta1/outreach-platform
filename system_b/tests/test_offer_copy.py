@@ -25,13 +25,13 @@ def _lead(t, name="Acme Llc", payload=None, **kw):
                                 payload=dict(payload or {}))], **kw)
 
 
-def test_the_offer_is_free_weekly_leads_with_one_ask_and_no_price():
+def test_the_offer_is_weekly_leads_with_one_ask_and_no_sales_words():
     a = offer.cta("A", offer.scope("construction companies", "florida"))
-    assert a == ('want 3 like these every monday, only construction companies in florida? '
-                 'free for 2 weeks, then you decide. just reply "yes".')
+    assert a == "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?"
     b = offer.cta("B", "")
     for line in (a, b):
-        assert line.count("?") == 1 and "free for 2 weeks" in line and "$" not in line
+        assert line.count("?") == 1 and "every monday" in line and "$" not in line
+        assert "free" not in line and "trial" not in line and "then you decide" not in line
         assert "set it up" not in line
 
 
@@ -91,10 +91,12 @@ def test_names_that_are_not_companies_and_finance_contacts_are_left_out():
 
 # --- 2026-11-06: the second copy pass ---------------------------------------
 
-def test_one_call_to_action_says_what_happens_after_two_weeks():
+def test_one_call_to_action():
     assert offer.ACTIVE == ("A",)
     assert {offer.variant_for(f"a{i}@b.com") for i in range(50)} == {"A"}
-    assert "then you decide" in offer.cta("A", "") and "then you decide" in offer.cta("B", "")
+    for key in ("a@b.com", "c@d.com", None):    # a builder asking, not a pitch
+        assert "trying to see" in offer.engineer_line(key, "companies", "finance") or \
+            "seeing if" in offer.engineer_line(key, "companies", "finance")
 
 
 def test_email_3_names_no_firm_and_is_not_a_jab():

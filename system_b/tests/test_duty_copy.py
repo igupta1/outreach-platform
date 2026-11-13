@@ -177,9 +177,8 @@ def test_a_first_plan_audit_gift_renders_exactly():
         "that passed 120 participants, so each now needs its first independent "
         "plan audit:\n\n"
         "1. Car Source\n2. Bright Dental Group\n3. Summit Roofing\n\n"
-        "i'm an engineer. my system finds companies that need "
-        "finance help.\n\n"
-        'want 3 like these every monday, in ohio? free for 2 weeks, then you decide. just reply "yes".')
+        "i'm an engineer. i built this to find companies that need finance help, and i'm trying to see if it's useful for firms like yours.\n\n"
+        "happy to send 3 like these every monday, matched to the clients you want, with who to contact. want next week's?")
     assert short_subject(g, DANA) == "3 columbus companies needing their first plan audit"
 
 
