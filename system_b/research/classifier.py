@@ -51,33 +51,38 @@ _CLIENT_PAGE_KEYWORDS = (
 # inventory had more of it. Read from the site in code, no model: a page of
 # its own (the industry in the page's URL) first, then how often the site
 # names it, then the order the model listed them in.
-_EMPHASIS_STOP = {
-    "services", "service", "companies", "company", "organizations", "organization",
-    "businesses", "business", "industry", "industries", "clients", "client", "firms",
-    "firm", "small", "medium", "sized", "owners", "owner", "and", "the", "for", "with",
-    "accounting", "bookkeeping", "tax", "taxes", "cfo", "financial", "finance", "other",
-}
+# Generic words a stated phrase may end on; the industry is what comes before.
+_EMPHASIS_TAIL = re.compile(
+    r"(?:\s+(?:services?|companies|company|organizations?|businesses|business|"
+    r"firms?|industry|industries|clients?|owners?|practices?|providers?))+$")
 
 
-def _emphasis_words(phrase: str, mp: tuple[str, str]) -> list[str]:
-    words = re.findall(r"[a-z]+", (phrase or "").lower().replace("-", ""))
-    words += re.findall(r"[a-z]+", str(mp[1]).lower().replace("_", " "))
-    if "_" in str(mp[1]):
-        words.append(str(mp[1]).lower().replace("_", ""))
-    return list(dict.fromkeys(w.rstrip("s") for w in words
-                              if len(w) >= 4 and w not in _EMPHASIS_STOP))
+def _norm(text: str) -> str:
+    t = text.lower().replace("-", " ").replace("&", " and ")
+    t = re.sub(r"\bnon profit", "nonprofit", t)
+    return " ".join(re.findall(r"[a-z0-9]+", t))
+
+
+def _emphasis_terms(phrase: str, mp: tuple[str, str]) -> list[str]:
+    """Whole phrases to look for: the site's own words, the same without a
+    generic tail ("law firms" stays, "cannabis dispensary services" ->
+    "cannabis dispensary"), and the industry's label ("real estate")."""
+    said = _norm(phrase or "")
+    terms = [said, _EMPHASIS_TAIL.sub("", said), _norm(str(mp[1]).replace("_", " "))]
+    return [t for t in dict.fromkeys(terms) if len(t.replace(" ", "")) >= 3]
 
 
 def emphasis(phrase: str, mp: tuple[str, str], site: dict[str, str]) -> tuple[int, int]:
     """(has a page of its own, times the site names it) for one stated industry."""
-    words = _emphasis_words(phrase, mp)
-    if not words:
+    terms = _emphasis_terms(phrase, mp)
+    if not terms:
         return 0, 0
     paths = [re.sub(r"[^a-z]", "", url.lower().split("//", 1)[-1].partition("/")[2])
              for url in site]
-    page = int(any(w in path for w in words for path in paths))
-    text = " ".join(site.values()).lower().replace("-", "")
-    count = max(len(re.findall(rf"\b{re.escape(w)}", text)) for w in words)
+    page = int(any(len(t.replace(" ", "")) >= 5 and t.replace(" ", "") in path
+                   for t in terms for path in paths))
+    text = _norm(" ".join(site.values()))
+    count = max(len(re.findall(rf"\b{re.escape(t)}(?:s|es)?\b", text)) for t in terms)
     return page, count
 
 

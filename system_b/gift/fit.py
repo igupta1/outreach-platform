@@ -123,6 +123,15 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
     False (strict — never claim fit we didn't get)."""
     if not leads:
         return []
+    # A nonprofit is a legal status the record proves, not an industry a code
+    # shows: a lead from a nonprofit filing with an IRS number IS one. The
+    # model, given no NTEE code, answered "can't tell" for Frida Kahlo
+    # Community Organization and two others (2026-11-12), so Alfred Moore
+    # CPA's nonprofit gift failed and cannabis was claimed instead.
+    proven = {lead.id for lead in leads if _record_proves(niche_label, lead)}
+    ask = [lead for lead in leads if lead.id not in proven]
+    if not ask:
+        return [True] * len(leads)
 
     from openai import OpenAI
 
@@ -134,7 +143,7 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
     items = [
         {"id": lead.id, "company": lead.company,
          "official_industry": official_industry(lead), "note": lead.value_prop or ""}
-        for lead in leads
+        for lead in ask
     ]
     user = f"industry label: {niche_label}\ncompanies: {json.dumps(items)}"
     resp = client.chat.completions.create(
@@ -148,7 +157,14 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
     for v in data.get("verdicts", []):
         if isinstance(v, dict) and v.get("id") is not None:
             by_id[str(v["id"])] = bool(v.get("fits"))
-    return [by_id.get(lead.id, False) for lead in leads]
+    return [lead.id in proven or by_id.get(lead.id, False) for lead in leads]
+
+
+def _record_proves(niche_label: str, lead: Lead) -> bool:
+    """True when the lead's own record settles the fit with no judgment."""
+    return (niche_label.lower().startswith(("nonprofit", "charit"))
+            and (lead.signal_type or "").startswith("nonprofit_")
+            and (lead.identity or "").startswith("ein:"))
 
 
 _CLAIM_SYSTEM = (

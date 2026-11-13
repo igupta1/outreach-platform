@@ -239,3 +239,13 @@ def test_no_ncua_or_prevailing_wage_jargon_in_openers():
         d = DUTIES[t]
         words = " ".join(str(x) for x in (d.plural, d.singular, d.line, d.why))
         assert "ncua" not in words and "prevailing wage" not in words and "liable" not in words, t
+
+
+def test_a_nonprofit_record_with_an_ein_fits_nonprofit_without_the_model():
+    from system_b.gift.fit import fit_check
+    from system_b.models import Lead, Signal
+    ld = Lead(id="ein:1", company="Frida Kahlo Community Organization", entity_id="ein:36-1",
+              signal_type="nonprofit_questioned_costs",
+              signals=[Signal(type="nonprofit_questioned_costs", date="2026-10-01",
+                              plain_words_description="x", payload={})])
+    assert fit_check('nonprofit, specifically "nonprofit organizations"', [ld]) == [True]
