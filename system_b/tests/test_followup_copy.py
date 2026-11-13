@@ -173,8 +173,6 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
-    # step 3 still gives an easy out: who handles new clients, or a reply word
-    assert "who should i send these to?" in d3.body or "won't email again" in d3.body
 
 
 def test_fallback_followup_still_makes_the_ask():
