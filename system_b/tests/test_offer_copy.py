@@ -171,6 +171,7 @@ def test_contact_reads_role_first_and_drops_initials():
     assert contact(_contact_lead()) == "principal Edward Polevoy"            # no middle name
     assert contact(_contact_lead(name="Maria Luisa de la Cruz Jr.")) == "principal Maria de la Cruz"
     assert contact(_contact_lead(name="Sherrilyn Ms")) == ""             # a title, not a name
+    assert contact(_contact_lead(title="Officer, Director")) == "director Edward Polevoy"
     assert contact(_contact_lead(name="Dr. Jane Q. Smith")) == "principal Jane Smith"
     assert contact(_contact_lead(name="DOUGLAS K BARDIN", title="PRINCIPAL")) == \
         "principal Douglas Bardin"

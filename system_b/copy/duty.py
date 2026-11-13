@@ -1753,7 +1753,7 @@ def _registered_in(leads: list[Lead]) -> str:
     # "these 3 registered to do business in connecticut" over three Colorado
     # and Florida towns read as a contradiction (2026-11-12).
     if len(states) != 1 or not next(iter(states)):
-        return "registered to do business in a new state"
+        return "registered to do business in another state"
     where = next(iter(states))
     # "from other states" only when every lead's own address is outside the
     # state it registered in: a Boulder company incorporated in Delaware is not
