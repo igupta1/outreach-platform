@@ -72,7 +72,7 @@ def test_new_501c3_renders_exactly():
     one, _ = record_opener(gift([lead("nonprofit_new_501c3", NAMES[0])]), DANA)
     assert one.endswith("this nonprofit in denver was just approved as a nonprofit by the irs, "
                         "so it must file a tax return every year:")
-    assert short_subject(g, DANA) == "3 denver nonprofits newly recognized as 501(c)(3)s"
+    assert short_subject(g, DANA) == "3 denver nonprofits newly approved by the irs"
 
 
 def test_first_990_names_the_form_and_only_the_preparer_absence_the_return_shows():
@@ -88,7 +88,7 @@ def test_first_990_names_the_form_and_only_the_preparer_absence_the_return_shows
     assert framing.endswith("these 3 nonprofits in denver filed their first irs returns "
                             "without an accountant:")
     assert lines == ["Mile High Youth Fund", "Front Range Arts", "Colorado Food Bank Network"]
-    assert short_subject(g, DANA) == "3 denver nonprofits that filed their first irs returns"
+    assert short_subject(g, DANA) == "3 denver nonprofits filing irs returns on their own"
     e2 = build_followup_email(g.leads[0], DANA, step=2, today=TODAY, pack=pack_for("cfo"),
                               gift_signals={"nonprofit_first_990"})
     assert e2.body.startswith("one more in denver: Mile High Youth Fund filed its first irs "

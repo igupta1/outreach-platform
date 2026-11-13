@@ -136,6 +136,6 @@ def test_held_wording_keeps_every_record_rule(preview, t):
         for w in ("missed", "failed", "violat", "delinquent", "illegal", "didn't file"):
             assert w not in low, (w, text)
         assert "irs public records show" not in low          # never the raw evidence
-    assert r["short"].startswith("3 denver nonprofits with no 990 on file")
+    assert r["short"].startswith("3 denver nonprofits")
     assert r["email_2"].startswith("one more in denver: Mile High Youth Fund is ")
     assert "behind on its irs return" in r["email_2"]

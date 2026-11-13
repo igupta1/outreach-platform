@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from system_b.clients.people import looks_like_person
 from system_b.gift.engine import HELD_TYPES
@@ -1993,8 +1993,6 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
 
 
 def _plain(d: Duty, plural, singular, why_p, why_s) -> Duty:
-    from dataclasses import replace
-
     kw = {}
     if plural is not None:
         kw["plural"] = plural
@@ -2009,3 +2007,88 @@ for _t, _v in _PLAIN.items():
     for _table in (DUTIES, HELD_DUTIES):
         if _t in _table:
             _table[_t] = _plain(_table[_t], *_v)
+
+# --- Plain subject words (2026-11-13, the user: "rewrite all the subjects in
+# plain words to match the emails"): (plural, singular), 34 characters at most.
+_PLAIN_SHORT: dict[str, tuple[str, str]] = {
+    'nonprofit_single_audit_not_done': ('that skipped a required audit', 'that skipped a required audit'),
+    'nonprofit_asset_diversion': ('with missing money or assets', 'with missing money or assets'),
+    'nonprofit_going_concern': ('warned they may not stay afloat', 'warned it may not stay afloat'),
+    'nonprofit_ubi_no_990t': ('behind on a business-income return', 'behind on a business-income return'),
+    'nonprofit_excess_benefit': ('that overpaid an insider', 'that overpaid an insider'),
+    'nonprofit_deficit_low_cash': ('low on cash after 2 bad years', 'low on cash after 2 bad years'),
+    'nonprofit_state_audit_line_no_audit': ('missing a required audit', 'missing a required audit'),
+    'nonprofit_questioned_costs': ('with flagged spending', 'with flagged spending'),
+    'plan_late_contributions': ('late on retirement deposits', 'late on retirement deposits'),
+    'plan_termination_pending': ('closing a benefit plan', 'closing a benefit plan'),
+    'plan_prohibited_transaction': ('with a banned plan deal', 'with a banned plan deal'),
+    'plan_audit_opinion_modified': ('with flagged plan audits', 'with a flagged plan audit'),
+    'top_tax_delinquent': ("on the state's top tax debt list", "on the state's top tax debt list"),
+    'cannabis_licensee_tax_delinquent': ("on the state's top tax debt list", "on the state's top tax debt list"),
+    'tax_delinquent_posting': ('behind on state taxes', 'behind on state taxes'),
+    'ny_omig_final_audit': ('owing medicaid money back', 'owing medicaid money back'),
+    'hrsa_new_health_center': ('with new federal grants', 'with a new federal grant'),
+    'hud_new_owner': ('that bought hud-backed housing', 'that bought hud-backed housing'),
+    'tcac_placed_in_service': ('with new affordable housing', 'with new affordable housing'),
+    'ca_dre_trust_fund_discipline': ('disciplined over client money', 'disciplined over client money'),
+    'nc_rec_trust_account_discipline': ('disciplined over client money', 'disciplined over client money'),
+    'fl_bar_trust_account_discipline': ('disciplined over client money', 'disciplined over client money'),
+    'late_filing_notice': ('late on sec reports', 'late on sec reports'),
+    'nasdaq_late_filing_deficiency': ('warned over late sec reports', 'warned over late sec reports'),
+    'bd_annual_audit_late': ('late on yearly audits', 'late on a yearly audit'),
+    'bd_material_weakness': ('with weak financial controls', 'with weak financial controls'),
+    'cu_approaching_fs_audit': ('nearing a required full audit', 'nearing a required full audit'),
+    'cu_over_500m_no_fs_audit': ('past the size needing a full audit', 'past the size needing a full audit'),
+    'rega_tier2_1k_missing': ('behind on sec reports', 'behind on sec reports'),
+    'college_heightened_cash_monitoring': ('under tighter federal oversight', 'under tighter federal oversight'),
+    'proprietary_90_10_near_limit': ('near the federal aid limit', 'near the federal aid limit'),
+    'wi_choice_school_new': ('new to the state voucher program', 'new to the state voucher program'),
+    'union_funds_shortage': ('that reported missing funds', 'that reported missing funds'),
+    'ttb_new_winery_permit': ('with new federal alcohol permits', 'with a new federal alcohol permit'),
+    'ttb_new_distillery_permit': ('with new federal alcohol permits', 'with a new federal alcohol permit'),
+    'ae_txdot_overhead_approval_lapsed': ('with lapsed overhead approvals', 'with a lapsed overhead approval'),
+    'ae_caltrans_first_icr_acceptance': ('with new overhead rate approvals', 'with a new overhead rate approval'),
+    'water_ca_annual_report_missing': ('with no annual report posted', 'with no annual report posted'),
+    'construction_first_prevailing_wage_intent': ('on their first government jobs', 'on its first government job'),
+    'construction_fl_stop_work_order': ('ordered to stop work', 'ordered to stop work'),
+    'govcon_first_sbir_phase2': ('with big federal research awards', 'with a big federal research award'),
+    'startup_first_form_d': ('raising money for the first time', 'raising money for the first time'),
+    'startup_new_form_d': ('raising a new round of money', 'raising a new round of money'),
+    'sba_7a_loan_approved': ('that just got sba loans', 'that just got an sba loan'),
+    'sba_504_loan_approved': ('that just got sba loans', 'that just got an sba loan'),
+    'h2b_first_time_employer': ('approved for seasonal workers', 'approved for seasonal workers'),
+    'h2b_seasonal_employer': ('approved for seasonal workers', 'approved for seasonal workers'),
+    'h2b_seasonal_employer_other_industry': ('approved for seasonal workers', 'approved for seasonal workers'),
+    'va_new_class_a_contractor': ('with new contractor licenses', 'with a new contractor license'),
+    'va_new_class_b_contractor': ('with new contractor licenses', 'with a new contractor license'),
+    'va_contractor_upgraded_class_a': ('moving up to a bigger license', 'moving up to a bigger license'),
+    'tx_health_spa_new': ('newly registered as gyms', 'newly registered as a gym'),
+    'fl_health_studio_new': ('newly registered as gyms', 'newly registered as a gym'),
+    'ct_health_club_new': ('with new gym licenses', 'with a new gym license'),
+    'ct_health_club_lapsed': ('with lapsed gym licenses', 'with a lapsed gym license'),
+    'tx_cacfp_new_sponsor': ('running a child care meal program', 'running a child care meal program'),
+    'va_hoa_new_registration': ('newly registered with the state', 'newly registered with the state'),
+    'nsgp_security_grant_subaward': ('with federal security grants', 'with a federal security grant'),
+    'tx_peo_license_renewal_due': ('with license renewals due', 'with a license renewal due'),
+    'tx_peo_new_license': ('with new employee-leasing licenses', 'with a new leasing license'),
+    'fl_employee_leasing_new_license': ('with employee-leasing licenses', 'with a leasing license'),
+    'cpeo_newly_certified': ('newly certified by the irs', 'newly certified by the irs'),
+    'church_990t_first': ('filing first side-income returns', 'filing a first side-income return'),
+    'church_990t_no_preparer': ('filing side-income returns alone', 'filing a side-income return alone'),
+    'new_practice_npi': ('newly registered', 'newly registered'),
+    'new_practice_medicare_enrollment': ('just enrolled in medicare', 'just enrolled in medicare'),
+    'nonprofit_990_missed_1yr': ('a year behind on irs returns', 'a year behind on irs returns'),
+    'nonprofit_990_missed_2yr': ('two years behind on irs returns', 'two years behind on irs returns'),
+    'nonprofit_new_501c3': ('newly approved by the irs', 'newly approved by the irs'),
+    'nonprofit_first_990': ('filing irs returns on their own', 'filing irs returns on its own'),
+    'fda_first_device_clearance': ('with first fda clearances', 'with a first fda clearance'),
+    'sbir_phase1_award': ('with first federal research awards', 'with a first research award'),
+    'new_business_expanding': ('expanding into another state', 'expanding into another state'),
+    'fcc_499a_missing': ("missing this year's telecom filing", "missing this year's telecom filing"),
+}
+
+
+for _t, _v in _PLAIN_SHORT.items():
+    for _table in (DUTIES, HELD_DUTIES):
+        if _t in _table:
+            _table[_t] = replace(_table[_t], short=_v)
