@@ -569,7 +569,9 @@ def main() -> None:
             print(f"[allocations] {n} organization(s) recorded -> {args.allocations}")
 
     from system_b.gift import model_cache
+    from system_b.research import service as research_service
     model_cache.flush()
+    research_service.flush()
     print(f"\n[done] wrote {len(results)} sequence(s) to {args.out_path}")
     print(f"[review] wrote {review_path}  ·  review with: "
           f"system_b/.venv/bin/python -m system_b.review.serve --review {review_path}")
