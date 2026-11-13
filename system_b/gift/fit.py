@@ -129,9 +129,14 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
     # Community Organization and two others (2026-11-12), so Alfred Moore
     # CPA's nonprofit gift failed and cannabis was claimed instead.
     proven = {lead.id for lead in leads if _record_proves(niche_label, lead)}
-    ask = [lead for lead in leads if lead.id not in proven]
+    # The same lead judged for the same label before (model_cache, 2026-11-13).
+    from system_b.gift import model_cache
+
+    known = {lead.id: v for lead in leads if lead.id not in proven
+             and (v := model_cache.get("fit", niche_label, lead.id)) is not None}
+    ask = [lead for lead in leads if lead.id not in proven and lead.id not in known]
     if not ask:
-        return [True] * len(leads)
+        return [lead.id in proven or known.get(lead.id, False) for lead in leads]
 
     from openai import OpenAI
 
@@ -157,7 +162,10 @@ def fit_check(niche_label: str, leads: list[Lead], *, model: str = "gpt-4o") -> 
     for v in data.get("verdicts", []):
         if isinstance(v, dict) and v.get("id") is not None:
             by_id[str(v["id"])] = bool(v.get("fits"))
-    return [lead.id in proven or by_id.get(lead.id, False) for lead in leads]
+    for lead in ask:
+        if lead.id in by_id:
+            model_cache.put("fit", niche_label, lead.id, value=by_id[lead.id])
+    return [lead.id in proven or known.get(lead.id, by_id.get(lead.id, False)) for lead in leads]
 
 
 def _record_proves(niche_label: str, lead: Lead) -> bool:
@@ -207,6 +215,12 @@ def claim_check(phrase: str, niche_label: str, listed: tuple[str, ...] = (), *,
         return False
     if key in _CLAIMS:
         return _CLAIMS[key]
+    from system_b.gift import model_cache
+
+    cached = model_cache.get("claim", *key)
+    if cached is not None:
+        _CLAIMS[key] = cached
+        return cached
     try:
         from openai import OpenAI
 
@@ -225,4 +239,5 @@ def claim_check(phrase: str, niche_label: str, listed: tuple[str, ...] = (), *,
     except Exception:  # noqa: BLE001 — no answer, no claim
         return False
     _CLAIMS[key] = ok
+    model_cache.put("claim", *key, value=ok)
     return ok

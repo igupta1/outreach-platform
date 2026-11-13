@@ -380,6 +380,15 @@ def main() -> None:
 
     prospects = read_apollo_csv(args.in_path)
     print(f"[run] {len(prospects)} prospect(s) from {args.in_path} · pack={args.pack}")
+    # Outside the US (2026-11-13): no lead is ever near them, yet each was
+    # researched (a site fetch and model calls) every night, then skipped.
+    from system_b.gift.engine import _US_STATES, norm_state
+    us = set(_US_STATES.values()) | {"dc"}
+    abroad = [p for p in prospects if (p.get("state") or "").strip()
+              and norm_state(p.get("state")) not in us]
+    if abroad:
+        print(f"[run] skipping {len(abroad)} prospect(s) outside the US")
+        prospects = [p for p in prospects if p not in abroad]
 
     # Drop anyone an earlier run already sequenced, BEFORE the expensive part.
     # Every prospect past this line costs a site fetch and several LLM calls, and
@@ -559,6 +568,8 @@ def main() -> None:
         if n:
             print(f"[allocations] {n} organization(s) recorded -> {args.allocations}")
 
+    from system_b.gift import model_cache
+    model_cache.flush()
     print(f"\n[done] wrote {len(results)} sequence(s) to {args.out_path}")
     print(f"[review] wrote {review_path}  ·  review with: "
           f"system_b/.venv/bin/python -m system_b.review.serve --review {review_path}")
