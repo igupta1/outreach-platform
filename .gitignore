@@ -54,3 +54,4 @@ system_b/data/prospects.csv
 # Lead inventory pulled from the magnet repos' GitHub artifacts. Large,
 # regenerated on every run, and not this repo's data to hold.
 system_b/data/inventory/
+system_b/data/not-finance.csv
