@@ -364,7 +364,7 @@ def _framing(gift: Gift, prospect: Prospect) -> str:
             # "you work with nonprofits, so i pulled 3 nonprofits" repeats the
             # noun two clauses apart. "more" says the same thing and carries the
             # claim that they already work with these — which is the point.
-            f"saw on your site you work with {niche_noun(niche)}, so i pulled "
+            f"saw you work with {niche_noun(niche)}, so i pulled "
             f"{n} more {_CFO_NEED}:"
         )
     # geo (all_niche FALSE): open with where they're based ONLY when the leads
@@ -415,7 +415,7 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
             )
         if prospect.niche_exclusivity == "one_of_several":
             return f"noticed you work with {niche_noun(niche)}, so i pulled {n} more {need}:"
-        return (f"saw on your site you work with {niche_noun(niche)}, so i pulled "
+        return (f"saw you work with {niche_noun(niche)}, so i pulled "
                 f"{n} more {need}:")
     based = city or state
     if gift.geo_level == "city" and city:
@@ -642,7 +642,7 @@ def _record_read(gift: Gift, prospect: Prospect, place: tuple[str, str], pack=No
             return f"noticed you've worked with {niche_noun(niche)}."
         if prospect.niche_exclusivity == "one_of_several":
             return f"noticed you work with {niche_noun(niche)}."
-        return f"saw on your site you work with {niche_noun(niche)}."
+        return f"saw you work with {niche_noun(niche)}."
     # No "saw you're based in X" (2026-11-05, the user): a city alone proves
     # nothing about them. 2026-11-06: an email that opened straight on the
     # leads read like a forwarded list (47 of 60), so it opens on what they do,
@@ -682,6 +682,19 @@ def _unrepeated(fact: str, phrase: str) -> str:
         if word.strip() in phrase.lower() and word + "," in fact + ",":
             fact = fact.replace(word, "", 1)
     return fact
+
+
+def _two_details(fact: str, kind_detail: str, lead: Lead, today: date | None) -> str:
+    """At most two details per lead (2026-11-12, the user; emails ran 98
+    words): the record's fact, then the person it names; the kind's own
+    detail ("first federal job", "two years in a row") and then the date only
+    fill a place one of those leaves empty. With no `today` (the LinkedIn
+    note) the fact and the kind's detail, as before."""
+    if today is None:
+        return ", ".join(b for b in (kind_detail, fact) if b)
+    ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "",
+              fresh_date(lead, today)]
+    return ", ".join([b for b in ranked if b][:2])
 
 
 def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
@@ -739,13 +752,13 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
         # (with `today`, email 1) a recent date and the person the record
         # names (2026-11-11). The LinkedIn note passes no `today`: 300 chars.
         fact = record_fact(lead, with_contact=today is None)
-        extra = [fresh_date(lead, today), contact(lead)] if today else []
         if kind == "mixed":
             phrase = magnet_phrase(lead)
-            detail = ", ".join(b for b in (_unrepeated(fact, phrase) if fact else "", *extra) if b)
+            fact = _unrepeated(fact, phrase) if fact else ""
+            detail = _two_details(fact, "", lead, today)
             lines.append(f"{name}: {phrase}" + (f" ({detail})" if detail else ""))
         else:
-            detail = ", ".join(b for b in (_record_detail(lead, kind), fact, *extra) if b)
+            detail = _two_details(fact, _record_detail(lead, kind), lead, today)
             lines.append(f"{name} ({detail})" if detail else name)
     return framing, lines
 
@@ -1495,8 +1508,8 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     if said is None:
         return None
     # One fact from the record (copy.facts), and the person it names.
-    fact = ", ".join(b for b in (record_fact(lead, with_contact=False),
-                                 fresh_date(lead, today) if today else "", contact(lead)) if b)
+    fact = _two_details(record_fact(lead, with_contact=False), "", lead, today) if today \
+        else record_fact(lead, with_contact=False)
     if fact:
         fact = _unrepeated(fact, said)
         # One bracket, never "(990 for fy2025) ($359k in revenue)".

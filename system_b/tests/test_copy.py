@@ -179,7 +179,7 @@ def test_5a_framing_table():
     # uses the clean niche word, NOT the raw scraped phrase (#7/Change 3).
     p_site = P(niche_phrase="healthcare startups", niche_source="site", niche_exclusivity="sole")
     assert _framing(G(all_niche=True, geo="city"), p_site) == \
-        "saw on your site you work with healthcare companies, so i pulled 3 more showing they need finance help:"
+        "saw you work with healthcare companies, so i pulled 3 more showing they need finance help:"
 
     # TIER 2 — one of several stated industries, verb "work with"; names ONLY
     # the one niche we're gifting for.
@@ -313,7 +313,7 @@ def test_greeting_lowercased_but_company_names_kept_cased():
               date="2026-07-05", company="Acme BioLabs", finance_grade="medium")
     g = build_gift(p, FakeScraper([lead]))
     draft = build_email_1(g, p, today=TODAY)
-    assert draft.body.startswith("hey dora,\n\nsaw on your site you work with healthcare companies")
+    assert draft.body.startswith("hey dora,\n\nsaw you work with healthcare companies")
     assert "hey Dora," not in draft.body
     # ...but a lead company name (a proper noun, added by code) keeps its casing
     assert "Acme BioLabs, denver:" in draft.body
@@ -485,7 +485,7 @@ def test_full_email_niched_example_1():
 
     assert draft.subject == "healthcare companies in denver hiring finance leadership right now"
     assert draft.body.startswith("hey dana,\n\n")
-    assert "saw on your site you work with healthcare companies, so i pulled 3 more" in draft.body
+    assert "saw you work with healthcare companies, so i pulled 3 more" in draft.body
     # a finance-lead hire (rank 1) outranks the junior-finance leads (rank 2)
     # in the within-level re-sort, so the finance-lead line is #1.
     assert "1. Vitals Co, denver: is looking for a controller, 5 days ago" in draft.body

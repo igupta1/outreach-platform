@@ -231,13 +231,13 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     p = _payload(lead)
     award = money(p.get("award_amount"))
     if award:
-        who = agency(p)
-        return f"{award}, {who}" if who else award
+        # 2026-11-12: the figure alone; the agency ("va") was a third detail.
+        return award
     loan = money(p.get("loan_amount"))
     if loan:
-        # The borrower's business, from the loan record's own NAICS title.
-        what = _industry(p.get("naics_description"))
-        return f"{loan} loan" + (f", {what}" if what else "")
+        # 2026-11-12: the amount alone; the borrower's NAICS title ("offices of
+        # dentists") repeated what the opener already says.
+        return f"{loan} loan"
     grant = money(p.get("subaward_amount"))
     if grant:
         return f"{grant} grant"

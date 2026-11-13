@@ -32,7 +32,7 @@ def test_the_fact_follows_the_record_in_order():
     assert record_fact(_lead("construction_federal_award_davis_bacon",
                              {"award_amount": 988000.0,
                               "awarding_agency": "Department of Veterans Affairs"})) \
-        == "$988k, va"
+        == "$988k"                          # 2026-11-12: no agency
     assert record_fact(_lead("sba_7a_loan_approved", {"loan_amount": 3740000.0})) == "$3.7m loan"
     assert record_fact(_lead("plan_late_contributions", {"amount": 56108.0,
                                                          "participants_eoy": 208})) \

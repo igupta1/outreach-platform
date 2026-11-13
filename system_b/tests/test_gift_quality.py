@@ -82,7 +82,7 @@ def test_a_cut_off_irs_name_takes_the_registry_name_that_extends_it():
 def test_facts_name_the_business_and_never_repeat_the_line():
     assert record_fact(_lead(payload={"loan_amount": 3740000.0,
                                       "naics_description": "Software Publishers"})) \
-        == "$3.7m loan, software publishers"
+        == "$3.7m loan"                     # 2026-11-12: the amount alone
     assert record_fact(_lead("liquor_license_new_ca", payload={
         "license_label": "On-Sale General Eating Place"})) == "restaurant license"
     assert record_fact(_lead("nsgp_security_grant_subaward", payload={"subaward_amount": 102690.0})) \

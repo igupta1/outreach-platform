@@ -23,7 +23,7 @@ def test_three_leads_in_email_1s_words():
               lead(NP, MW, name="Hope Atlanta")], all_niche=True)
     note = build_connect_note(g, NICHED, pack=CFO)
     assert note == (
-        "hey troy, saw on your site you work with nonprofits. these 3 in atlanta had "
+        "hey troy, saw you work with nonprofits. these 3 in atlanta had "
         "weak financial controls flagged in their federal audits, and each has to show "
         "it's fixed in its next audit: Georgia Works; Cathedral Towers; Hope Atlanta.\n\n"
         "i'm an engineer. my system finds these. want 3 a week?"

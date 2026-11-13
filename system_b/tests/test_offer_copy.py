@@ -205,7 +205,7 @@ def test_email_1_lines_carry_the_fact_date_and_person():
              subject_shape="plural", what_category="construction", best_lead_level=1)
     p = Prospect(firm_name="Match", city="Bothell", state="WA", first_name="Terry")
     _, lines = record_opener(g, p, today=date(2026, 11, 11))
-    assert lines[0] == "Alderlis Construction (oct 23, principal Edward Polevoy)"
+    assert lines[0] == "Alderlis Construction (principal Edward Polevoy, oct 23)"
     _, note = record_opener(g, p)          # the LinkedIn note: as before, no date
     assert note[0] == "Alderlis Construction (Edward Polevoy, principal)"
 
@@ -251,3 +251,16 @@ def test_a_nonprofit_record_with_an_ein_fits_nonprofit_without_the_model():
               signals=[Signal(type="nonprofit_questioned_costs", date="2026-10-01",
                               plain_words_description="x", payload={})])
     assert fit_check('nonprofit, specifically "nonprofit organizations"', [ld]) == [True]
+
+
+def test_a_lead_shows_at_most_two_details_fact_then_person():
+    from datetime import date
+
+    from system_b.copy.email import _two_details
+    ld = _contact_lead("construction_federal_award_davis_bacon", when="2026-10-28",
+                       name="Nicholas Hammond", title="President")
+    today = date(2026, 11, 12)
+    assert _two_details("$7.8m", "first federal job", ld, today) == "$7.8m, president Nicholas Hammond"
+    bare = _contact_lead(when="2026-10-28", name="")
+    assert _two_details("$7.8m", "", bare, today) == "$7.8m, oct 28"        # date fills in
+    assert _two_details("", "first federal job", bare, today) == "first federal job, oct 28"
