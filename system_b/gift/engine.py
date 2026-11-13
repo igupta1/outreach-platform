@@ -1276,12 +1276,15 @@ def single_kind_gift(
     A mixed gift is the last resort."""
     build = build or build_gift
     g = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only)
-    if g is None or len({ld.signal_type for ld in g.leads}) <= 1:
+    general_first = prospect.classification != "niched" and not niche_only
+    one_kind = g is not None and len({ld.signal_type for ld in g.leads}) <= 1
+    if g is None or (one_kind and not (general_first and g.leads
+                                       and g.leads[0].signal_type not in GENERAL_TYPES)):
         return g
     wide = build(prospect, scraper, target=target * 4, pack=pack, niche_only=niche_only)
     kinds = list(dict.fromkeys(ld.signal_type for ld in (wide.leads if wide else g.leads)
                                if ld.signal_type))
-    if prospect.classification != "niched" and not niche_only:
+    if general_first:
         # Still the firm's own state (`in_state` below); general kinds first,
         # each kind keeping the walk's order (city before the rest).
         # A general kind the first walk did not reach is tried too.

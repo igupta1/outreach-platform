@@ -419,16 +419,18 @@ def test_an_expanding_business_says_where_it_registered_and_what_it_is():
     from system_b.copy.duty import DUTIES as _D   # approved 2026-11-06
     from system_b.models import Lead as _Lead, Signal as _Signal
 
-    def ld(home, kind):
+    def ld(home, kind, at="CO"):
         return _Lead(id=f"x:{home}", company="Keen Meds", signal_type="new_business_expanding",
-                     city="Denver", state="CO",
+                     city="Denver", state=at,
                      signals=[_Signal(type="new_business_expanding", date="2026-10-01",
                                       date_confidence="high", plain_words_description="r",
                                       source_url="https://x.gov",
                                       payload={"state": "CO", "home_jurisdiction": home,
                                                "entity_kind": kind})])
     d = _D["new_business_expanding"]
-    assert d.predicate([ld("DE", "LLC"), ld("WY", "LLC")]) == (
+    # A Denver address incorporated in Delaware is not "from another state".
+    assert d.predicate([ld("DE", "LLC"), ld("WY", "LLC")]) == "registered to do business in colorado"
+    assert d.predicate([ld("DE", "LLC", "FL"), ld("WY", "LLC", "PA")]) == (
         "from other states registered to do business in colorado")
     assert d.detail_for(ld("DE", "LLC")) == "a delaware llc"
     assert d.detail_for(ld("AZ", "corporation")) == "an arizona corporation"
