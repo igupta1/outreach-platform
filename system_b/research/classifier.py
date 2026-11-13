@@ -44,6 +44,51 @@ _CLIENT_PAGE_KEYWORDS = (
 )
 
 
+# --- Which stated industry the firm stresses most (2026-11-12) ---------------
+# The user: "choose the industry the firm emphasizes most (a whole page beats a
+# list item, which beats a passing mention)". Alfred Moore CPA has a page on
+# nonprofits and names cannabis once; the gift went to cannabis because the
+# inventory had more of it. Read from the site in code, no model: a page of
+# its own (the industry in the page's URL) first, then how often the site
+# names it, then the order the model listed them in.
+_EMPHASIS_STOP = {
+    "services", "service", "companies", "company", "organizations", "organization",
+    "businesses", "business", "industry", "industries", "clients", "client", "firms",
+    "firm", "small", "medium", "sized", "owners", "owner", "and", "the", "for", "with",
+    "accounting", "bookkeeping", "tax", "taxes", "cfo", "financial", "finance", "other",
+}
+
+
+def _emphasis_words(phrase: str, mp: tuple[str, str]) -> list[str]:
+    words = re.findall(r"[a-z]+", (phrase or "").lower().replace("-", ""))
+    words += re.findall(r"[a-z]+", str(mp[1]).lower().replace("_", " "))
+    if "_" in str(mp[1]):
+        words.append(str(mp[1]).lower().replace("_", ""))
+    return list(dict.fromkeys(w.rstrip("s") for w in words
+                              if len(w) >= 4 and w not in _EMPHASIS_STOP))
+
+
+def emphasis(phrase: str, mp: tuple[str, str], site: dict[str, str]) -> tuple[int, int]:
+    """(has a page of its own, times the site names it) for one stated industry."""
+    words = _emphasis_words(phrase, mp)
+    if not words:
+        return 0, 0
+    paths = [re.sub(r"[^a-z]", "", url.lower().split("//", 1)[-1].partition("/")[2])
+             for url in site]
+    page = int(any(w in path for w in words for path in paths))
+    text = " ".join(site.values()).lower().replace("-", "")
+    count = max(len(re.findall(rf"\b{re.escape(w)}", text)) for w in words)
+    return page, count
+
+
+def by_emphasis(mps: list, phrases: list, site: dict[str, str]) -> tuple[list, list]:
+    """The candidates (aligned lists) reordered most-stressed first; ties keep
+    the model's order."""
+    order = sorted(range(len(mps)), key=lambda i: (
+        tuple(-x for x in emphasis(phrases[i] if i < len(phrases) else "", mps[i], site)), i))
+    return [mps[i] for i in order], [phrases[i] for i in order if i < len(phrases)]
+
+
 def _is_client_page(url: str) -> bool:
     """True when the page URL presents its contents as clients/customers/work."""
     u = (url or "").lower()
@@ -325,6 +370,7 @@ def _classify_niche(
             # than one distinct industry mapped -> drives one_of_several ("work
             # with"); a single clear focus stays "single" ("focus on").
             multiple = raw.get("focus") == "multiple" or len(verified_mp) >= 2
+            verified_mp, verified_phrases = by_emphasis(verified_mp, verified_phrases, site)
             return ResearchResult(
                 "niched", verified_mp[0], verified_phrases[0], "site", evidence, flags,
                 candidate_match_params=verified_mp, candidate_phrases=verified_phrases,

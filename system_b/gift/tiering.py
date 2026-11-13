@@ -23,7 +23,7 @@ from collections.abc import Callable
 from typing import Any
 
 from system_b.copy.lex import niche_display
-from system_b.gift.engine import build_gift, single_kind_gift
+from system_b.gift.engine import GIFT_TARGET, build_gift, single_kind_gift
 from system_b.gift.fit import claim_check, fit_check
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
@@ -200,11 +200,15 @@ def resolve_gift(
         g = _fitting_niche_gift(trial, scraper, pack, fit_label(mp, label, phrase), counting_fit)
         if g is None:
             continue                                             # no all-fitting niche gift -> drop
-        # The exact niche beats its broad parent at equal size (2026-11-05: a
-        # "Biotech Startup" firm was handed hospices as "healthcare").
-        key = (*_supply_key(g, rank)[:1], 1 if mp[0] == "niche" else 0, *_supply_key(g, rank)[1:])
-        if best is None or key > best[3]:
-            best = (g, mp, phrase, key)
+        # 2026-11-12, the user: the industry the firm stresses most, not the
+        # one we hold most leads for. Research lists the candidates most
+        # stressed first (research.classifier.by_emphasis), so the first that
+        # fills a FULL fitting gift is claimed; one that fills only part of a
+        # gift is kept as the fallback in case none fills it all.
+        if best is None or (best[0].gift_size < GIFT_TARGET <= g.gift_size):
+            best = (g, mp, phrase, ())
+        if g.gift_size >= GIFT_TARGET:
+            break
 
     if fit_calls:
         log.info("gift: %d fit check(s) across %d candidate vertical(s)",

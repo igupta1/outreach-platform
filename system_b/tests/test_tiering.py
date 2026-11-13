@@ -360,3 +360,27 @@ def test_a_generic_phrase_never_borrows_the_models_guess():
     # A phrase that names something still falls back to the guess.
     assert map_industry_candidates("shelters and soup kitchens", "nonprofit", TAXONOMY) == [
         ("industry", "nonprofit")]
+
+
+def test_the_most_stressed_industry_wins_when_it_fills_a_gift():
+    """2026-11-12: research lists candidates most-stressed first; the first that
+    fills a full gift is claimed even when a later one has more leads."""
+    research = _research([("industry", "real_estate"), ("industry", "construction")],
+                         exclusivity="multiple", phrases=["real estate", "construction"])
+    leads = [mk(f"r{i}", "funding_form_d", industry="real_estate", city="Denver", state="CO",
+                date="2026-07-05", company=f"Realty {i} Co") for i in range(3)]
+    leads += [mk(f"c{i}", "funding_form_d", industry="construction", city="Denver", state="CO",
+                 date="2026-07-05", company=f"Builder {i} Co") for i in range(4)]
+    prospect, gift = resolve_gift(research, _row(), FakeScraper(leads), fit=_FIT_YES)
+    assert prospect.match_param == ("industry", "real_estate")
+
+
+def test_emphasis_puts_the_industry_with_its_own_page_first():
+    from system_b.research.classifier import by_emphasis
+    site = {"https://almoorecpa.com": "We serve nonprofit organizations, cannabis dispensary "
+                                      "services and mental health practices.",
+            "https://almoorecpa.com/nonprofit-accounting": "Nonprofit accounting for nonprofits."}
+    mps, phrases = by_emphasis([("industry", "cannabis"), ("industry", "nonprofit")],
+                               ["cannabis dispensary services", "nonprofit organizations"], site)
+    assert mps[0] == ("industry", "nonprofit")
+    assert phrases[0] == "nonprofit organizations"
