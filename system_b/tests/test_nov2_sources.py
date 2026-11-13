@@ -138,15 +138,14 @@ def test_a_restaurants_takeover_opener_prints_no_business_noun():
     ca = Prospect(firm_name="X", city="San Francisco", state="CA", first_name="Al")
     text = opener(leads, ca)
     assert text.splitlines()[0].endswith(
-        "these 3 in san francisco changed hands, each with its liquor license now in the "
-        "new owner's name, so each has new owners starting fresh books:")
+        "these 3 in san francisco just changed owners, so each is starting fresh books:")
     assert "Numb Restaurant (was Himalayan Hub, Inc.)" in text and "\nCasito" in text
     assert bare_gift(leads)
     # A restaurant specialist's niche word is not printed either.
     niched = Prospect(firm_name="X", city="San Francisco", state="CA", first_name="Al",
                       classification="niched", match_param=("niche", "restaurant"))
     text = opener(leads, niched, all_niche=True)
-    assert "these 3 in san francisco changed hands" in text and "restaurants" not in \
+    assert "these 3 in san francisco just changed owners" in text and "restaurants" not in \
         text.splitlines()[0].replace("work with restaurants", "")
 
 

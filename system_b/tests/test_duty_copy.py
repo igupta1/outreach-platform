@@ -226,7 +226,7 @@ def test_a_mixed_line_speaks_like_row_1():
     late = lead("nonprofit_single_audit_late", {"fac_days_late": 205}, industry="nonprofit")
     assert magnet_phrase(late) == "filed their federal audit 6 months late"
     assert magnet_phrase(lead("nonprofit_going_concern")) == \
-        "going-concern warning in their federal audit"
+        "auditors warned it may not stay afloat"
 
 
 def test_a_medicaid_audit_says_money_is_owed_only_when_every_report_does():

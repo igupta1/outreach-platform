@@ -372,9 +372,11 @@ DUTIES: dict[str, Duty] = {
         short=("that reported asset diversions", "that reported an asset diversion"),
         dm="reporting a diversion of assets on their 990s"),
     "nonprofit_going_concern": Duty(
-        plural="got a going-concern warning in their federal audits",
-        singular="got a going-concern warning in its federal audit",
-        line="going-concern warning in their federal audit",
+        plural="were warned by their auditors they may not stay afloat",
+        singular="was warned by its auditors it may not stay afloat",
+        why=("so each needs a plan to steady its finances",
+             "so it needs a plan to steady its finances"),
+        line="auditors warned it may not stay afloat",
         short=("with going-concern warnings", "with a going-concern warning"),
         dm="getting going-concern warnings in their audits"),
     "nonprofit_ubi_no_990t": Duty(
@@ -1124,9 +1126,9 @@ def _was(lead: Lead) -> str:
 
 
 _NEW_OWNER = Duty(
-    plural="changed hands, each with its liquor license now in the new owner's name",
-    singular="changed hands, with its liquor license now in the new owner's name",
-    why=("so each has new owners starting fresh books", "so it has new owners starting fresh books"),
+    plural="just changed owners",
+    singular="just changed owners",
+    why=("so each is starting fresh books", "so it is starting fresh books"),
     detail=_was,
     line="new owner, liquor license in its name",
     short=("under new owners", "under a new owner"), bare=True, dm="changing hands")
