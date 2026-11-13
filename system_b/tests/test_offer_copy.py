@@ -181,7 +181,8 @@ def test_fresh_date_only_when_recent_and_the_date_is_the_news():
     from system_b.copy.facts import fresh_date
     today = date(2026, 11, 11)
     assert fresh_date(_contact_lead(), today) == "oct 23"
-    assert fresh_date(_contact_lead(when="2026-08-01"), today) == ""           # too old
+    assert fresh_date(_contact_lead(when="2026-10-12"), today) == "oct 12"     # 30 days
+    assert fresh_date(_contact_lead(when="2026-10-11"), today) == ""           # 31: too old
     assert fresh_date(_contact_lead("plan_late_contributions", when="2026-10-31"), today) == ""
     assert fresh_date(_contact_lead("adv_no_fund_administrator"), today) == ""
     assert fresh_date(_contact_lead("sba_7a_loan_approved"), today) == "oct 23"
@@ -202,3 +203,11 @@ def test_email_1_lines_carry_the_fact_date_and_person():
     assert lines[0] == "Alderlis Construction (oct 23, principal Edward Alex Polevoy)"
     _, note = record_opener(g, p)          # the LinkedIn note: as before, no date
     assert note[0] == "Alderlis Construction (Edward Alex Polevoy, principal)"
+
+
+def test_a_named_lead_wins_a_tie():
+    from system_b.gift.engine import sort_key
+    named = _contact_lead(company="Named Co")
+    bare = _contact_lead(company="Bare Co", name="")
+    assert sort_key(named, salt="firm") < sort_key(bare, salt="firm")
+    assert sort_key(named) < sort_key(bare)

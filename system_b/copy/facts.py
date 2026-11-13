@@ -180,7 +180,7 @@ _ROLE_WORDS_BEFORE = {"authorized official": "contact"}
 # filing about a standing situation: "Rising Point Capital (4 funds, oct 15)"
 # would say the funds are new when only the form is, and a 990's or a 5500's
 # year end is not when anything happened.
-FRESH_DAYS = 45
+FRESH_DAYS = 30
 _NEWS_DATED = re.compile(
     r"new|first|licen[cs]e|permit|registration|award|contract|loan|sba|owner|began|"
     r"clearance|credit_allocated|credit_approved|certified|placed_in_service|subaward|"

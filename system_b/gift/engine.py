@@ -534,6 +534,13 @@ def strongest_first(gift: Gift, prospect: Prospect | None = None) -> None:
                                     0 if _recent_finding(ld) else 1, -strength(ld)))
 
 
+def _unnamed(lead: Lead) -> int:
+    """0 when the email would name a person from the lead's record, else 1."""
+    from system_b.copy.facts import contact  # copy imports this module
+
+    return 0 if contact(lead) else 1
+
+
 def _home_band(lead: Lead, prospect: Prospect | None = None) -> int:
     """The band the own-state level sorts by: bands below `CITY_YIELDS_FROM`
     are one group, so only a lead at or past it gives way to a stronger one
@@ -659,8 +666,13 @@ def sort_key(lead: Lead, rank: dict[str, int] | None = None,
         # exact score only breaks what that leaves. Type and level come first,
         # so this never reorders across them.
         -_near_tie_band(lead) if salt else 0,
+        # Inside one band, a lead whose record names a person first
+        # (2026-11-11, the user: "when two leads are otherwise equal, pick the
+        # one with a name"): the reader can ask for someone.
+        _unnamed(lead) if salt else 0,
         rotation(lead, salt),
         -strength(lead),
+        _unnamed(lead),
         -_recency(lead),
         0 if lead.effective_date_confidence == "high" else 1,
     )
