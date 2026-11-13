@@ -194,8 +194,8 @@ def test_a_late_registration_says_how_many_months_late():
              for n, m in (("Sa Products", 9), ("Carrovino", 14), ("Nirvana E Commerce", 22))]
     text = opener(leads)
     assert text.splitlines()[0].endswith(
-        "these 3 online sellers in houston registered for texas sales tax months after "
-        "they started selling, so each has earlier returns to cover:")
+        "these 3 online sellers in houston signed up for texas sales tax months late, "
+        "so each has past returns to catch up on:")
     assert "Sa Products (9 months late)" in text
 
 

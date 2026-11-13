@@ -84,18 +84,16 @@ def test_first_990_names_the_form_and_only_the_preparer_absence_the_return_shows
               lead("nonprofit_first_990", NAMES[2],
                    {"return_type": "990EZ", "tax_year": 2026, "paid_preparer_listed": None})])
     framing, lines = record_opener(g, DANA)
-    assert framing.endswith("these 3 nonprofits in denver filed their first annual returns "
-                            "with the irs, so each now files a 990 every year:")
-    # 2026-11-06: no form or year (the heading says it filed its first return)
-    assert lines == ["Mile High Youth Fund (no paid preparer)",
-                     "Front Range Arts",
-                     # not read for a preparer person: nothing is said
-                     "Colorado Food Bank Network"]
+    # 2026-11-13, the user: only first returns filed without an accountant
+    # reach a gift (clients.inventory._not_a_buyer), so the opener says it once.
+    assert framing.endswith("these 3 nonprofits in denver filed their first irs returns "
+                            "without an accountant:")
+    assert lines == ["Mile High Youth Fund", "Front Range Arts", "Colorado Food Bank Network"]
     assert short_subject(g, DANA) == "3 denver nonprofits that filed their first irs returns"
     e2 = build_followup_email(g.leads[0], DANA, step=2, today=TODAY, pack=pack_for("cfo"),
                               gift_signals={"nonprofit_first_990"})
-    assert e2.body.startswith("one more in denver: Mile High Youth Fund filed its first annual "
-                              "return with the irs (no paid preparer).")
+    assert e2.body.startswith("one more in denver: Mile High Youth Fund filed its first irs "
+                              "return without an accountant.")
 
 
 @pytest.mark.parametrize("t", NEW)
@@ -116,3 +114,15 @@ def test_every_record_rule_holds(t):
                   "failed", "missed", "violat"):
             assert w not in low, (w, text)
     # The engineer line calls charities organizations.
+
+
+def test_a_first_990_with_a_preparer_is_not_a_lead():
+    from datetime import date
+
+    from system_b.clients.inventory import _not_a_buyer
+    today = date(2026, 11, 13)
+    with_cpa = lead("nonprofit_first_990", "A", {"paid_preparer_listed": True})
+    alone = lead("nonprofit_first_990", "B", {"paid_preparer_listed": False})
+    with_cpa.signals[0].date = alone.signals[0].date = "2026-10-01"
+    assert _not_a_buyer({}, with_cpa, today) == "has_a_preparer"
+    assert _not_a_buyer({}, alone, today) is None

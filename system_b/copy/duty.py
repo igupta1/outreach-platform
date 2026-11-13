@@ -919,10 +919,10 @@ HELD_DUTIES: dict[str, Duty] = {
         short=("newly recognized as 501(c)(3)s", "newly recognized as a 501(c)(3)"),
         dm="newly recognized as 501(c)(3)s"),
     "nonprofit_first_990": Duty(
-        plural="filed their first annual returns with the irs",
-        singular="filed its first annual return with the irs",
-        why=("so each now files a 990 every year", "so it now files a 990 every year"),
-        detail=_first_990_detail,
+        # 2026-11-13, the user: only those that filed without an accountant
+        # (clients.inventory._not_a_buyer drops the rest), said plainly.
+        plural="filed their first irs returns without an accountant",
+        singular="filed its first irs return without an accountant",
         line="first annual return filed with the irs",
         short=("that filed their first irs returns", "that filed its first irs return"),
         dm="filing their first annual returns with the irs"),
@@ -1217,9 +1217,9 @@ def _brewer_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "tx_late_sales_tax_registration": Duty(
-        plural="registered for texas sales tax months after they started selling",
-        singular="registered for texas sales tax months after it started selling",
-        why=("so each has earlier returns to cover", "so it has earlier returns to cover"),
+        plural="signed up for texas sales tax months late",
+        singular="signed up for texas sales tax months late",
+        why=("so each has past returns to catch up on", "so it has past returns to catch up on"),
         detail=_tx_late_months,
         line="got a sales tax permit months late",
         short=("registered late for sales tax", "registered late for sales tax"),

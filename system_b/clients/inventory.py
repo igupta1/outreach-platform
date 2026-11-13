@@ -1251,6 +1251,9 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
                 return "too_old"
         except ValueError:
             pass
+    # A first 990 is a need only when they filed it themselves (2026-11-13).
+    if (lead.signal_type or "") == "nonprofit_first_990" and pay.get("paid_preparer_listed") is not False:
+        return "has_a_preparer"
     return None
 
 
