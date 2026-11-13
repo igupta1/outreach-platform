@@ -69,7 +69,7 @@ CASES = [
     (CR, {"pricing_kind": "time-and-materials"}, "federal contract the government can audit"),
     (CR, {"pricing_kind": "labor-hour"}, "federal contract the government can audit"),
     (CR, {}, "federal contract the government can audit"),
-    (FG, {"grants_in_window": 2}, "first federal grant in 3+ years"),
+    (FG, {"grants_in_window": 2}, "first federal grant in years"),
     (NB, {"state": "FL", "entity_kind": "LLC"}, "just registered as a new company"),
     (NB, {"state": "CT", "entity_kind": "LLC"}, "just registered as a new company in connecticut"),
 ]
@@ -202,7 +202,7 @@ def test_email_2_names_the_place_only_when_it_matches_the_prospect():
     state = build_followup_email(lead(FG, name="Grant Co", city="Macon", state="GA"), atl,
                                  step=2, today=TODAY, pack=pack)
     assert state.body.startswith(
-        "one more in georgia: Grant Co in macon got its first federal grant in 3+ years (oct 6).")
+        "one more in georgia: Grant Co in macon got a federal grant for the first time in years (oct 6).")
     away = build_followup_email(lead(CR, {"pricing_kind": "labor-hour"}, name="Far Co",
                                      city="Reno", state="NV"), atl, step=2, today=TODAY,
                                 pack=pack)

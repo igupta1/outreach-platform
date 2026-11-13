@@ -361,7 +361,7 @@ DUTIES: dict[str, Duty] = {
         plural="filed their federal single audits late",
         singular="filed its federal single audit late",
         detail=_late_months("fac_days_late"),
-        followup=_late_followup("its federal single audit", "fac_days_late"),
+        followup=_late_followup("its required federal audit", "fac_days_late"),
         line=_late_line("their federal audit", "fac_days_late"),
         short=("with late federal audits", "with a late federal audit"),
         dm="filing their federal audits late"),
@@ -736,7 +736,7 @@ DUTIES: dict[str, Duty] = {
         plural="filed their federal single audits late",
         singular="filed its federal single audit late",
         detail=_late_months("days_late"),
-        followup=_late_followup("its federal single audit", "days_late"),
+        followup=_late_followup("its required federal audit", "days_late"),
         line=_late_line("their federal audit", "days_late"),
         short=("with late federal audits", "with a late federal audit"),
         noun=_local_body, org=True, dm="filing their federal audits late"),
@@ -1813,12 +1813,11 @@ def _fda_kind(leads: list[Lead]) -> str:
 
 def _fda_first(leads: list[Lead]) -> str:
     k = _fda_kind(leads)
-    return f"got their first {k} for a medical device" if len(leads) > 1 \
-        else f"got its first {k.removeprefix('an ')} for a medical device"
+    return f"got their first {k}" if len(leads) > 1 else f"got its first {k.removeprefix('an ')}"
 
 
-_SELL_DEVICE = ("so each can start selling it and booking revenue",
-                "so it can start selling it and booking revenue")
+_SELL_DEVICE = ("so each can start selling and booking revenue",
+                "so it can start selling and booking revenue")
 
 DUTIES.update({
     # Healthcare (openFDA 510(k) / De Novo): a small US applicant.
@@ -1829,8 +1828,8 @@ DUTIES.update({
         why=_SELL_DEVICE, noun=("medical device company", "medical device companies"),
         dm="getting their first fda device clearance"),
     "fda_device_clearance": Duty(
-        plural=lambda leads: f"got new {_fda_kind(leads)} for medical devices",
-        singular=lambda ld: f"got {_fda_kind([ld])} for a new medical device",
+        plural=lambda leads: f"got new {_fda_kind(leads)}",
+        singular=lambda ld: f"got {_fda_kind([ld]).replace('an fda', 'a new fda')}",
         line="new fda clearance for a medical device",
         short=("with new fda clearances", "with a new fda clearance"),
         why=_SELL_DEVICE, noun=("medical device company", "medical device companies"),
@@ -1910,7 +1909,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
     'local_gov_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
     'plan_late_contributions': ("paid employees' retirement money into the plan late", "paid employees' retirement money into the plan late", 'so each must make it up with interest', 'so it must make it up with interest'),
-    'new_practice_npi': ('just registered as new practices', 'just registered as a new practice', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'new_practice_npi': ('just registered as new businesses', 'just registered as a new business', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
     'hrsa_new_health_center': (None, None, 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'sbir_phase1_award': ('won their first federal research awards', 'won its first federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'govcon_first_sbir_phase2': ('won their first large federal research awards', 'won its first large federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
@@ -1933,7 +1932,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_asset_diversion': ('reported on their 990s that money or assets went missing', 'reported on its 990 that money or assets went missing', 'so each needs tighter money controls', 'so it needs tighter money controls'),
     'church_990t_first': ('filed their first tax return for side business income', 'filed its first tax return for side business income', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
     'church_990t_no_preparer': ('filed side-income tax returns with no accountant', 'filed a side-income tax return with no accountant', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
-    'new_practice_medicare_enrollment': ('just enrolled in medicare as new group practices', 'just enrolled in medicare as a new group practice', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'new_practice_medicare_enrollment': ('just enrolled in medicare as new groups', 'just enrolled in medicare as a new group', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
     'ttb_new_winery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
     'ttb_new_distillery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
     'nonprofit_state_audit_line_no_audit': ('earn enough that their state requires an audit, but reported none', 'earns enough that its state requires an audit, but reported none', '', ''),

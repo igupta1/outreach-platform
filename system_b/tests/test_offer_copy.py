@@ -290,3 +290,22 @@ def test_too_big_to_need_an_outside_firm_is_not_a_buyer():
     assert _not_a_buyer({}, ld("Small Charity", "nonprofit_questioned_costs",
                                {"total_revenue": 1_500_000}), today) is None
     assert _not_a_buyer({}, ld("North America Plumbing"), today) is None
+
+
+def test_source_codes_and_care_of_lines_leave_names():
+    from system_b.copy.lex import spoken_name
+    assert spoken_name("Lion's Lawn Care & Landscape LLC (lio127)") == "Lion's Lawn Care & Landscape"
+    assert spoken_name("Gardens and Grounds, L.l.c. (gar127)") == "Gardens and Grounds"
+    assert spoken_name("Warc LLC C/O Informa") == "Warc"
+    assert spoken_name("Company (USA)") == "Company (USA)"          # not a code
+
+
+def test_other_accounting_firms_are_not_leads():
+    from datetime import date
+
+    from system_b.clients.inventory import _not_a_buyer
+    from system_b.models import Lead, Signal
+    for t in ("cpa_firm_license_delinquent", "cpa_firm_license_expired", "ny_new_cpa_firm"):
+        ld = Lead(id=t, company="Smith & Co CPAs", signal_type=t,
+                  signals=[Signal(type=t, date="2026-11-01", plain_words_description="x", payload={})])
+        assert _not_a_buyer({}, ld, date(2026, 11, 13)) == "competitor"

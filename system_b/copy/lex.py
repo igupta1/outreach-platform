@@ -175,6 +175,8 @@ _LEGAL_SUFFIX_RE = re.compile(
 # Professional-corporation forms, only in their dotted form after a comma:
 # "Rainwater, Holt & Sexton, P.A.", "Prairie Clinic, S.C." ("Colliers
 # International SC" is South Carolina, and stays).
+_CODE_RE = re.compile(r"\s*\((?=[a-z0-9]*\d)[a-z]{2,6}\d{1,5}\)", re.I)
+_CARE_OF_RE = re.compile(r"\s+c/o\b.*$", re.I)
 _DOTTED_FORM_RE = re.compile(r",\s*(?:p\.\s?a|p\.\s?c|s\.\s?c|l\.\s?l\.\s?l\.\s?p|lllp)\.?\s*$",
                              re.IGNORECASE)
 _CORP_RE = re.compile(r"[,\s]+(?:corp|corporation)\.?\s*$", re.IGNORECASE)
@@ -186,6 +188,11 @@ def spoken_name(name: str | None) -> str:
     unchanged rather than emptied, and "Corp" stays on a one-word name: "News
     Corp" is not "News" (2026-11-04)."""
     full = (name or "").strip()
+    # A source's own codes and care-of lines are not part of the name
+    # (2026-11-13: "Lion's Lawn Care & Landscape LLC (lio127)",
+    # "Warc LLC C/O Informa").
+    full = _CODE_RE.sub("", full)
+    full = _CARE_OF_RE.sub("", full).strip()
     stripped = _DOTTED_FORM_RE.sub("", full).strip()
     before = stripped
     stripped = _LEGAL_SUFFIX_RE.sub("", stripped).strip().rstrip(",")

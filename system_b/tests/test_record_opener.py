@@ -113,7 +113,7 @@ def test_a_mix_of_kinds_keeps_each_full_reason_and_no_why():
     assert framing == ("here are 2 nonprofits in atlanta "
                        "from public records:")
     assert lines == ["A: auditors flagged their financial controls",
-                     "B: first federal grant in 3+ years"]
+                     "B: first federal grant in years"]
 
 
 def test_cost_contracts_claim_every_cost_only_when_every_one_is_cost_reimbursement():

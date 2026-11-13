@@ -235,7 +235,7 @@ _MAGNET_NEED: dict[str, str] = {
     NEW_LICENSE_SIGNAL: "with a new contractor license",
     LICENSE_UPGRADE_SIGNAL: "moving up to a bigger contractor license",
     COST_CONTRACT_SIGNAL: "on federal contracts the government can audit",
-    FIRST_GRANT_SIGNAL: "with their first federal grant in 3+ years",
+    FIRST_GRANT_SIGNAL: "with a federal grant for the first time in years",
     NEW_BUSINESS_SIGNAL: "newly registered with the state",
     # The legal-duty types (`copy.duty`): the record's own predicate.
     **{t: d.need_clause for t, d in DUTIES.items()},
@@ -1208,7 +1208,7 @@ def cost_contract_phrase(lead: Lead) -> str:
 def first_grant_phrase(lead: Lead) -> str:
     """Worded exactly as the source checked it: no grant on record for this
     recipient in the 3 years before. Never "first ever"."""
-    return "first federal grant in 3+ years"
+    return "first federal grant in years"
 
 
 def new_business_phrase(lead: Lead) -> str:
@@ -1487,7 +1487,7 @@ def _record_predicate(lead: Lead) -> str | None:
             return "won a federal contract where the government can check every cost"
         return "won a federal contract the government can audit"
     if t == FIRST_GRANT_SIGNAL:
-        return "got its first federal grant in 3+ years"
+        return "got a federal grant for the first time in years"
     if t == NEW_LICENSE_SIGNAL:
         where = _elsewhere(lead, _licensing_state(lead))
         if p.get("formed_class") == "new_company":

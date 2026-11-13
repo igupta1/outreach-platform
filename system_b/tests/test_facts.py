@@ -48,9 +48,13 @@ def test_a_contact_is_printed_only_with_a_plain_role():
                   contact_title="Executive Director")
     assert record_fact(named) == "Vickie Smith, executive director"
     # 2026-11-11: the source's wording becomes a plain role; an unknown one prints nothing.
-    signer = _lead("tx_late_sales_tax_registration", {}, contact_name="Pat Lee",
+    signer = _lead("plan_late_contributions", {}, contact_name="Pat Lee",
                    contact_title="Signed the Form 5500 as plan administrator")
     assert record_fact(signer) == "Pat Lee, plan administrator"
+    # 2026-11-13: a 5500 signer beside a loan or permit reads as the wrong person.
+    elsewhere = _lead("tx_late_sales_tax_registration", {}, contact_name="Pat Lee",
+                      contact_title="Signed the Form 5500 as plan administrator")
+    assert record_fact(elsewhere) == ""
     for odd in ("Registered agent", "Attorney (firm named for them)", "Treasurer"):
         assert record_fact(_lead("tx_late_sales_tax_registration", {}, contact_name="Pat Lee",
                                  contact_title=odd)) == ""

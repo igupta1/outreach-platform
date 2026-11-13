@@ -1166,6 +1166,7 @@ _BIG_INSTITUTION_RE = re.compile(
     r"\b\w*bank\b|\bbancorp\b|\bbancshares\b|\buniversity\b", re.I)
 # Need already met: a first audited Form 5500 was filed, so an auditor signed.
 _NEED_MET = frozenset({"plan_audit_first_filed"})
+_COMPETITORS = frozenset({"cpa_firm_license_delinquent", "cpa_firm_license_expired", "ny_new_cpa_firm"})
 MAX_EVENT_AGE_DAYS = 365
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
@@ -1208,6 +1209,10 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
         return "gse"
     if (lead.signal_type or "") in _NEED_MET:
         return "need_met"
+    # Other accounting firms are the prospect's competitors, not its clients
+    # (2026-11-13).
+    if (lead.signal_type or "") in _COMPETITORS:
+        return "competitor"
     names = " | ".join(str(x) for x in (lead.company, row.get("name"), row.get("dba"),
                                          pay.get("dba_name"), pay.get("trade_name")) if x)
     if _HOLDING_RE.search(names):

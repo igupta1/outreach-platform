@@ -362,7 +362,7 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
     atx = Prospect(firm_name="X", city="Austin", state="TX", first_name="Al")
     first = opener(dental, atx).splitlines()[0]
     # 2026-11-13, the user asked for a finance reason on every opener.
-    assert first.endswith("these 3 dental practices in austin just registered as new practices, "
+    assert first.endswith("these 3 dental practices in austin just registered as new businesses, "
                           "so each needs its billing and books set up:")
     mixed = dental[:2] + [lead("new_practice_npi", "Calm Minds PLLC",
                                {"provider_type": "behavioral"}, city="Austin")]
@@ -373,5 +373,5 @@ def test_a_new_medicare_enrollment_keeps_its_clause():
     ls = [lead("new_practice_medicare_enrollment", n, {"provider_type": "behavioral"})
           for n in ("A Pllc", "B Pllc", "C Pllc")]
     assert ("these 3 behavioral health practices in houston just enrolled in medicare as new "
-            "group practices, so each needs its billing and books set up:") in \
+            "groups, so each needs its billing and books set up:") in \
         opener(ls)

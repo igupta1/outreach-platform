@@ -147,6 +147,11 @@ def _person(lead: Lead) -> tuple[str, str] | None:
         return None
     if name.isupper() or name.islower():
         name = name.title()
+    # "plan administrator" comes from a Form 5500: beside an SBA loan it reads
+    # as the wrong person (2026-11-13). Only on a benefit-plan lead.
+    if role == "plan administrator" and not (lead.signal_type or "").startswith(
+            ("plan_", "welfare_", "pension_")):
+        return None
     org = _LEGAL_END_RE.sub("", " ".join((lead.company or "").split())).lower()
     name = _first_last(name)
     if len(name.split()) < 2 or name.lower() == org:
