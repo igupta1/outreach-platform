@@ -85,7 +85,7 @@ def test_first_990_names_the_form_and_only_the_preparer_absence_the_return_shows
                    {"return_type": "990EZ", "tax_year": 2026, "paid_preparer_listed": None})])
     framing, lines = record_opener(g, DANA)
     assert framing.endswith("these 3 nonprofits in denver filed their first annual returns "
-                            "with the irs:")
+                            "with the irs, so each now files a 990 every year:")
     # 2026-11-06: no form or year (the heading says it filed its first return)
     assert lines == ["Mile High Youth Fund (no paid preparer)",
                      "Front Range Arts",

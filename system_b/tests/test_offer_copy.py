@@ -271,3 +271,22 @@ def test_cut_off_names_seen_on_2026_11_13():
     assert irs_cut_name("Colorado Coalition Against Domestic")
     assert irs_cut_name("Sneed, Vine & Perry, A Professional")
     assert irs_cut_name("Sneed Vine & Perry Law Corporation") is None
+
+
+def test_too_big_to_need_an_outside_firm_is_not_a_buyer():
+    from datetime import date
+
+    from system_b.clients.inventory import _not_a_buyer
+    from system_b.models import Lead, Signal
+
+    def ld(company, t="new_business_expanding", payload=None):
+        return Lead(id=company, company=company, signal_type=t,
+                    signals=[Signal(type=t, date="2026-11-01", plain_words_description="x",
+                                    payload=payload or {})])
+    today = date(2026, 11, 13)
+    assert _not_a_buyer({}, ld("Arauco Pulp North America"), today) == "too_big"
+    assert _not_a_buyer({}, ld("Big Charity", "nonprofit_questioned_costs",
+                               {"total_revenue": 15_900_000}), today) == "too_big"
+    assert _not_a_buyer({}, ld("Small Charity", "nonprofit_questioned_costs",
+                               {"total_revenue": 1_500_000}), today) is None
+    assert _not_a_buyer({}, ld("North America Plumbing"), today) is None

@@ -1169,6 +1169,11 @@ _NEED_MET = frozenset({"plan_audit_first_filed"})
 MAX_EVENT_AGE_DAYS = 365
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
+MAX_NONPROFIT_REVENUE = 10_000_000
+MAX_HEADCOUNT = 200
+_NATIONAL_ARM_RE = re.compile(
+    r"\b(?:north america|americas|usa|u\.s\.a\.|us holdings|international|global)\b"
+    r"(?:,?\s*(?:inc|llc|corp|corporation|ltd|co)\.?)?\s*$", re.I)
 _ANNUAL_FILING_PREFIXES = ("nonprofit_", "plan_", "pension_", "local_gov_", "church_990t_",
                            "union_", "charter_audit")
 _EVENT_NOT_ANNUAL = frozenset({"nonprofit_first_990", "nonprofit_new_501c3"})
@@ -1216,6 +1221,20 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     if (lead.signal_type or "") == "new_business_expanding" and \
             _BIG_AGENTS_RE.search(str(pay.get("registered_agent_org") or "")):
         return "big_registered_agent"
+    # Too big for an outside bookkeeper or fractional CFO (2026-11-13, the
+    # user): a national arm ("Arauco Pulp North America"), a nonprofit past
+    # MAX_NONPROFIT_REVENUE (it has its own finance staff), or a headcount
+    # past MAX_HEADCOUNT.
+    if _NATIONAL_ARM_RE.search(lead.company or ""):
+        return "too_big"
+    try:
+        if (lead.signal_type or "").startswith("nonprofit") and \
+                float(pay.get("total_revenue") or 0) > MAX_NONPROFIT_REVENUE:
+            return "too_big"
+    except (TypeError, ValueError):
+        pass
+    if lead.headcount and lead.headcount > MAX_HEADCOUNT:
+        return "too_big"
     if (lead.signal_type or "").startswith(("plan_", "pension_", "welfare_")):
         try:
             if int(float(pay.get("participants_eoy") or 0)) > MAX_PLAN_PARTICIPANTS:

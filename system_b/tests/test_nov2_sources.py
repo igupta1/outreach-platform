@@ -139,7 +139,7 @@ def test_a_restaurants_takeover_opener_prints_no_business_noun():
     text = opener(leads, ca)
     assert text.splitlines()[0].endswith(
         "these 3 in san francisco changed hands, each with its liquor license now in the "
-        "new owner's name:")
+        "new owner's name, so each has new owners starting fresh books:")
     assert "Numb Restaurant (was Himalayan Hub, Inc.)" in text and "\nCasito" in text
     assert bare_gift(leads)
     # A restaurant specialist's niche word is not printed either.
@@ -362,8 +362,9 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
                         "Mueller Pediatric Dentistry PLLC")]
     atx = Prospect(firm_name="X", city="Austin", state="TX", first_name="Al")
     first = opener(dental, atx).splitlines()[0]
-    assert first.endswith("these 3 dental practices in austin just registered as new businesses:")
-    assert "so each" not in first and "billing" not in first
+    # 2026-11-13, the user asked for a finance reason on every opener.
+    assert first.endswith("these 3 dental practices in austin just registered as new businesses, "
+                          "so each can now bill insurers under its own name:")
     mixed = dental[:2] + [lead("new_practice_npi", "Calm Minds PLLC",
                                {"provider_type": "behavioral"}, city="Austin")]
     assert "these 3 practices in austin just registered" in opener(mixed, atx).splitlines()[0]

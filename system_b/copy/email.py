@@ -1518,13 +1518,25 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     said = _record_predicate(lead)
     if said is None:
         return None
-    # One fact from the record (copy.facts), and the person it names.
-    fact = _two_details(record_fact(lead, with_contact=False), "", lead, today) if today \
-        else record_fact(lead, with_contact=False)
-    if fact:
-        fact = _unrepeated(fact, said)
-        # One bracket, never "(990 for fy2025) ($359k in revenue)".
-        said = f"{said[:-1]}, {fact})" if said.endswith(")") else f"{said} ({fact})"
+    duty = DUTIES.get(lead.signal_type or "")
+    if duty is not None and not duty.followup and today:
+        # The same two details as email 1 (2026-11-13): "(was Boka, Sushi
+        # Nonaka, restaurant license, oct 21)" carried four.
+        base = duty.said(lead)
+        detail = _two_details(_unrepeated(record_fact(lead, with_contact=False), base),
+                              duty.detail_for(lead), lead, today)
+        said = f"{base} ({detail})" if detail else base
+    else:
+        # One fact from the record (copy.facts), and the person it names.
+        fact = _two_details(record_fact(lead, with_contact=False), "", lead, today) if today \
+            else record_fact(lead, with_contact=False)
+        if fact:
+            fact = _unrepeated(fact, said)
+            # One bracket, never "(990 for fy2025) ($359k in revenue)".
+            said = f"{said[:-1]}, {fact})" if said.endswith(")") else f"{said} ({fact})"
+    # "one more in atlanta: X from another state registered..." contradicts
+    # itself; the detail ("a georgia llc") already says where it is from.
+    said = said.removeprefix("from another state ")
     name = spoken_name(lead.company)
     city, state = city_display(prospect.city), state_display(prospect.state)
     lead_city, lead_state = city_display(lead.city), state_display(lead.state)

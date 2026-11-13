@@ -919,6 +919,7 @@ HELD_DUTIES: dict[str, Duty] = {
     "nonprofit_first_990": Duty(
         plural="filed their first annual returns with the irs",
         singular="filed its first annual return with the irs",
+        why=("so each now files a 990 every year", "so it now files a 990 every year"),
         detail=_first_990_detail,
         line="first annual return filed with the irs",
         short=("that filed their first irs returns", "that filed its first irs return"),
@@ -971,7 +972,8 @@ DUTIES.update({
 # the lead's own `niche` (see `_SOURCE_NICHES`), not the wording.
 # 2026-11-05: no why. "will likely owe" read as a guess, and the record does
 # not show the loan's terms; the fact ("$500k loan, dental") carries it.
-_SBA_WHY = ("so each has new loan money to manage", "so it has new loan money to manage")
+_SBA_WHY = ("so each has a lender expecting regular financials",
+            "so it has a lender expecting regular financials")
 
 DUTIES.update({
     "sba_7a_loan_approved": Duty(
@@ -1124,6 +1126,7 @@ def _was(lead: Lead) -> str:
 _NEW_OWNER = Duty(
     plural="changed hands, each with its liquor license now in the new owner's name",
     singular="changed hands, with its liquor license now in the new owner's name",
+    why=("so each has new owners starting fresh books", "so it has new owners starting fresh books"),
     detail=_was,
     line="new owner, liquor license in its name",
     short=("under new owners", "under a new owner"), bare=True, dm="changing hands")
@@ -1711,6 +1714,8 @@ DUTIES.update({
     "new_practice_npi": Duty(
         plural="just registered as new businesses",
         singular="just registered as a new business",
+        why=("so each can now bill insurers under its own name",
+             "so it can now bill insurers under its own name"),
         line="new practice entity, first organization npi",
         short=("with new npi registrations", "with a new npi registration"),
         noun=_practice_noun, extra={"noun_mixed": _PRACTICES},
@@ -1782,8 +1787,7 @@ def _expanding_why(leads: list[Lead]) -> tuple[str, str] | None:
     if len(states) != 1 or not next(iter(states)):
         return None
     where = next(iter(states))
-    return (f"so each now has {where} filings to keep up with",
-            f"so it now has {where} filings to keep up with")
+    return ("so each now has filings in two states", "so it now has filings in two states")
 
 
 DUTIES["new_business_expanding"] = Duty(
@@ -1812,8 +1816,8 @@ def _fda_first(leads: list[Lead]) -> str:
         else f"got its first {k.removeprefix('an ')} for a medical device"
 
 
-_SELL_DEVICE = ("so each can now sell that device in the us",
-                "so it can now sell that device in the us")
+_SELL_DEVICE = ("so each can start selling it and booking revenue",
+                "so it can start selling it and booking revenue")
 
 DUTIES.update({
     # Healthcare (openFDA 510(k) / De Novo): a small US applicant.
