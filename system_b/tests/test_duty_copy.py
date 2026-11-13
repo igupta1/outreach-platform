@@ -245,7 +245,7 @@ def test_a_late_filing_notice_says_which_report_and_whether_it_landed():
              lead("late_filing_notice", {"form": "NT 10-Q", "late_report_filed_on":
                                          "2026-09-02"}, name="Kinetic Group Inc")]
     assert record_opener(gift(notes), DANA)[1] == [
-        "T-Rex Acquisition (10-k, not on edgar yet)", "Kinetic Group (10-q)"]
+        "T-Rex Acquisition (10-k, not filed yet)", "Kinetic Group (10-q)"]
 
 
 def test_a_film_credit_with_no_city_prints_no_state_three_times():

@@ -254,7 +254,7 @@ def _omig_why(leads: list[Lead]) -> tuple[str, str] | None:
 def _late_filing_detail(lead: Lead) -> str:
     p = _payload(lead)
     form = str(p.get("form") or "").upper().replace("NT ", "").strip().lower()
-    still = "" if p.get("late_report_filed_on") else "not on edgar yet"
+    still = "" if p.get("late_report_filed_on") else "not filed yet"
     return ", ".join(w for w in (form, still) if w)
 
 
@@ -689,9 +689,9 @@ DUTIES: dict[str, Duty] = {
         noun=_CU, org=True, dm="with audits over two years old"),
     "rega_tier2_1k_missing": Duty(
         plural=_rega_plural, singular=_rega_one,
-        line="their latest form 1-k isn't on edgar",
+        line="behind on its yearly sec report",
         short=("without a form 1-k on edgar", "without a form 1-k on edgar"),
-        dm="with no form 1-k on edgar"),
+        dm="behind on their yearly sec reports"),
 
     # --- Public sector: schools, local governments, unions --------------------------
     "college_heightened_cash_monitoring": Duty(
