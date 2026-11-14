@@ -216,3 +216,11 @@ def test_a_night_that_stops_records_why(tmp_path, monkeypatch):
     st = nightly.read_status(home)
     assert st["state"] == "failed" and st["reason"] == "nonprofit: inventory file is not valid JSON"
     assert "next_try" in st and st["night"] == _dt.now().date().isoformat()
+
+
+def test_downloaded_people_join_the_ledger_and_drafts_never_do(tmp_path):
+    """2026-11-14, the user: the ledger holds only people actually emailed."""
+    home, ledger, downloads = _home(tmp_path, ["a@x.com", "b@x.com"], ["old@x.com"])
+    record_download(home / "sequences.review.json", ["a@x.com"])
+    assert nightly.return_undownloaded(home, ledger, downloads) == (1, 1)
+    assert _ledger(ledger) == ["old@x.com", "a@x.com"]

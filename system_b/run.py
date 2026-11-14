@@ -342,6 +342,9 @@ def main() -> None:
                     help="skip the advisory read that flags phrases which do not "
                          "sound like a person wrote them. One extra model call per "
                          "prospect; it never edits copy, only points at spans.")
+    ap.add_argument("--no-ledger-record", action="store_true",
+                    help="filter by the ledger but do not add this run's drafts to it "
+                         "(the nightly job adds them once their batch is downloaded)")
     ap.add_argument("--ignore-ledger", action="store_true",
                     help="re-sequence prospects an earlier run already covered, and "
                          "do NOT record this run. For iterating on copy against a "
@@ -576,11 +579,15 @@ def main() -> None:
         _append_not_finance(not_finance_path, not_finance, today)
         if not_finance:
             print(f"[not finance] {len(not_finance)} firm(s) dropped for good -> {not_finance_path}")
-        _append_ledger(
-            Path(args.ledger),
-            [(r.get("email") or "").strip().lower() for r in results],
-            today,
-        )
+        # 2026-11-14, the user: the ledger holds only people actually emailed.
+        # The nightly job passes --no-ledger-record and adds a batch's people
+        # once it was downloaded (nightly.record_downloaded).
+        if not args.no_ledger_record:
+            _append_ledger(
+                Path(args.ledger),
+                [(r.get("email") or "").strip().lower() for r in results],
+                today,
+            )
         # Same rule as the prospect ledger: a run that records nothing for
         # prospects (iterating on copy) holds no organizations either.
         allocations.keep_only(r.get("company") for r in results)

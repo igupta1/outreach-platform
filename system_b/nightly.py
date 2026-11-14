@@ -87,26 +87,31 @@ def downloaded_emails(home: Path, downloads: Path, since: float) -> set[str]:
 
 
 def return_undownloaded(home: Path, ledger: Path, downloads: Path) -> tuple[int, int]:
-    """(returned, kept): take the previous batch's never-downloaded prospects
-    off the ledger. Returns (0, 0) when there is no previous batch."""
+    """(returned, kept) for the previous batch. The ledger holds only people
+    actually emailed (2026-11-14, the user): the batch's DOWNLOADED people are
+    added to it here, and any never-downloaded one is taken off. Returns (0, 0)
+    when there is no previous batch."""
     batch_csv = home / "sequences.csv"
     batch = _emails(batch_csv)
     if not batch or not ledger.exists():
         return 0, 0
     sent = downloaded_emails(home, downloads, batch_csv.stat().st_mtime)
     back = batch - sent
-    if back:
-        with ledger.open(newline="", encoding="utf-8") as fh:
-            rd = csv.DictReader(fh)
-            fields = rd.fieldnames or ["email", "first_seen"]
-            rows = [r for r in rd if (r.get("email") or "").strip().lower() not in back]
-        tmp = ledger.with_suffix(".tmp")
-        with tmp.open("w", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=fields)
-            w.writeheader()
-            w.writerows(rows)
-        tmp.replace(ledger)
-    return len(back), len(batch) - len(back)
+    kept = batch & sent
+    with ledger.open(newline="", encoding="utf-8") as fh:
+        rd = csv.DictReader(fh)
+        fields = rd.fieldnames or ["email", "first_seen"]
+        rows = [r for r in rd if (r.get("email") or "").strip().lower() not in back]
+    have = {(r.get("email") or "").strip().lower() for r in rows}
+    day = datetime.fromtimestamp(batch_csv.stat().st_mtime).strftime("%Y-%m-%d")
+    rows += [{"email": e, "first_seen": day} for e in sorted(kept - have)]
+    tmp = ledger.with_suffix(".tmp")
+    with tmp.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        w.writerows(rows)
+    tmp.replace(ledger)
+    return len(back), len(kept)
 
 
 def archive_batch(home: Path) -> str | None:
@@ -266,7 +271,7 @@ def _run(a: argparse.Namespace, home: Path, started: datetime | None = None) -> 
     out = home / "sequences.csv"
     cmd = [sys.executable, "-m", "system_b.run", "--pack", "cfo", "--in", str(prospects),
            "--out", str(out), "--target", str(a.target), "--ledger", str(ledger),
-           "--allocations", str(data / "lead-allocations.csv")]
+           "--allocations", str(data / "lead-allocations.csv"), "--no-ledger-record"]
     env = {**os.environ, "LEADGEN_INVENTORY_DIR": str(morning.INVENTORY_DIR),
            "LEADGEN_BLOB_BASE_URL": ""}
     say(f"5 · generating up to {a.target}")
