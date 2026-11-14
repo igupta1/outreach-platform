@@ -8,9 +8,9 @@ finance practices sell all three, which is why the rung a firm belongs to is
 read off their WEBSITE at generation time (`research/rung.py`) instead of
 inferred from which file they arrived in.
 
-One contact per firm. A second person at the same practice is the same
-conversation, and emailing both reads as a mail-merge rather than as someone
-who looked them up.
+One row per person (2026-11-13, the user): several people at one firm may all
+be emailed; the same person twice may not. (Until then it kept one contact per
+firm, the best-titled.)
 """
 
 from __future__ import annotations
@@ -82,19 +82,18 @@ def merge(paths: list[Path]) -> tuple[list[dict], Counter]:
                     # prospects.csv) keeps it: the voice falls back on it.
                     "_source": (row.get("_source") or source).strip(),
                 }
-                held = best.get(domain)
+                # 2026-11-13, the user: "we can have multiple people per firm.
+                # We just can't have duplicates of the same people." One row
+                # per email address; the same person in several exports keeps
+                # every list it came from.
+                key = email.lower()
+                held = best.get(key)
                 if held is None:
-                    best[domain] = candidate
-                elif _rank(title) < _rank(held["Title"]):
-                    # Better-titled contact at a firm we already have. Keep the
-                    # sources joined so the review card can show that this firm
-                    # appeared in more than one export.
-                    candidate["_source"] = f"{held['_source']}+{candidate['_source']}" \
-                        if candidate["_source"] not in held["_source"] else held["_source"]
-                    best[domain] = candidate
+                    best[key] = candidate
                 elif candidate["_source"] not in held["_source"]:
                     held["_source"] = f"{held['_source']}+{candidate['_source']}"
-    stats["firms"] = len(best)
+    stats["people"] = len(best)
+    stats["firms"] = len({domain_of(r["Website"]) for r in best.values()})
     return list(best.values()), stats
 
 
@@ -176,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         w.writeheader()
         w.writerows(rows)
 
-    print(f"[merge] {stats['rows']:,} rows -> {stats['firms']:,} firms -> {a.out}")
+    print(f"[merge] {stats['rows']:,} rows -> {stats['people']:,} people at "
+          f"{stats['firms']:,} firms -> {a.out}")
     if stats["dropped_no_domain_or_email"]:
         print(f"[merge] dropped {stats['dropped_no_domain_or_email']:,} "
               "row(s) with no website or no email")
