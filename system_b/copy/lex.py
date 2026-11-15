@@ -326,6 +326,8 @@ def city_state_display(city: str | None, state: str | None) -> str:
     s = (state or "").strip().lower()
     code = s if len(s) == 2 else _STATE_ABBR.get(s, "")
     full = _STATE_FULL.get(code, "")
+    if code == "dc":                 # "washington, dc" already says it
+        return c
     return f"{c}, {full}" if full else c
 
 

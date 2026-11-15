@@ -159,10 +159,19 @@ def _person(lead: Lead) -> tuple[str, str] | None:
     name = _first_last(name)
     if len(name.split()) < 2 or name.lower() == org:
         return None
+    # A job word where the first name goes ("Placement Love", 2026-11-14).
+    if name.split()[0].lower() in _NOT_FIRST_NAMES:
+        return None
     return name, role
 
 
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
+_NOT_FIRST_NAMES = frozenset({
+    "placement", "director", "manager", "officer", "office", "admin", "administrator",
+    "executive", "president", "secretary", "treasurer", "chair", "chairman", "board",
+    "staff", "human", "resources", "contact", "department", "finance", "accounting",
+    "program", "operations", "general", "info", "member", "owner", "ceo", "cfo", "coo",
+    "vice", "assistant", "associate", "interim", "acting", "deputy", "senior", "chief"})
 _TITLES = {"mr", "mrs", "ms", "miss", "dr", "rev", "hon"}   # "Sherrilyn Ms" (2026-11-12)
 _PARTICLES = {"de", "del", "della", "da", "di", "du", "la", "le", "van", "von", "der", "st"}
 

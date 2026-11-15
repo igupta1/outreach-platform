@@ -55,6 +55,34 @@ def _lead_names(head: str) -> list[str]:
     return out
 
 
+_ROLE_THEN_NAME_RE = re.compile(
+    r"\b(?:director|ceo|coo|president|manager|officer|chair\w*|secretary|treasurer|founder|"
+    r"owner|principal|partner|member|administrator|contact)\s+([A-Z][a-z]+)\s+[A-Z]")
+
+
+def _guard_items(card: dict[str, Any], copy: str) -> list[dict[str, str]]:
+    """The 2026-11-15 read of all 200, in code: a cut-off lead name, the
+    capital as "washington", a job word as a first name, a security grant."""
+    from system_b.clients.inventory import cut_off_word, irs_cut_name
+    from system_b.copy.facts import _NOT_FIRST_NAMES
+    from system_b.copy.lex import spoken_name
+
+    items = []
+    for lead in card.get("leads") or []:
+        name = spoken_name(lead.get("company") or "")
+        if name and name in copy and (irs_cut_name(name) or cut_off_word(name)):
+            items.append(_item("fix", card, f"name looks cut off: \"{name}\": write the full name"))
+    state = (card.get("state") or "").strip().lower()
+    if state in ("dc", "district of columbia") and re.search(r"\bwashington\b(?!, dc)", copy):
+        items.append(_item("fix", card, "the firm is in DC: say \"washington, dc\""))
+    for m in _ROLE_THEN_NAME_RE.finditer(copy):
+        if m.group(1).lower() in _NOT_FIRST_NAMES:
+            items.append(_item("fix", card, f"a job word as a first name: \"{m.group(0)}...\""))
+    if "security grant" in copy.lower():
+        items.append(_item("fix", card, "a security-grant lead (held): swap it"))
+    return items
+
+
 def check_card(card: dict[str, Any], row: dict[str, str] | None = None) -> list[dict[str, str]]:
     """Every item for one prospect. `row` is its CSV row (the email as it will
     be sent); without one the card's own copy is read."""
@@ -92,6 +120,9 @@ def check_card(card: dict[str, Any], row: dict[str, str] | None = None) -> list[
         items.append(_item("look", card, "fewer than 3 leads in the gift"))
     if re.search(r"\b(?:DBA|D/B/A|DTD)\b|\bsuite \d", head + "\n" + (row.get("email_2") or card.get("email_2") or "")):
         items.append(_item("fix", card, "a DBA, trust date or suite number in the copy"))
+    items += [i for i in _guard_items(card, subject + "\n" + body)
+              if not any(i["what"].split(":")[0] == x["what"].split(":")[0] and
+                         i["what"].split('"')[1:2] == x["what"].split('"')[1:2] for x in items)]
     for flag in card.get("flags") or []:
         if flag.startswith("name cut off by the source"):
             items.append(_item("fix", card, flag.split(" — ")[0] + ": write the full name"))

@@ -37,6 +37,7 @@ import httpx
 
 from system_b import config
 from system_b.clients.people import looks_like_person
+from system_b.places import dc_city
 from system_b.clients.scraper_client import SnapshotScraper
 from system_b.copy.names import front_the
 from system_b.models import Lead, Signal
@@ -420,12 +421,21 @@ _WHOLE_WORDS = frozenset({
 # or on a stray letter, is treated as cut off: ranked last and flagged.
 # 2026-11-06: "The Alabama Coalition Against" (the IRS's 35 characters).
 _NEVER_LAST = frozenset({"of", "for", "and", "&", "greater", "against", "to", "with", "from",
-                         "into", "toward", "towards", "between", "among", "domestic"})
+                         "into", "toward", "towards", "between", "among", "domestic",
+                         # 2026-11-14: a name does not end on these ("Public
+                         # Health Institute of Metropolitan", "... for Missing")
+                         "metropolitan", "northern", "southern", "eastern", "western",
+                         "minority", "missing", "exploited", "clean", "lesbian"})
 _USUALLY_CONTINUES = frozenset({
     "community", "health", "development", "educational", "housing", "family",
     "families", "american", "national", "area", "child", "children", "early",
     "regional", "economic", "human", "public", "mental", "senior", "youth",
     "affordable", "rural", "urban"})
+
+
+_DESCRIBES = frozenset({"family", "families", "american", "national", "regional", "economic",
+                        "human", "public", "mental", "affordable", "rural", "urban", "early",
+                        "educational"})
 
 
 def irs_cut_name(name: str, raw_length: int | None = None) -> str | None:
@@ -447,6 +457,14 @@ def irs_cut_name(name: str, raw_length: int | None = None) -> str | None:
         return None
     if last in _NEVER_LAST or (last == "the" and words[-2].lower() in _NEVER_LAST):
         return words[-1]
+    # "Connecticut Council Of Family": a describing word right after "of" /
+    # "and" is cut whatever the length (2026-11-14: the 990 splits a name
+    # across two lines anywhere, not only at its 35-character limit).
+    if last in _DESCRIBES and words[-2].lower() in {"of", "for", "and", "&"}:
+        return words[-1]
+    # "... Neighborhood Center Pro": "program" cut to its first letters.
+    if last == "pro" and len(words) >= 4:
+        return words[-1]
     # "Sneed, Vine & Perry, A Professional" (Corporation cut off), 2026-11-13.
     if re.search(r"\ba professional$", (name or "").strip(), re.I):
         return words[-1]
@@ -457,13 +475,13 @@ def irs_cut_name(name: str, raw_length: int | None = None) -> str | None:
     return None
 
 
-def _clean_city(city: str | None) -> str | None:
+def _clean_city(city: str | None, state: str | None = None) -> str | None:
     """"suite 906 los angeles" -> "los angeles": an address line in the city
-    field reached an email (2026-11-04)."""
+    field reached an email (2026-11-04). The capital is "Washington, DC"."""
     if not city:
         return city
-    return re.sub(r"^(?:suite|ste\.?|unit|apt\.?|#)\s*[\w-]+\s+", "", city.strip(),
-                  flags=re.IGNORECASE) or city
+    return dc_city(re.sub(r"^(?:suite|ste\.?|unit|apt\.?|#)\s*[\w-]+\s+", "", city.strip(),
+                  flags=re.IGNORECASE) or city, state)
 
 
 def cut_off_word(name: str) -> str | None:
@@ -797,7 +815,7 @@ def adapt_leadgen_lead(row: dict[str, Any], *, today: date) -> Lead:
             len((row.get("name") or "").strip())
             if str(row.get("signal_type") or "").startswith("nonprofit") else None),
         domain=row.get("domain"),
-        city=_clean_city(row.get("city")),
+        city=_clean_city(row.get("city"), row.get("state")),
         state=row.get("state"),
         industry=industry,
         niche=niche,
@@ -1279,7 +1297,7 @@ def _property_location(row: dict[str, Any], lead: Lead) -> None:
     states = {st for _, st in cities}
     if len(cities) == 1:
         city, st = next(iter(cities))
-        lead.city, lead.state = _clean_city(city.title()) if city else None, st or None
+        lead.city, lead.state = _clean_city(city.title(), st) if city else None, st or None
     elif len(states) == 1:
         lead.city, lead.state = None, next(iter(states)) or None
     else:
@@ -1569,6 +1587,36 @@ def _load_one(name: str, key: str, today: date) -> list[dict[str, Any]]:
     return list(data.get("leads") or [])
 
 
+def _name_key(name: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).split())
+
+
+def _complete_names(rows: list[dict[str, Any]]) -> int:
+    """One organization's fullest name across every magnet (2026-11-14): the
+    990 cut "National Association Of Clean" where the audit file has "...
+    Clean Air Agencies". Same EIN only, never a name match, and only a name
+    that EXTENDS the cut one. Rewrites `name` in place; returns how many."""
+    names: dict[str, set[str]] = {}
+    for row in rows:
+        eid = _entity_id(row)
+        if eid and eid.startswith("ein:") and row.get("name"):
+            names.setdefault(eid, set()).add(" ".join(str(row["name"]).split()))
+    fixed = 0
+    for row in rows:
+        eid = _entity_id(row)
+        if not eid or len(names.get(eid, ())) < 2:
+            continue
+        own = _name_key(row.get("name") or "")
+        longer = [n for n in names[eid]
+                  if len(_name_key(n)) > len(own) and _name_key(n).startswith(own + " ")]
+        if own and longer:
+            row["name"] = max(longer, key=lambda n: len(_name_key(n)))
+            fixed += 1
+    if fixed:
+        log.info("inventory: completed %d cut-off name(s) from the same EIN", fixed)
+    return fixed
+
+
 def snapshot_all_magnets(today: date | None = None) -> SnapshotScraper:
     """Every vertical magnet in ONE addressable snapshot.
 
@@ -1593,6 +1641,7 @@ def snapshot_all_magnets(today: date | None = None) -> SnapshotScraper:
             "Run `cd ~/Developer/Inventory && .venv/bin/python -m leadinv.run publish` and "
             "point LEADGEN_INVENTORY_DIR at Inventory/exports/magnets."
         )
+    _complete_names(rows)
     leads = _adapt_rows(rows, today=today)
     log.info("inventory(magnets): %d lead(s) — %s", len(leads), per_magnet)
     return SnapshotScraper(leads, taxonomy=load_taxonomy())

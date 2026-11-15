@@ -402,8 +402,16 @@ def giftable_type(st: str, rank: dict[str, int] | None = None) -> bool:
             or st.startswith(_LEGACY_PREFIXES))
 
 
+# Approved and published, but never put in an email (2026-11-15, the user):
+# FEMA security grants go mostly to congregations and show no finance need
+# ("Church of Scientology Celebrity Centre Nashville").
+NEVER_GIFTED = frozenset({"nsgp_security_grant_subaward"})
+
+
 def giftable(lead: Lead, rank: dict[str, int] | None = None) -> bool:
     st = lead.signal_type or ""
+    if st in NEVER_GIFTED:
+        return False
     ok = giftable_type(st, rank)
     if not ok and st not in _SKIPPED_TYPES:
         _SKIPPED_TYPES.add(st)

@@ -31,6 +31,7 @@ from system_b.gift.fit import claim_check, fit_check
 from system_b.gift.models import Gift, Prospect
 from system_b.models import Lead
 from system_b.niches.base import NichePack, default_pack
+from system_b.places import dc_city
 from system_b.research.models import ResearchResult
 from system_b.research.rung import detect_cpa
 
@@ -49,7 +50,7 @@ class _Scraper:  # structural: anything with .leads(**params)
 def _base_prospect(row: dict[str, Any], research: ResearchResult, **kw: Any) -> Prospect:
     return Prospect(
         firm_name=row["firm_name"],
-        city=row.get("city"),
+        city=dc_city(row.get("city"), row.get("state")),
         state=row.get("state"),
         niche_phrase=research.niche_phrase,
         niche_source=research.niche_source or "site",
