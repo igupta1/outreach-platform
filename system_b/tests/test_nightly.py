@@ -224,3 +224,20 @@ def test_downloaded_people_join_the_ledger_and_drafts_never_do(tmp_path):
     record_download(home / "sequences.review.json", ["a@x.com"])
     assert nightly.return_undownloaded(home, ledger, downloads) == (1, 1)
     assert _ledger(ledger) == ["old@x.com", "a@x.com"]
+
+
+def test_a_never_downloaded_firm_gives_its_lead_holds_back(tmp_path):
+    """Its holds from that day go; a sent firm's, and older ones, stay."""
+    home, ledger, downloads = _home(tmp_path, [], [])
+    _write_csv(home / "sequences.csv", [{"email": "a@x.com", "company": "Acme CPA"},
+                                        {"email": "b@y.com", "company": "Beta Books"}])
+    day = _dt.fromtimestamp((home / "sequences.csv").stat().st_mtime).strftime("%Y-%m-%d")
+    alloc = ledger.parent / "lead-allocations.csv"
+    _write_csv(alloc, [
+        {"lead": "ein:1", "region": "ca", "firm": "acme cpa", "allocated_on": day},
+        {"lead": "ein:2", "region": "ca", "firm": "acme cpa", "allocated_on": "2026-10-01"},
+        {"lead": "ein:3", "region": "ca", "firm": "beta books", "allocated_on": day}])
+    record_download(home / "sequences.review.json", ["b@y.com"])
+    assert nightly.return_undownloaded(home, ledger, downloads) == (1, 1)
+    with alloc.open(newline="") as fh:
+        assert [r["lead"] for r in csv.DictReader(fh)] == ["ein:2", "ein:3"]

@@ -111,7 +111,37 @@ def return_undownloaded(home: Path, ledger: Path, downloads: Path) -> tuple[int,
         w.writeheader()
         w.writerows(rows)
     tmp.replace(ledger)
+    _release_holds(ledger.parent / "lead-allocations.csv", batch_csv, back, kept, day)
     return len(back), len(kept)
+
+
+def _release_holds(path: Path, batch_csv: Path, back: set[str], kept: set[str],
+                   day: str) -> None:
+    """A never-downloaded firm's lead holds from that batch's day are dropped
+    too (2026-11-14): a hold means "this firm already got it", and it did not.
+    A firm with any downloaded person keeps them."""
+    from system_b.gift.allocation import _firm
+
+    if not back or not path.exists():
+        return
+    with batch_csv.open(newline="", encoding="utf-8-sig") as fh:
+        firms: dict[str, set[str]] = {}
+        for r in csv.DictReader(fh):
+            firms.setdefault(_firm(r.get("company")), set()).add(
+                (r.get("email") or "").strip().lower())
+    drop = {f for f, people in firms.items() if f and people & back and not people & kept}
+    if not drop:
+        return
+    with path.open(newline="", encoding="utf-8") as fh:
+        rd = csv.DictReader(fh)
+        fields = rd.fieldnames or ["lead", "region", "firm", "allocated_on"]
+        rows = [r for r in rd if not (r.get("firm") in drop and r.get("allocated_on") == day)]
+    tmp = path.with_suffix(".tmp")
+    with tmp.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        w.writerows(rows)
+    tmp.replace(path)
 
 
 def archive_batch(home: Path) -> str | None:
