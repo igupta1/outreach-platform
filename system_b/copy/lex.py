@@ -177,6 +177,32 @@ _LEGAL_SUFFIX_RE = re.compile(
 # International SC" is South Carolina, and stays).
 _CODE_RE = re.compile(r"\s*\((?=[a-z0-9]*\d)[a-z]{2,6}\d{1,5}\)", re.I)
 _CARE_OF_RE = re.compile(r"\s+c/o\b.*$", re.I)
+# "Inc A FL Cor", "Inc., a Florida Corporation": the registry's state-of-
+# incorporation note, not the name (2026-11-14).
+def _incorporated_in_re() -> re.Pattern:
+    """Built once, after `_STATE_FULL`: only a real state code or name."""
+    global _INCORPORATED_IN
+    if _INCORPORATED_IN is None:
+        states = "|".join(sorted({*_STATE_FULL, *_STATE_FULL.values()}, key=len, reverse=True))
+        _INCORPORATED_IN = re.compile(
+            r",?\s+an?\s+(?:" + states + r")\s+(?:(?:non-?profit|not-for-profit)\s+)?"
+            r"cor\w*\.?\s*$", re.I)
+    return _INCORPORATED_IN
+
+
+_INCORPORATED_IN: re.Pattern | None = None
+
+
+def _undoubled(name: str) -> str:
+    """"Homeward Bound USA Homeward Bound Adirondacks" -> "Homeward Bound
+    Adirondacks": a registry that wrote a parent name before the org's own
+    (2026-11-14). Only when the first two words come back with 3+ words left."""
+    words = name.split()
+    head = [w.lower() for w in words[:2]]
+    for i in range(2, len(words) - 2):
+        if [w.lower() for w in words[i:i + 2]] == head:
+            return " ".join(words[i:])
+    return name
 _DOTTED_FORM_RE = re.compile(r",\s*(?:p\.\s?a|p\.\s?c|s\.\s?c|l\.\s?l\.\s?l\.\s?p|lllp)\.?\s*$",
                              re.IGNORECASE)
 _CORP_RE = re.compile(r"[,\s]+(?:corp|corporation)\.?\s*$", re.IGNORECASE)
@@ -193,6 +219,7 @@ def spoken_name(name: str | None) -> str:
     # "Warc LLC C/O Informa").
     full = _CODE_RE.sub("", full)
     full = _CARE_OF_RE.sub("", full).strip()
+    full = _undoubled(_incorporated_in_re().sub("", full).strip())
     stripped = _DOTTED_FORM_RE.sub("", full).strip()
     before = stripped
     stripped = _LEGAL_SUFFIX_RE.sub("", stripped).strip().rstrip(",")
@@ -288,16 +315,18 @@ _STATE_ABBR: dict[str, str] = {}   # filled below _STATE_FULL's definition
 
 
 def city_state_display(city: str | None, state: str | None) -> str:
-    """"sioux city, IA": where a lead is when the email names no place for all
-    of them (2026-10-30). The state is the postal code, upper case, so "or"
-    and "me" never read as words. "" without a city; the state alone without
-    a known code."""
+    """"sioux city, iowa": where a lead is when the email names no place for
+    all of them (2026-10-30). The state is spelled out, lower case like the
+    rest of the line (2026-11-14: "las vegas, NV" was the one capitalized
+    word; the postal code had kept "or" and "me" from reading as words). ""
+    without a city; the city alone without a known state."""
     c = city_display(city)
     if not c:
         return ""
     s = (state or "").strip().lower()
     code = s if len(s) == 2 else _STATE_ABBR.get(s, "")
-    return f"{c}, {code.upper()}" if code else c
+    full = _STATE_FULL.get(code, "")
+    return f"{c}, {full}" if full else c
 
 
 _STATE_ABBR.update({full: code for code, full in _STATE_FULL.items()})

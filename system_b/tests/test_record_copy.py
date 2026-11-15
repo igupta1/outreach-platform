@@ -213,7 +213,8 @@ def test_email_2_names_the_place_only_when_it_matches_the_prospect():
 def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():
     """The old subject, "with no finance officer, from their 990s", was the
     removed Row 4 claim, and 3 of 24 charities under it listed an officer. A
-    gift of audit findings says so; a mix (a late filing) stays neutral."""
+    gift of audit findings says so, and so does a mix with a late filing
+    (2026-11-14: "from public records" said nothing)."""
     np = "nonprofit_grant_no_finance_officer"
     findings = [lead(np, {"fac_material_weakness": True}, name="A"),
                 lead(np, {"fac_program_control_finding": True}, name="B")]
@@ -228,7 +229,7 @@ def test_nonprofit_subjects_and_dms_say_what_the_audit_shows():
             for text in _sequence_text(gift, pack_key):
                 assert "finance officer" not in text and "990" not in text, text
         subject = _sequence_text(_gift(mixed), pack_key)[0]
-        assert subject.endswith("from public records"), subject
+        assert subject.endswith("with audit problems"), subject
 
 
 NPS = "nonprofit_grant_no_finance_officer"
@@ -301,3 +302,27 @@ def test_short_subjects_fit_a_phone():
     one = _gift([charities[0]])
     one.geo_level = "state"
     assert short_subject(one, atl) == "a georgia nonprofit with audit problems"
+
+
+def test_different_audit_problems_share_one_plain_sentence():
+    """2026-11-14: flagged controls, a late filing and an overdue audit opened
+    "here are 3 in tampa from public records:". Now one sentence says what
+    they share and each line says its own problem."""
+    from system_b.copy.email import record_opener
+    leads = [lead(NPS, {"fac_material_weakness": True}, name="A"),
+             lead(NPS, {"fac_late": True, "fac_days_late": 90}, name="B"),
+             lead(NPS, {"fac_overdue": True}, name="C")]
+    framing, lines = record_opener(_gift(leads), PROSPECT, today=TODAY)
+    assert "from public records" not in framing
+    assert framing.endswith("had problems with their federal audits, "
+                            "so each must get its audits back on track:")
+    assert lines[0].startswith("A: auditors flagged their financial controls")
+    assert lines[1].startswith("B: filed their federal audit 3 months late")
+    assert lines[2].startswith("C: their next federal audit isn't on file")
+
+
+def test_a_kind_detail_is_one_detail():
+    """"grant handling, two years in a row" read as two of a line's two."""
+    from system_b.copy.email import _record_detail
+    one = lead(NPS, {"fac_program_control_finding": True, "fac_program_repeat": True})
+    assert "," not in _record_detail(one, "audit_mixed")

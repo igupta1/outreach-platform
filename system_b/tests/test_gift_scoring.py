@@ -176,7 +176,7 @@ def test_a_gift_from_the_bordering_states_names_no_place_of_theirs():
                           include_signoff=False)
     text = (email.subject + " " + email.body).lower()
     assert "lincoln" not in text and "nebraska" not in text and "based in" not in text
-    assert "sioux city, IA" in email.body                      # each lead says where it is
+    assert "sioux city, iowa" in email.body                      # each lead says where it is
 
 
 def test_the_own_state_fills_before_any_bordering_one():
@@ -210,8 +210,8 @@ def test_rotation_never_reorders_job_posts():
 
 def test_city_state_display():
     from system_b.copy.lex import city_state_display
-    assert city_state_display("Portland", "Oregon") == "portland, OR"
-    assert city_state_display("Bangor", "me") == "bangor, ME"
+    assert city_state_display("Portland", "Oregon") == "portland, oregon"
+    assert city_state_display("Bangor", "me") == "bangor, maine"
     assert city_state_display("Toronto", "Ontario") == "toronto"
     assert city_state_display(None, "TX") == ""
 
@@ -233,3 +233,19 @@ def test_near_ties_rotate_within_a_band_and_never_past_one(monkeypatch):
     exact = {build_gift(Prospect(firm_name=f, city="Houston", state="TX"), s).leads[2].company
              for f in firms}
     assert exact <= {"Charity 4", "Charity 9"}
+
+
+def test_a_registry_name_loses_its_incorporation_note_and_doubled_parent():
+    from system_b.copy.lex import spoken_name
+    assert spoken_name("Evangeline Booth Residence Inc A FL Cor") == "Evangeline Booth Residence"
+    assert spoken_name("Acme Inc., a Florida Corporation") == "Acme"
+    assert spoken_name("Jobs for a Future Corp") == "Jobs for a Future"
+    assert spoken_name("Homeward Bound USA Homeward Bound Adirondacks") == \
+        "Homeward Bound Adirondacks"
+    assert spoken_name("New York City Foundation") == "New York City Foundation"
+
+
+def test_roles_print_the_short_form_people_say():
+    from system_b.copy.facts import role_word
+    assert role_word("Chief Executive Officer") == "ceo"
+    assert role_word("Interim Executive Director") == "executive director"

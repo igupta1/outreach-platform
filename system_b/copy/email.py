@@ -500,6 +500,14 @@ _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     "audit_mixed": (("had problems flagged in their federal audits",
                      "had problems flagged in its federal audit"),
                     _AUDIT_WHY),
+    # 2026-11-14: leads with DIFFERENT federal audit problems (flagged
+    # controls, filed late, next one not on file) printed "here are 3 in
+    # austin from public records", which said nothing. Each line still says
+    # its own problem.
+    "audit_trouble": (("had problems with their federal audits",
+                       "had a problem with its federal audit"),
+                      ("so each must get its audits back on track",
+                       "so it must get its audits back on track")),
     DAVIS_BACON_SIGNAL: (("won federal construction jobs",
                           "won a federal construction job"),
                          ("so each must file payroll reports every week",
@@ -541,6 +549,27 @@ def _audit_facts(lead: Lead) -> tuple[str, bool] | None:
     return None
 
 
+_AUDIT_TROUBLE_TYPES = frozenset({"nonprofit_single_audit_late",
+                                  "nonprofit_questioned_costs",
+                                  "nonprofit_single_audit_not_done"})
+
+
+def _audit_trouble(lead: Lead) -> bool:
+    """A problem with the lead's own federal audit: flagged by the auditor,
+    filed late, or the next one not on file."""
+    if lead.signal_type in _AUDIT_TROUBLE_TYPES:
+        return True
+    if lead.signal_type != NONPROFIT_SIGNAL:
+        return False
+    phrase = magnet_phrase(lead)
+    return phrase.startswith(("auditors flagged", "filed their federal audit")) \
+        or phrase == "their next federal audit isn't on file"
+
+
+def _mixed(leads) -> str:
+    return "audit_trouble" if all(_audit_trouble(ld) for ld in leads) else "mixed"
+
+
 def _record_kind(gift: Gift) -> str | None:
     """The fact every lead shares, "mixed" when they share none, or None when a
     lead is outside the record family (legacy path)."""
@@ -551,12 +580,12 @@ def _record_kind(gift: Gift) -> str | None:
     if len(kinds) > 1:
         # "that need finance help" is not what a fund's Form ADV says: a fund
         # mixed with other kinds keeps the legacy path (its own phrase per lead).
-        return None if FUNDS_SIGNAL in kinds else "mixed"
+        return None if FUNDS_SIGNAL in kinds else _mixed(leads)
     kind = next(iter(kinds))
     if kind == NONPROFIT_SIGNAL:
         facts = [_audit_facts(ld) for ld in leads]
         if any(f is None for f in facts):
-            return "mixed"
+            return _mixed(leads)
         found = {f[0] for f in facts}
         return {"controls": "audit_controls", "grants": "audit_grants"}.get(
             next(iter(found)), "audit_mixed") if len(found) == 1 else "audit_mixed"
@@ -576,9 +605,11 @@ def _record_detail(lead: Lead, kind: str) -> str:
         bits = []
         if kind == "audit_mixed":
             bits.append("financial controls" if what == "controls" else "grant handling")
+        # One detail, so no comma (2026-11-14: "grant handling, two years in
+        # a row" filled both of a line's two places).
         if repeat:
             bits.append("two years in a row")
-        return ", ".join(bits)
+        return " ".join(bits)
     # One plain fact per lead (2026-11-06): "hourly" and "more than one" were
     # contract jargon beside the dollar figure, which says more.
     if kind == DAVIS_BACON_SIGNAL:
@@ -760,7 +791,7 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
         # (with `today`, email 1) a recent date and the person the record
         # names (2026-11-11). The LinkedIn note passes no `today`: 300 chars.
         fact = record_fact(lead, with_contact=today is None)
-        if kind == "mixed":
+        if kind in ("mixed", "audit_trouble"):
             phrase = magnet_phrase(lead)
             fact = _unrepeated(fact, phrase) if fact else ""
             detail = _two_details(fact, "", lead, today)

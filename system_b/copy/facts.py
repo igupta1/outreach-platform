@@ -48,7 +48,10 @@ _ROLES = (
 _ROLE_RES = [(re.compile(rf"^(?:{pat})$", re.I), word) for pat, word in _ROLES]
 _ROLE_WORDS = {"mgr": "manager", "ambr": "authorized member", "mbr": "member",
                "mgrm": "managing member", "administrator": "administrator",
-               "vp": "vice president"}
+               "vp": "vice president",
+               # 2026-11-14: the short form people say (emails ran 107 words).
+               "chief executive officer": "ceo", "chief operating officer": "coo",
+               "interim executive director": "executive director"}
 # A lead whose named contact is its own CFO reads as one that already has
 # finance help (2026-11-05): never printed.
 _FINANCE_ROLE_RE = re.compile(r"\b(?:cfo|controller|treasurer|finance|financial|accounting)\b", re.I)

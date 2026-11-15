@@ -242,12 +242,14 @@ _FINANCE_PACK_KEYS = frozenset({"cfo", "accounting", "bookkeeping", "finance"})
 
 def short_subject(gift: Gift, prospect: Prospect) -> str | None:
     """The phone-length subject for a record gift, or None (keep the pack's)."""
-    from system_b.copy.email import _RECORD_FAMILY
+    from system_b.copy.email import _RECORD_FAMILY, _record_kind
 
     if not gift.leads or any(ld.signal_type not in _RECORD_FAMILY for ld in gift.leads):
         return None
     kind = gift.what_category
-    if kind not in _SHORT_WHAT:
+    if _record_kind(gift) == "audit_trouble":
+        kind = "nonprofit_audit"     # different audit problems (2026-11-14)
+    elif kind not in _SHORT_WHAT:
         kind = "public_record"
     n = gift.gift_size
     if kind in _CONTRACTOR_KINDS:

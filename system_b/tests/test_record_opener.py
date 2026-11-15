@@ -94,7 +94,7 @@ def test_place_is_named_only_when_every_lead_is_there():
     assert framing2 == ("these 2 nonprofits got a federal grant for the first time in years, "
                         "so each must track and report every dollar:")
     # With no shared place each line carries its state (2026-10-30).
-    assert lines2 == ["A, arlington, WA", "B, arlington, TX"]
+    assert lines2 == ["A, arlington, washington", "B, arlington, texas"]
 
 
 def test_licenses_and_registrations_say_why_plainly():

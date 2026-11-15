@@ -246,8 +246,10 @@ def _new_medicare(lead: Lead) -> str:
 
 def _omig_why(leads: list[Lead]) -> tuple[str, str] | None:
     if leads and all(_payload(ld).get("amount") for ld in leads):
-        return ("and each report says money is owed back",
-                "and the report says money is owed back")
+        # 2026-11-14: "pay money back, and each report says money is owed
+        # back" said it twice.
+        return ("so each has a repayment to plan for",
+                "so it has a repayment to plan for")
     return None
 
 
@@ -322,8 +324,15 @@ def _water_one(lead: Lead) -> str:
     return f"doesn't have {'a ' + y if y else 'its latest'} annual report posted by the state utilities commission yet"
 
 
+# The Education Dept's HCM reasons in plain words (2026-11-14: "(financial
+# responsibility)" read as jargon). Any other reason prints nothing.
+_HCM_REASONS = (("financial responsibility", "failed federal finance standards"),
+                ("audit late or missing", "audit late or missing"))
+
+
 def _hcm_reason(lead: Lead) -> str:
-    return str(_payload(lead).get("reason") or "").strip().lower()
+    raw = str(_payload(lead).get("reason") or "").strip().lower()
+    return next((plain for key, plain in _HCM_REASONS if key in raw), "")
 
 
 # What the leads ARE, when it is not "companies" / "nonprofits".

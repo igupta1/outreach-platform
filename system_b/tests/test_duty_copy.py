@@ -233,8 +233,8 @@ def test_a_medicaid_audit_says_money_is_owed_only_when_every_report_does():
     owed = [lead("ny_omig_final_audit", {"amount": 1139.46}, name=n, industry="healthcare")
             for n in ("Promesa", "Pioneer Homecare Inc")]
     assert record_opener(gift(owed), DANA)[0].endswith(
-        "were told by a state medicaid audit to pay money back, and each report says money is "
-        "owed back:")
+        "were told by a state medicaid audit to pay money back, so each has a repayment to "
+        "plan for:")
     unread = [owed[0], lead("ny_omig_final_audit", {}, name="TCPRNC", industry="healthcare")]
     assert record_opener(gift(unread), DANA)[0].endswith(
         "were told by a state medicaid audit to pay money back:")
@@ -433,3 +433,13 @@ def test_an_expanding_business_says_where_it_registered_and_what_it_is():
     assert d.detail_for(ld("DE", "LLC")) == "a delaware llc"
     assert d.detail_for(ld("AZ", "corporation")) == "an arizona corporation"
     assert d.detail_for(ld("DE", "partnership")) == ""
+
+
+def test_a_school_on_hcm_says_why_in_plain_words():
+    from system_b.copy.duty import _hcm_reason
+    hcm = "college_heightened_cash_monitoring"
+    assert _hcm_reason(lead(hcm, {"reason": "Financial Responsibility"})) == \
+        "failed federal finance standards"
+    assert _hcm_reason(lead(hcm, {"reason": "Compliance Audit Late or Missing"})) == \
+        "audit late or missing"
+    assert _hcm_reason(lead(hcm, {"reason": "Administrative Capability"})) == ""
