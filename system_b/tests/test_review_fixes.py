@@ -47,7 +47,7 @@ def test_email_two_follows_email_ones_kind_before_any_nearby_lead():
 
     drafts, _, leads = _followup_drafts(houston, gift, sc, pack_for("accounting"), TODAY)
     assert leads[0].company == "Dallas Charity"
-    assert drafts[0].body.startswith("one more in texas: Dallas Charity in dallas had weak")
+    assert drafts[0].body.startswith("one more in texas: Dallas Charity had weak")
 
     # With no lead of that kind anywhere, a nearby lead still beats no email 2.
     sc = SnapshotScraper([*charities, builder], taxonomy={})

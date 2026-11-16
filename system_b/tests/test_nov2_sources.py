@@ -138,14 +138,14 @@ def test_a_restaurants_takeover_opener_prints_no_business_noun():
     ca = Prospect(firm_name="X", city="San Francisco", state="CA", first_name="Al")
     text = opener(leads, ca)
     assert text.splitlines()[0].endswith(
-        "these 3 in san francisco just changed owners, so each is starting fresh books:")
-    assert "Numb Restaurant (was Himalayan Hub, Inc.)" in text and "\nCasito" in text
+        "these 3 in san francisco changed owners, so each is starting fresh books:")
+    assert "Numb Restaurant (was Himalayan Hub)" in text and "\nCasito" in text
     assert bare_gift(leads)
     # A restaurant specialist's niche word is not printed either.
     niched = Prospect(firm_name="X", city="San Francisco", state="CA", first_name="Al",
                       classification="niched", match_param=("niche", "restaurant"))
     text = opener(leads, niched, all_niche=True)
-    assert "these 3 in san francisco just changed owners" in text and "restaurants" not in \
+    assert "these 3 in san francisco changed owners" in text and "restaurants" not in \
         text.splitlines()[0].replace("work with restaurants", "")
 
 
@@ -196,7 +196,7 @@ def test_a_late_registration_says_how_many_months_late():
              for n, m in (("Sa Products", 9), ("Carrovino", 14), ("Nirvana E Commerce", 22))]
     text = opener(leads)
     assert text.splitlines()[0].endswith(
-        "these 3 online sellers in houston signed up for texas sales tax months late, "
+        "these 3 online sellers in houston signed up for texas sales tax late, "
         "so each has past returns to catch up on:")
     assert "Sa Products (9 months late)" in text
 
@@ -374,6 +374,6 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
 def test_a_new_medicare_enrollment_keeps_its_clause():
     ls = [lead("new_practice_medicare_enrollment", n, {"provider_type": "behavioral"})
           for n in ("A Pllc", "B Pllc", "C Pllc")]
-    assert ("these 3 behavioral health practices in houston just enrolled in medicare as new "
+    assert ("these 3 behavioral health practices in houston enrolled in medicare as new "
             "groups, so each needs its billing and books set up:") in \
         opener(ls)

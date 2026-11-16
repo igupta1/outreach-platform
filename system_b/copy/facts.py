@@ -150,6 +150,19 @@ def _person(lead: Lead) -> tuple[str, str] | None:
         return None
     if name.isupper() or name.islower():
         name = name.title()
+    # Word by word too (2026-11-15: "david SCHETSELAAR", "Michael Mccready"),
+    # and a credential where the surname goes is no surname ("Renae M.D.").
+    words = []
+    for w in name.split():
+        if len(w) > 1 and (w.isupper() or w.islower()) and "." not in w \
+                and w.lower() not in _PARTICLES:
+            w = w.capitalize()
+        if re.match(r"^Mc[a-z]", w):
+            w = "Mc" + w[2:].capitalize()
+        words.append(w)
+    while words and re.sub(r"[^a-z]", "", words[-1].lower()) in _CREDENTIALS:
+        words.pop()
+    name = " ".join(words).rstrip(",")
     # "plan administrator" comes from a Form 5500: beside an SBA loan it reads
     # as the wrong person (2026-11-13). Only on a benefit-plan lead.
     if role == "plan administrator" and not (lead.signal_type or "").startswith(
@@ -166,6 +179,8 @@ def _person(lead: Lead) -> tuple[str, str] | None:
 
 
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
+_CREDENTIALS = {"md", "do", "dds", "dmd", "np", "phd", "cpa", "esq", "rn", "pa", "lcsw", "dc",
+                "od", "dvm", "pharmd", "facs", "mba"}
 _NOT_FIRST_NAMES = frozenset({
     "placement", "director", "manager", "officer", "office", "admin", "administrator",
     "executive", "president", "secretary", "treasurer", "chair", "chairman", "board",
@@ -248,6 +263,10 @@ def fresh_date(lead: Lead, today: date) -> str:
 def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     p = _payload(lead)
     award = money(p.get("award_amount"))
+    # Several awards: their total, as the plural "won federal jobs" says
+    # (2026-11-15: "won federal construction jobs ($168k)" was one of two).
+    if award and int(p.get("awards_in_window") or 1) > 1 and p.get("total_in_window"):
+        award = money(p.get("total_in_window")) or award
     if award:
         # 2026-11-12: the figure alone; the agency ("va") was a third detail.
         return award
@@ -260,13 +279,20 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     if grant:
         return f"{grant} grant"
     if (lead.signal_type or "") == "plan_late_contributions":
-        late = money(p.get("amount"))
+        # The largest of the sponsor's plans, not whichever came last
+        # (2026-11-15: "$10k" where the record's headline said $106,645).
+        amounts = [s.payload.get("amount") for s in lead.signals or []
+                   if s.type == "plan_late_contributions" and s.payload.get("amount")]
+        late = money(max(amounts) if amounts else p.get("amount"))
         if late:
             return f"{late} in late contributions"
     revenue = money(p.get("total_revenue"))
     if revenue and (lead.signal_type or "").startswith("nonprofit"):
         return f"{revenue} in revenue"
-    n = p.get("participants_eoy")
+    # Participants WITH account balances: what the audit rule counts and what
+    # the record's own sentence says (2026-11-15: "398 in the plan" beside a
+    # record saying 136).
+    n = p.get("account_balances_eoy") or p.get("participants_eoy")
     if (lead.signal_type or "").startswith(("plan_", "welfare_")) and isinstance(n, (int, float)) \
             and not isinstance(n, bool) and n > 0:
         return f"{int(n)} in the plan"
@@ -290,6 +316,10 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
         label = str(p.get("license_label") or "")
         if re.search(r"eating place|restaurant", label, re.I):
             return "restaurant license"
+        # Florida's 4COP covers "liquor, beer and wine" (2026-11-15: called
+        # beer and wine on ~40 emails).
+        if re.search(r"liquor|spirits|^4cop", label, re.I):
+            return "liquor license"
         if re.search(r"beer and wine|wine and malt|beer & wine", label, re.I):
             return "beer and wine license"
     if t in ("tx_new_sales_tax_permit", "tx_late_sales_tax_registration", "new_business_expanding"):

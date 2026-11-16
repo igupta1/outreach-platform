@@ -66,7 +66,7 @@ NICHE_DISPLAY: dict[str, str] = {
     "medical_devices": "medical device", "digital_health": "digital health", "senior_care": "senior care",
     "law_firm": "legal", "accounting_bookkeeping": "accounting",
     "marketing_creative_agency": "creative agency", "consulting": "consulting",
-    "staffing_hr": "staffing", "it_msp": "it services", "architecture_engineering": "architecture & engineering",
+    "staffing_hr": "staffing", "it_msp": "IT services", "architecture_engineering": "architecture & engineering",
     "industrial_mfg": "industrial", "consumer_goods_mfg": "consumer goods",
     "food_manufacturing": "food manufacturing", "aerospace_defense": "aerospace & defense",
     "electronics_mfg": "electronics", "chemicals_materials": "chemicals",
@@ -227,7 +227,47 @@ def spoken_name(name: str | None) -> str:
         stripped = _LEGAL_SUFFIX_RE.sub("", _CORP_RE.sub("", before).strip()).strip() + \
             " " + _CORP_RE.search(before).group(0).strip(" ,").rstrip(".")
         stripped = stripped.strip()
-    return stripped or (name or "")
+    return _readable(stripped) or stripped or (name or "")
+
+
+# 2026-11-15, reading the 1,200 batch: registry leftovers that read as broken.
+_MORE_TAIL_RE = re.compile(
+    r"(?:,\s*(?:pl|ps|pa|p\s?c|gbc)\.?|\s+(?:apc|ps|fs)|,?\s+an?\s+professional"
+    r"(?:\s+\w+)?(?:\s+(?:association|corporation|corp\w*))?|,?\s+professional\s+association)\s*$",
+    re.I)
+_PAREN_STATE_RE = re.compile(r"\s*\([A-Z]{2}\)")
+_UNIT_RE = re.compile(r"\s+(?:ste|suite|location)\s*#?\s*\d+\b.*$", re.I)
+_ACRONYMS = frozenset({"NAACP", "UNICEF", "ASPCA", "YMCA", "YWCA", "AMVETS", "NASCAR"})
+
+
+def _readable(name: str) -> str:
+    out = _PAREN_STATE_RE.sub("", name)
+    out = _UNIT_RE.sub("", out)
+    for _ in range(2):
+        out = _MORE_TAIL_RE.sub("", out).strip().rstrip(",")
+    # "Bristol Hospice - Michigan", "Shikun & Binui - America": a state tail.
+    m = re.search(r"\s+-\s+([a-z .]+)$", out, re.I)
+    if m and (m.group(1).strip().lower() in _STATE_FULL.values() or
+              m.group(1).strip().lower() == "america"):
+        out = out[:m.start()]
+    # "Grace House of Memphis Tennessee": a state name glued on the end.
+    words = out.split()
+    for n in (2, 1):
+        if len(words) > n + 2 and " ".join(words[-n:]).lower() in _STATE_FULL.values() \
+                and words[-n - 1].lower() not in ("of", "in", "and", "&"):
+            words = words[:-n]
+            break
+    fixed = []
+    for w in words:
+        core = w.rstrip(".,")
+        if core.isalpha() and core.isupper() and len(core) >= 5 and core not in _ACRONYMS \
+                and set(core.lower()) & _VOWELS:
+            w = w.capitalize()
+        elif w == "ST.":
+            w = "St."
+        fixed.append(w)
+    out = re.sub(r"\bMC ([A-Z][a-z]+)", r"Mc\1", " ".join(fixed))
+    return out.strip()
 
 
 _STATE_FULL: dict[str, str] = {

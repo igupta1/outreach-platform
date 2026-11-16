@@ -241,7 +241,7 @@ def _new_medicare(lead: Lead) -> str:
     """Email 2: "newly enrolled in medicare as a hospice" (every kind here
     takes "a")."""
     kind = _provider_kind(lead)
-    return f"just enrolled in medicare as a {kind}" if kind else "just enrolled in medicare"
+    return f"enrolled in medicare as a {kind}" if kind else "enrolled in medicare"
 
 
 def _omig_why(leads: list[Lead]) -> tuple[str, str] | None:
@@ -1157,15 +1157,21 @@ def _was(lead: Lead) -> str:
     looks like one is left out here too)."""
     prior = _payload(lead).get("prior_licensee") or {}
     name = prior.get("trade_name") or prior.get("dba") or prior.get("legal_name") or ""
-    name = _title_if_shouted(" ".join(str(name).split()))
+    # One name, no legal tail (2026-11-15: "was Boka, Sushi Nonaka", "was
+    # Snack Company Bedford Llc").
+    name = str(name).split(",")[0] if "," in str(name) and not re.search(
+        r",\s*(?:llc|inc|corp|ltd|co)\.?\s*$", str(name), re.I) else str(name)
+    name = re.sub(r"[,\s]+(?:llc|l\.l\.c\.|inc|corp|corporation|ltd|co)\.?\s*$", "", name,
+                  flags=re.I)
+    name = _title_if_shouted(" ".join(name.split()))
     if not name or looks_like_person(name):
         return ""
     return f"was {name}"
 
 
 _NEW_OWNER = Duty(
-    plural="just changed owners",
-    singular="just changed owners",
+    plural="changed owners",
+    singular="changed owners",
     why=("so each is starting fresh books", "so it is starting fresh books"),
     detail=_was,
     line="new owner, liquor license in its name",
@@ -1255,8 +1261,8 @@ def _brewer_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "tx_late_sales_tax_registration": Duty(
-        plural="signed up for texas sales tax months late",
-        singular="signed up for texas sales tax months late",
+        plural="signed up for texas sales tax late",
+        singular="signed up for texas sales tax late",
         why=("so each has past returns to catch up on", "so it has past returns to catch up on"),
         detail=_tx_late_months,
         line="got a sales tax permit months late",
@@ -1471,13 +1477,13 @@ DUTIES.update({
         short=("with new club licenses", "with a new club license"),
         noun=_FITNESS, dm="just getting connecticut health club licenses"),
     "tx_cacfp_new_sponsor": Duty(    # 7 CFR 226.10(c)-(d), 226.15(e)
-        plural="were just approved to run the federal child care food program",
-        singular="was just approved to run the federal child care food program",
+        plural="were approved to run the federal child care food program",
+        singular="was approved to run the federal child care food program",
         why=("so each now files monthly meal reimbursement claims",
              "so it now files monthly meal reimbursement claims"),
         line="new federal child care food program sponsor",
         short=("approved for the food program", "approved for the food program"),
-        noun=_SPONSOR, dm="just approved for the federal child care food program"),
+        noun=_SPONSOR, dm="approved for the federal child care food program"),
     "va_hoa_new_registration": Duty( # Va. Code 55.1-1835; 18VAC48-60-15
         plural="just registered with virginia's common interest community board",
         singular="just registered with virginia's common interest community board",
@@ -1953,10 +1959,10 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'govcon_first_sbir_phase2': ('won their first large federal research awards', 'won its first large federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'nsgp_security_grant_subaward': ('got federal security grants', 'got a federal security grant', 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'plan_termination_pending': ('are closing a benefit plan', 'is closing a benefit plan', 'so each must file its final plan paperwork', 'so it must file its final plan paperwork'),
-    'medicare_new_part_a_provider': ('just enrolled in medicare', 'just enrolled in medicare', 'so each must file a yearly medicare cost report', 'so it must file a yearly medicare cost report'),
+    'medicare_new_part_a_provider': ('enrolled in medicare', 'enrolled in medicare', 'so each must file a yearly medicare cost report', 'so it must file a yearly medicare cost report'),
     'nonprofit_single_audit_not_done': ('skipped a federal audit they were required to get', 'skipped a federal audit it was required to get', 'so each still needs one done', 'so it still needs one done'),
-    'tx_health_spa_new': ('just registered as new gyms in texas', 'just registered as a new gym in texas', 'so each is setting up its books', 'so it is setting up its books'),
-    'fl_health_studio_new': ('just registered as new gyms in florida', 'just registered as a new gym in florida', 'so each must renew yearly and may need a bond', 'so it must renew yearly and may need a bond'),
+    'tx_health_spa_new': ('registered as new gyms', 'registered as a new gym', 'so each is setting up its books', 'so it is setting up its books'),
+    'fl_health_studio_new': ('registered as new gyms', 'registered as a new gym', 'so each must renew yearly and may need a bond', 'so it must renew yearly and may need a bond'),
     'ct_health_club_new': ('just got gym licenses in connecticut', 'just got a gym license in connecticut', 'so each renews yearly and pays into a state fund', 'so it renews yearly and pays into a state fund'),
     'nonprofit_excess_benefit': ('reported on their 990s that an insider was overpaid', 'reported on its 990 that an insider was overpaid', 'so each must correct it with the irs', 'so it must correct it with the irs'),
     'construction_first_prevailing_wage_intent': ('started their first government jobs', 'started its first government job', "so each must report its workers' pay to the state", "so it must report its workers' pay to the state"),
@@ -1970,12 +1976,12 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_asset_diversion': ('reported on their 990s that money or assets went missing', 'reported on its 990 that money or assets went missing', 'so each needs tighter money controls', 'so it needs tighter money controls'),
     'church_990t_first': ('filed their first tax return for side business income', 'filed its first tax return for side business income', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
     'church_990t_no_preparer': ('filed side-income tax returns with no accountant', 'filed a side-income tax return with no accountant', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
-    'new_practice_medicare_enrollment': ('just enrolled in medicare as new groups', 'just enrolled in medicare as a new group', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'new_practice_medicare_enrollment': ('enrolled in medicare as new groups', 'enrolled in medicare as a new group', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
     'ttb_new_winery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
     'ttb_new_distillery_permit': (None, None, 'so each now files federal alcohol tax returns', 'so it now files federal alcohol tax returns'),
     'nonprofit_state_audit_line_no_audit': ('earn enough that their state requires an audit, but reported none', 'earns enough that its state requires an audit, but reported none', '', ''),
     'local_gov_financial_report_late': ('are late on a yearly financial report their state requires', 'is late on a yearly financial report its state requires', 'so each needs the next one on time', 'so it needs the next one on time'),
-    'nonprofit_new_501c3': ('were just approved as nonprofits by the irs', 'was just approved as a nonprofit by the irs', 'so each must file a tax return every year', 'so it must file a tax return every year'),
+    'nonprofit_new_501c3': ('were approved as nonprofits by the irs', 'was approved as a nonprofit by the irs', 'so each must file a tax return every year', 'so it must file a tax return every year'),
     'construction_large_permit': (None, None, 'so each has a big project to track', 'so it has a big project to track'),
     'franchise_tax_forfeited': ('lost the right to do business in texas over unpaid franchise tax', 'lost the right to do business in texas over unpaid franchise tax', 'so each must catch up its filings', 'so it must catch up its filings'),
     'charter_forfeited_for_tax': ('had their texas charters taken away over franchise tax', 'had its texas charter taken away over franchise tax', 'so each must catch up its filings', 'so it must catch up its filings'),
@@ -1989,7 +1995,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'union_funds_shortage': ('reported missing or lost funds to the labor department', 'reported missing or lost funds to the labor department', 'so each needs tighter money controls', 'so it needs tighter money controls'),
     'pension_unpaid_min_contribution': ('fell short on required payments into their pension plans', 'fell short on required payments into its pension plan', 'so each must catch up', 'so it must catch up'),
     'nonprofit_ubi_no_990t': ("earned business income but didn't file the tax return for it", "earned business income but didn't file the tax return for it", 'so each must catch up with the irs', 'so it must catch up with the irs'),
-    'startup_first_form_d': ('just started raising money from investors', 'just started raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
+    'startup_first_form_d': ('started raising money from investors', 'started raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
     'startup_new_form_d': ('just started a new round of raising money from investors', 'just started a new round of raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
     'proprietary_90_10_near_limit': ('get nearly all their revenue from federal student aid', 'gets nearly all its revenue from federal student aid', 'and two years over the limit ends that aid', 'and two years over the limit ends that aid'),
     'construction_fl_stop_work_order': ("were ordered by the state to stop work over workers' comp", "was ordered by the state to stop work over workers' comp", 'and none shows as lifted yet', "and it doesn't show as lifted yet"),

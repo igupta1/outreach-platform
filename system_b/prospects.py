@@ -45,7 +45,27 @@ _ROLE_INBOXES = frozenset({
     "taxes", "accounting", "bookkeeping", "books", "mail", "inquiries", "inquiry",
     "enquiries", "sales", "service", "services", "help", "billing", "frontdesk",
     "reception", "general", "cpa", "staff", "clients", "client", "payroll", "finance",
+    # 2026-11-15 review of the 1,200 batch
+    "marketing", "clarity", "grow", "growth", "cfo", "bookkeeper", "accounts", "ar", "ap",
+    "hr", "careers", "jobs", "media", "press", "partners", "connect", "welcome", "start",
 })
+_NICKNAMES = {
+    "michael": {"mike"}, "robert": {"bob", "rob", "bobby"}, "william": {"bill", "will"},
+    "lawrence": {"larry"}, "laurence": {"larry"}, "jessica": {"jessie", "jess"},
+    "gabriel": {"gabe"}, "andrew": {"andy", "drew"}, "david": {"dave"},
+    "stephen": {"steve"}, "steven": {"steve"}, "thomas": {"tom"}, "james": {"jim", "jamie"},
+    "aleksandr": {"alex"}, "alexander": {"alex"}, "rachel": {"rae"}, "alfredo": {"alfred"},
+    "richard": {"rick", "rich"}, "joseph": {"joe"}, "daniel": {"dan", "danny"},
+    "christopher": {"chris"}, "matthew": {"matt"}, "nicholas": {"nick"},
+    "jennifer": {"jen", "jenn"}, "katherine": {"kate", "katie"}, "kathryn": {"kate", "katie"},
+    "elizabeth": {"liz", "beth"}, "patricia": {"pat", "patty"}, "samuel": {"sam"},
+    "benjamin": {"ben"}, "anthony": {"tony"}, "edward": {"ed", "eddie"}, "timothy": {"tim"},
+    "gregory": {"greg"}, "jonathan": {"jon"}, "kenneth": {"ken"}, "ronald": {"ron"},
+    "donald": {"don"}, "charles": {"chuck", "charlie"}, "jeffrey": {"jeff"},
+    "zachary": {"zach"}, "douglas": {"doug"}, "frederick": {"fred"}, "victoria": {"vicki"},
+}
+# A numbered role box ("lead2@", "sales1@").
+_ROLE_NUMBERED_RE = re.compile(r"^(?:lead|sales|info|office|team|admin|support)\d+$")
 
 
 def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
@@ -58,9 +78,16 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     # No shared inboxes (tax@, info@): the user's rule, and nobody reads them
     # as a person (2026-11-15: two tax@ inboxes reached a batch).
     local = email.split("@", 1)[0].lower()
-    if local in _ROLE_INBOXES:
+    if local in _ROLE_INBOXES or _ROLE_NUMBERED_RE.match(local):
         return None
     first = _clean(record.get("First Name")) or None
+    # Stray punctuation ("Jeorgia'", 2026-11-15).
+    if first:
+        first = first.strip(" '\".,;:-`") or None
+    # The name the person signs with, when the address shows it: "mike@" for
+    # Michael, "larry@" for Lawrence (2026-11-15).
+    if first and local in _NICKNAMES.get(first.lower(), ()):
+        first = local.capitalize()
     # A first name that is one letter ("J", "P") would open "hey j,"
     # (2026-11-15). The address's own name stands in when it is a plain word
     # that is not the surname ("michale@" for J. Michale Haubert); otherwise

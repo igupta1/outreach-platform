@@ -7,6 +7,8 @@ level. `an` before a vowel sound (4c only — plural WHOs take no article).
 
 from __future__ import annotations
 
+import re
+
 from system_b.copy.duty import DUTIES, all_organizations, bare_gift, shared_noun
 from system_b.copy.lex import (
     apply_article,
@@ -269,9 +271,29 @@ def short_subject(gift: Gift, prospect: Prospect) -> str | None:
         where = f"in {place}" if place else ("business" if n == 1 else "businesses")
         count = " ".join(w for w in ("one" if n == 1 else str(n), where) if w)
         return f"{count} {what}".lower()
-    head = " ".join(w for w in (place, noun) if w)
+    # The noun's own word again in the duty reads padded (2026-11-15: "3
+    # cannabis businesses with new cannabis licenses"): the plain noun instead.
+    if any(len(w) >= 4 and w.rstrip('s') != 'fund' and re.search(rf"\b{re.escape(w.rstrip('s'))}", what.lower())
+           for w in noun.lower().split()):
+        noun = "business" if n == 1 else "businesses"
+    # A place that reads as a word ("the woodlands", "humble") goes after the
+    # noun: "3 companies in the woodlands" (2026-11-15).
+    if place and (place.lower().startswith("the ") or place.lower() in _WORDLIKE_PLACES):
+        head, tail = noun, f" in {place}"
+    else:
+        head, tail = " ".join(w for w in (place, noun) if w), ""
     count = apply_article(f"a {head}") if n == 1 else f"{n} {head}"
-    return f"{count} {what}".lower()
+    return _it(f"{count}{tail} {what}".lower())
+
+
+_WORDLIKE_PLACES = frozenset({
+    "humble", "friendly", "normal", "liberal", "independence", "commerce", "industry",
+    "enterprise", "union", "mission", "progress", "opportunity", "paradise", "pleasant",
+    "nice", "bonanza", "eclectic", "sublime", "deal", "fairplay", "plain"})
+
+
+def _it(text: str) -> str:
+    return re.sub(r"\bit services\b", "IT services", text)
 
 
 def build_subject(gift: Gift, prospect: Prospect, *, pack: object | None = None) -> str:

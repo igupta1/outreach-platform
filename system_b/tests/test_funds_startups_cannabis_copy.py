@@ -85,13 +85,13 @@ def test_startups_raise_opener_names_no_dollars_and_says_startups_only_when_all_
                                                "total_amount_sold": 14031768})
              for n in ("Bevel, Inc.", "Payloop, Inc.", "Sky Analytica Corp")]
     text = body(gift(young))
-    assert ("these 3 tech startups in austin just started raising money from investors, "
+    assert ("these 3 tech startups in austin started raising money from investors, "
             "so each has a new raise to book:") in text
     assert "$" not in text and not re.search(r"\b20\d\d\b", text.split(":")[0])
     assert "round" not in text and "first funding" not in text
     mixed = young[:2] + [lead("startup_first_form_d", "Old Co Inc.",
                               {"incorporated_within_five_years": False})]
-    assert "these 3 tech companies in austin just started raising money" in body(gift(mixed))
+    assert "these 3 tech companies in austin started raising money" in body(gift(mixed))
     new = [lead("startup_new_form_d", n, {"incorporated_within_five_years": True})
            for n in ("Clasp, Inc.", "Valoros, Inc.", "UrgentIQ Inc.")]
     assert ("these 3 tech startups in austin just started a new round of raising money "

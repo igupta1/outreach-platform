@@ -474,10 +474,14 @@ def main() -> None:
     # then walked in FILE order, so the batch is the one a serial run drafts.
     alloc_lock = threading.Lock()
 
-    def _draft(p: dict) -> tuple[dict, dict | None, Exception | None]:
+    def _draft(p: dict, colleagues: set | None = None) -> tuple[dict, dict | None, Exception | None]:
         firm = p.get("firm_name", "?")
         with alloc_lock:
             held = allocations.blocked(firm, p.get("state"), own=own_holdings)
+        # A colleague's leads too, even location-only ones held only at fill
+        # time (2026-11-15: two people at one firm got the same email).
+        if colleagues:
+            held = set(held) | colleagues
         p = {**p, "blocked_identities": held}
         try:
             res = with_retry(lambda: generate_sequence(
@@ -496,8 +500,12 @@ def main() -> None:
     drafted: list[tuple[dict, dict | None, Exception | None] | None] = [None] * len(prospects)
 
     def _draft_group(idx: list[int]) -> None:
+        used: set = set()
         for i in idx:
-            drafted[i] = _draft(prospects[i])
+            drafted[i] = _draft(prospects[i], used)
+            res = drafted[i][1]
+            if res and res.get("status") == "ok":
+                used |= set(res.get("lead_identities") or [])
 
     workers = max(1, args.workers)
     print(f"[run] reading {len(prospects)} firm(s), {workers} at a time")

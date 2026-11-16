@@ -91,6 +91,6 @@ def test_loader_marks_recency():
     old.signals[0].date = "2026-01-02"
     _mark_sba_recency(new, TODAY)
     _mark_sba_recency(old, TODAY)
-    assert SBA_RECENT_DAYS == 120
+    assert SBA_RECENT_DAYS == 90
     assert new.signals[0].payload["approved_recently"] is True
     assert old.signals[0].payload["approved_recently"] is False

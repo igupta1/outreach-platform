@@ -786,6 +786,11 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
         loc = "" if level == "city" or (level == "state" and not city_display(lead.city)) \
             else city_display(lead.city) if level == "state" \
             else (city_state_display(lead.city, lead.state) or state_display(lead.state))
+        # A name that already says its city: "Paris Baguette El Paso", not
+        # "..., el paso" too (2026-11-15).
+        if loc and city_display(lead.city) and city_display(lead.city).lower() in said.lower() \
+                and level == "state":
+            loc = ""
         name = f"{said}, {loc}" if loc else said
         # One fact from the lead's own record (copy.facts, 2026-11-05), then
         # (with `today`, email 1) a recent date and the person the record
@@ -1573,13 +1578,20 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     # "one more" only for one more of the same kind; another kind (a late
     # deposit after three hud owners) is "also" (2026-11-06).
     more = "one more" if gift_signals is None or lead.signal_type in gift_signals else "also"
+    # No place twice: "one more in new york: Tennr in new york", "Grace House
+    # of Memphis in memphis" (2026-11-15).
+    shown_city = lead_city
+    if lead_city and (lead_city == state or lead_city.lower() in name.lower()):
+        shown_city = None
     if city and lead_city == city and lead_state and lead_state == state:
         first = f"{more} in {city}: {name} {said}."
     elif state and lead_state == state:
-        at = f" in {lead_city}" if lead_city else ""
+        at = f" in {shown_city}" if shown_city else ""
         first = f"{more} in {state}: {name}{at} {said}."
     else:
-        at = f" in {lead_city or lead_state}" if (lead_city or lead_state) else ""
+        where = shown_city or (lead_state if lead_state and lead_state.lower()
+                               not in name.lower() else None)
+        at = f" in {where}" if where else ""
         first = f"{more}: {name}{at} {said}."
     return f"{first}\n\n{_followup_ask(prospect, pack, vary_key, ask_state, question)}"
 

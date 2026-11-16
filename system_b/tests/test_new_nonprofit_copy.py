@@ -66,11 +66,11 @@ def test_both_types_are_live_and_ranked_below_every_duty():
 def test_new_501c3_renders_exactly():
     g = gift([lead("nonprofit_new_501c3", n) for n in NAMES])
     framing, lines = record_opener(g, DANA)
-    assert framing == ("these 3 nonprofits in denver were just approved as nonprofits by the "
+    assert framing == ("these 3 nonprofits in denver were approved as nonprofits by the "
                        "irs, so each must file a tax return every year:")
     assert lines == list(NAMES)
     one, _ = record_opener(gift([lead("nonprofit_new_501c3", NAMES[0])]), DANA)
-    assert one.endswith("this nonprofit in denver was just approved as a nonprofit by the irs, "
+    assert one.endswith("this nonprofit in denver was approved as a nonprofit by the irs, "
                         "so it must file a tax return every year:")
     assert short_subject(g, DANA) == "3 denver nonprofits newly approved by the irs"
 

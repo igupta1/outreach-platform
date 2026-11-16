@@ -203,11 +203,11 @@ def test_a_new_medicare_provider_names_its_kind():
                    city="Beaumont", state="TX", industry="healthcare")
               for k, n in zip(kinds, ("Help Hospice Llc", "Rhema Home Health Inc"))])
     framing, lines = record_opener(g, tx)
-    assert framing == ("these 2 providers in beaumont just "
+    assert framing == ("these 2 providers in beaumont "
                        "enrolled in medicare, so each must file a yearly medicare cost report:")
     assert lines == ["Help Hospice (hospice)", "Rhema Home Health (home health agency)"]
     e2 = build_followup_email(g.leads[0], tx, step=2, today=TODAY, pack=pack_for("cfo"))
-    assert e2.body.startswith("one more in beaumont: Help Hospice just enrolled in "
+    assert e2.body.startswith("one more in beaumont: Help Hospice enrolled in "
                               "medicare as a hospice.")
 
 

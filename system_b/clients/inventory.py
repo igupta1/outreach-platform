@@ -1177,9 +1177,9 @@ _BIG_AGENTS_RE = re.compile(r"\b(?:c ?t corporation|corporation service company|
 # university: no small firm's client (2026-11-05). Credit unions stay (their
 # audits are CPA work).
 _ADDRESS_NAME_RE = re.compile(
-    r"^\d+\s+(?:[nsew]\.?\s+)?\w+(?:\s+\w+)?\s+(?:st|street|ave|avenue|rd|road|blvd|"
-    r"boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway|hwy|highway|broadway)\b\.?$",
-    re.I)
+    r"^\d+[\d-]*\s+(?:[nsew]\.?\s+)?\w+(?:\s+\w+)?\s+(?:st|street|ave|avenue|rd|road|blvd|"
+    r"boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway|hwy|highway|broadway)\b"
+    r"|^(?:ste|suite|unit)\s*#?\d+", re.I)
 _BIG_INSTITUTION_RE = re.compile(
     r"(?<!food )(?<!blood )(?<!diaper )(?<!clothing )(?<!toy )(?<!book )(?<!milk )"
     r"\b\w*bank\b|\bbancorp\b|\bbancshares\b|\buniversity\b", re.I)
@@ -1189,7 +1189,7 @@ _COMPETITORS = frozenset({"cpa_firm_license_delinquent", "cpa_firm_license_expir
 MAX_EVENT_AGE_DAYS = 365
 # An SBA loan approved within this many days may be called "just" approved
 # (`copy.duty._sba_recent`); older ones read "in the past year" (2026-11-15).
-SBA_RECENT_DAYS = 120
+SBA_RECENT_DAYS = 90
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
 MAX_NONPROFIT_REVENUE = 10_000_000
@@ -1224,6 +1224,18 @@ _VEHICLE_RE = re.compile(
 _NUMBER_NAME_RE = re.compile(r"^\d[\d\s,.-]*$|^\d+\s+[a-z]+(?:\s+[a-z]+)?$")
 _YEAR_NAME_RE = re.compile(r"\s(?:19|20)\d\d$")
 _ACCOUNTING_NAME_RE = re.compile(r"\b(?:cpas?|accounting|accountants?|bookkeeping|bookkeepers?)\b")
+
+
+_COMPETITOR_RE = re.compile(
+    r"\b(?:cpas?|accounting|accountants?|bookkeeping|bookkeepers?|payroll|"
+    r"tax (?:services?|solutions|advisors?|preparation|prep))\b")
+_VEHICLE_ANY_RE = re.compile(
+    r"\b(?:spv|spe|reo|assetco|propco|holdco|lihtc|ldha|housing development fund|"
+    r"limited dividend housing association|apartments(?: \w+){0,2} owner|owner \d+|"
+    r"family trust)\b|\bowner$|\bgp$|\boperator$|\bmf [ivx]+$")
+_GOVERNMENT_RE = re.compile(
+    r"\b(?:authority|indian nation|tribe|tribal|workforce development board|"
+    r"housing agency|public housing|county health)\b")
 
 
 def norm_company(name: str | None) -> str:
@@ -1318,6 +1330,37 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
             return why
         if t.startswith("new_business_") and looks_like_person(row.get("name") or lead.company):
             return "person_name"
+    # 2026-11-15, reading every email of the 1,200 batch:
+    from system_b.gift.engine import norm_state
+    if t == "new_business_expanding" and lead.state and pay.get("state") and \
+            norm_state(str(lead.state)) == norm_state(str(pay.get("state"))):
+        return "not_expanding"          # a Denver company registering in Colorado
+    if t.startswith("liquor_license_new_owner"):
+        prior = pay.get("prior_licensee") or {}
+        try:
+            gap = (date.fromisoformat(str(pay.get("issue_date"))[:10])
+                   - date.fromisoformat(str(prior.get("expired"))[:10])).days
+        except ValueError:
+            gap = None
+        if gap is not None and gap > 120:
+            return "not_a_sale"         # a new tenant months after the last one closed
+    if pay.get("late_report_filed_on"):
+        return "already_filed"          # "will be late" after the report was filed
+    if str(pay.get("naics") or "").startswith("5511"):
+        return "holding_or_hotel"       # management of companies: a holding company
+    if not pay.get("cik") and norm_company(lead.company) in _public_names():
+        return "public_company"
+    lc = (lead.company or "").lower()
+    if _COMPETITOR_RE.search(lc):
+        return "competitor"
+    if _VEHICLE_ANY_RE.search(lc):
+        return "holding_or_hotel"
+    if _GOVERNMENT_RE.search(lc) and not t.startswith(
+            ("local_gov", "union_", "college_", "charter_", "wi_choice", "proprietary_")):
+        return "government"             # a county health authority, a tribal nation
+    if t in ("sam_new_entity_registration",) or t.startswith(("tx_", "sbir_")):
+        if looks_like_person(row.get("name") or lead.company):
+            return "person_name"
     # A reviewer's list of organizations never to gift, any type
     # (data/never-gift.txt, one name per line).
     if norm_company(lead.company) in _never_gift():
@@ -1356,6 +1399,21 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     if (lead.signal_type or "") == "nonprofit_first_990" and pay.get("paid_preparer_listed") is not False:
         return "has_a_preparer"
     return None
+
+
+def _condo_location(lead: Lead) -> None:
+    """A Florida condo association's record carries the MANAGER's address; the
+    condo is where its project is (2026-11-15: Naples condos printed as orlando)."""
+    if lead.signal_type != "fl_condo_new_association":
+        return
+    cities = set()
+    for s in lead.signals or []:
+        for pr in (s.payload or {}).get("projects") or []:
+            m = re.search(r",\s*([^,]+),\s*FL\b", str((pr or {}).get("location") or ""), re.I)
+            if m:
+                cities.add(m.group(1).strip().title())
+    lead.city = _clean_city(next(iter(cities)), "FL") if len(cities) == 1 else None
+    lead.state = "FL"
 
 
 def _property_location(row: dict[str, Any], lead: Lead) -> None:
@@ -1411,6 +1469,7 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
             expired += 1
             continue
         _property_location(row, lead)
+        _condo_location(lead)
         reason = _unusable_reason(row, lead) or _not_a_buyer(row, lead, today)
         if reason is not None:
             unusable[reason.split("=")[0]] += 1
