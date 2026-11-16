@@ -210,6 +210,8 @@ call before generating. Both land in the status line with what to do. The
 gate now starts even with no batch on disk, so it can say "Not ready".
 `nightly.sh` is one `{ }` block so an edit mid-run cannot break the run.
 
+Speed (2026-11-15, the user: "speed it up without sacrificing quality"): `run.py --workers N` (default 8) reads N firms at once, a firm's contacts together on one worker, results walked in file order (a 40-firm serial vs parallel run matched field for field); the snapshot normalizes each lead's city/state once and groups by state (`SnapshotScraper._rows`), ~60% of CPU before. The research cache now flushes every 25 reads, so a stopped run keeps them. 40 firms: 4:07 -> 1:08.
+
 `ops/com.outreach.review.plist` keeps the gate served on
 http://127.0.0.1:8000 (KeepAlive; it re-reads the file on every request).
 Install both with `ops/install-nightly.sh`. The Mac must be awake at 02:00

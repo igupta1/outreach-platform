@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import re
 from pathlib import Path
 from typing import Callable, Iterable
@@ -179,6 +180,9 @@ class NameFixer:
     def __init__(self, fix: FixFn | None = openai_fix, cache_path: Path | None = DEFAULT_CACHE):
         self._fix = fix
         self._path = cache_path
+        # run.py drafts several firms at once (2026-11-15): the cache, the
+        # origin map and the file are guarded; model calls run outside it.
+        self._lock = threading.RLock()
         self._cache: dict[str, dict[str, str]] = {}
         if cache_path and cache_path.exists():
             try:
@@ -203,7 +207,8 @@ class NameFixer:
             e = self._cache.get(n)
             return e is None or (e.get("status") == "unchanged"
                                  and e.get("v", 1) < PROMPT_VERSION)
-        todo = list(dict.fromkeys(n for n in names if n and stale(n)))
+        with self._lock:
+            todo = list(dict.fromkeys(n for n in names if n and stale(n)))
         if not todo or self._fix is None:
             return
         for start in range(0, len(todo), _CHUNK):
@@ -214,32 +219,39 @@ class NameFixer:
                 log.warning("name fixer failed — keeping %d names as written", len(chunk),
                             exc_info=True)
                 continue
-            for name in chunk:
-                out = (answers.get(name) or "").strip()
-                if not out or out == name:
-                    self._cache[name] = {"out": name, "status": "unchanged",
-                                         "v": PROMPT_VERSION}
-                elif same_name(name, out):
-                    self._cache[name] = {"out": out, "status": "fixed"}
-                    self._cache.setdefault(out, {"out": out, "status": "unchanged",
-                                                 "v": PROMPT_VERSION})
-                    self._origin[out] = name
-                else:
-                    self._cache[name] = {"out": name, "status": "rejected", "proposed": out}
+            with self._lock:
+                self._record(chunk, answers)
         self.save()
+
+    def _record(self, chunk: list[str], answers: dict[str, str]) -> None:
+        for name in chunk:
+            out = (answers.get(name) or "").strip()
+            if not out or out == name:
+                self._cache[name] = {"out": name, "status": "unchanged",
+                                     "v": PROMPT_VERSION}
+            elif same_name(name, out):
+                self._cache[name] = {"out": out, "status": "fixed"}
+                self._cache.setdefault(out, {"out": out, "status": "unchanged",
+                                             "v": PROMPT_VERSION})
+                self._origin[out] = name
+            else:
+                self._cache[name] = {"out": name, "status": "rejected", "proposed": out}
 
     def tidy(self, leads: Iterable) -> list[str]:
         """Rename these leads in place (one model call for any not cached) and
         return the review-card notes for them."""
         live = [ld for ld in leads if ld is not None and getattr(ld, "company", None)]
-        self.prime(self._origin.get(ld.company, ld.company) for ld in live)
+        with self._lock:
+            originals = [self._origin.get(ld.company, ld.company) for ld in live]
+        self.prime(originals)
         notes: list[str] = []
-        for ld in live:
-            original = self._origin.get(ld.company, ld.company)
-            ld.company = front_the((self._cache.get(original) or {}).get("out") or original)
-            note = self.note(original)
-            if note and note not in notes:
-                notes.append(note)
+        with self._lock:
+            for ld in live:
+                original = self._origin.get(ld.company, ld.company)
+                ld.company = front_the((self._cache.get(original) or {}).get("out") or original)
+                note = self.note(original)
+                if note and note not in notes:
+                    notes.append(note)
         return notes
 
     def __call__(self, name: str) -> str:
@@ -267,6 +279,7 @@ class NameFixer:
             return
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(json.dumps(self._cache, indent=1, sort_keys=True))
+            with self._lock:
+                self._path.write_text(json.dumps(self._cache, indent=1, sort_keys=True))
         except OSError:
             log.warning("could not write the name cache", exc_info=True)

@@ -13,6 +13,7 @@ read fresh. A site that could not be fetched is never kept.
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import asdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -26,6 +27,11 @@ CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "research-cache.json
 CACHE_DAYS = 30
 CACHE_VERSION = "2026-11-13b"   # + dominant
 _cache: dict | None = None
+# run.py drafts several firms at once (2026-11-15): one lock for the dict and the
+# file, and a flush every FLUSH_EVERY results so a stopped run keeps its reads.
+_lock = threading.RLock()
+_unsaved = 0
+FLUSH_EVERY = 25
 
 
 def _key(website: str) -> str:
@@ -34,6 +40,11 @@ def _key(website: str) -> str:
 
 
 def _load() -> dict:
+    with _lock:
+        return _load_locked()
+
+
+def _load_locked() -> dict:
     global _cache
     if _cache is None:
         try:
@@ -67,12 +78,25 @@ def cached(website: str, today: date | None = None) -> ResearchResult | None:
 
 
 def keep(website: str, result: ResearchResult, today: date | None = None) -> None:
-    _load()[_key(website)] = {"on": (today or date.today()).isoformat(), "result": asdict(result)}
+    global _unsaved
+    with _lock:
+        _load()[_key(website)] = {"on": (today or date.today()).isoformat(),
+                                  "result": asdict(result)}
+        _unsaved += 1
+        if _unsaved >= FLUSH_EVERY:
+            flush()
 
 
 def flush() -> None:
-    if _cache is None:
-        return
+    global _unsaved
+    with _lock:
+        if _cache is None:
+            return
+        _unsaved = 0
+        _flush_locked()
+
+
+def _flush_locked() -> None:
     try:
         with CACHE_PATH.open("w", encoding="utf-8") as fh:   # in place: may be a symlink
             json.dump(_cache, fh)

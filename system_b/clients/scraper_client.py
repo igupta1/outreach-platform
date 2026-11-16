@@ -14,6 +14,7 @@ we still forward it so it works the day System A adds the field.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -182,6 +183,25 @@ class SnapshotScraper:
     def __init__(self, leads: list[Lead], taxonomy: dict[str, list[str]]) -> None:
         self._all = leads
         self._taxonomy = taxonomy
+        # 2026-11-15: every query re-normalized every lead's city and state
+        # (67M regex calls for 10 firms, ~60% of a run). They are normalized
+        # once, on the first query, and grouped by state in `_all` order, so
+        # a query returns the same leads in the same order as before.
+        self._index: tuple[list, dict[str, list]] | None = None
+        self._index_lock = threading.Lock()
+
+    def _rows(self) -> tuple[list, dict[str, list]]:
+        """[(lead, state, city)] in `_all` order, and the same grouped by state."""
+        if self._index is None:
+            from system_b.gift.engine import norm_loc, norm_state
+            with self._index_lock:
+                if self._index is None:
+                    rows = [(ld, norm_state(ld.state), norm_loc(ld.city)) for ld in self._all]
+                    by_state: dict[str, list] = {}
+                    for row in rows:
+                        by_state.setdefault(row[1], []).append(row)
+                    self._index = (rows, by_state)
+        return self._index
 
     @classmethod
     def fetch(cls, base_url: str | None = None, *, limit: int = 100_000, **client_kw: Any) -> "SnapshotScraper":
@@ -228,16 +248,18 @@ class SnapshotScraper:
 
         excluded = {str(x) for x in (exclude_ids or []) if x}
         out: list[Lead] = []
-        for lead in self._all:
+        rows, by_state = self._rows()
+        want_city = norm_loc(city) if city else None
+        if state:
+            rows = by_state.get(norm_state(state), [])
+        for lead, _lead_state, lead_city in rows:
             if lead.id in excluded:
                 continue
             if industry and lead.industry != industry:
                 continue
             if niche and lead.niche != niche:
                 continue
-            if city and norm_loc(lead.city) != norm_loc(city):
-                continue
-            if state and norm_state(lead.state) != norm_state(state):
+            if city and lead_city != want_city:
                 continue
             if signal_type and lead.signal_type != signal_type:
                 continue

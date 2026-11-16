@@ -16,14 +16,23 @@ just means asking the model again.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 PATH = Path(__file__).resolve().parents[1] / "data" / "model-cache.json"
 _mem: dict[str, bool] | None = None
 _dirty = 0
+# run.py drafts several firms at once (2026-11-15): one lock for the dict and the file.
+_lock = threading.RLock()
 
 
 def _load() -> dict[str, bool]:
+    global _mem
+    with _lock:
+        return _load_locked()
+
+
+def _load_locked() -> dict[str, bool]:
     global _mem
     if _mem is None:
         try:
@@ -39,13 +48,20 @@ def get(kind: str, *parts: str) -> bool | None:
 
 def put(kind: str, *parts: str, value: bool) -> None:
     global _dirty
-    _load()["|".join((kind, *parts))] = bool(value)
-    _dirty += 1
-    if _dirty >= 20:
-        flush()
+    with _lock:
+        _load()["|".join((kind, *parts))] = bool(value)
+        _dirty += 1
+        if _dirty >= 20:
+            flush()
 
 
 def flush() -> None:
+    global _dirty
+    with _lock:
+        _flush_locked()
+
+
+def _flush_locked() -> None:
     global _dirty
     if _mem is None or not _dirty:
         return

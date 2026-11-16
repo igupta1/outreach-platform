@@ -42,7 +42,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
 
@@ -56,7 +58,7 @@ from system_b.clients.inventory import (
 from system_b.copy.names import NameFixer
 from system_b.copy.naturalness import check_naturalness
 from system_b.gift.allocation import DEFAULT_PATH as ALLOCATIONS_PATH
-from system_b.gift.allocation import Allocations
+from system_b.gift.allocation import Allocations, _firm
 from system_b.prospects import read_apollo_csv
 from system_b.sequence import generate_sequence
 
@@ -350,6 +352,8 @@ def main() -> None:
                          "do NOT record this run. For iterating on copy against a "
                          "fixed list: without it, a second run of the same export "
                          "produces nothing, because everyone in it is already done.")
+    ap.add_argument("--workers", type=int, default=8,
+                    help="firms read at once (network-bound; 1 = one at a time)")
     ap.add_argument("--target", type=int, default=0,
                     help="stop once this many VALID sequences exist, walking the "
                          "input in order (0 = process every row). Skipped prospects "
@@ -463,15 +467,47 @@ def main() -> None:
     # what is left, strongest first too. Before, the first 200 matches in FILE
     # order won (an old nonprofit/funds bias, then the alphabet).
     matched: list[tuple[dict, dict]] = []
-    for p in prospects:
+    # 2026-11-15, the user ("speed it up without sacrificing quality"): ~85% of
+    # a firm's time is waiting on its website and the model, so `--workers`
+    # firms are read at once. A firm's contacts stay together, in file order,
+    # on one worker (the second sees the first's holds, as before); results are
+    # then walked in FILE order, so the batch is the one a serial run drafts.
+    alloc_lock = threading.Lock()
+
+    def _draft(p: dict) -> tuple[dict, dict | None, Exception | None]:
         firm = p.get("firm_name", "?")
-        p = {**p, "blocked_identities": allocations.blocked(firm, p.get("state"),
-                                                            own=own_holdings)}
+        with alloc_lock:
+            held = allocations.blocked(firm, p.get("state"), own=own_holdings)
+        p = {**p, "blocked_identities": held}
         try:
             res = with_retry(lambda: generate_sequence(
                 p, scraper, taxonomy, today, pack_key=args.pack, force_pack=args.force_pack,
                 naturalness=naturalness, name_fixer=name_fixer), firm)
         except Exception as exc:  # noqa: BLE001 — surface, never abort the run
+            return p, None, exc
+        if res.get("status") == "ok" and not (target is not None and _location_only(res)):
+            with alloc_lock:
+                allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
+        return p, res, None
+
+    groups: dict[str, list[int]] = {}
+    for i, p in enumerate(prospects):
+        groups.setdefault(_firm(p.get("firm_name")) or f"#{i}", []).append(i)
+    drafted: list[tuple[dict, dict | None, Exception | None] | None] = [None] * len(prospects)
+
+    def _draft_group(idx: list[int]) -> None:
+        for i in idx:
+            drafted[i] = _draft(prospects[i])
+
+    workers = max(1, args.workers)
+    print(f"[run] reading {len(prospects)} firm(s), {workers} at a time")
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for fut in as_completed([pool.submit(_draft_group, idx) for idx in groups.values()]):
+            fut.result()        # ModelUnavailable (no credits) stops the run here
+
+    for p, res, exc in drafted:
+        firm = p.get("firm_name", "?")
+        if exc is not None:
             print(f"  · {firm:32} error: {exc!r}")
             skipped.append((firm, f"error: {exc!r}"))
             continue
@@ -497,9 +533,9 @@ def main() -> None:
             print(f"  · {firm:32} location-only match, drafted only if the target needs it")
             continue
         matched.append((p, res))
-        # Held now so a second contact at this firm is shown other leads in
-        # this run; only the drafted firms' holds are saved (keep_only below).
-        allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
+        # Held when it was drafted (`_draft`) so a second contact at this firm
+        # is shown other leads in this run; only the drafted firms' holds are
+        # saved (keep_only below).
         print(f"  · {res['company']:32} ok ({res.get('gift_size')} in gift, "
               f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
 
