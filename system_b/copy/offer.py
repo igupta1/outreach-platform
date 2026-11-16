@@ -81,6 +81,8 @@ def followup_question(niche: str | None, place: str | None) -> str:
     if niche:
         return f"want more {niche}, or a different industry?"
     if place:
+        # "washington, dc, or go wider" read as a list (2026-11-16).
+        place = "dc" if place == "washington, dc" else place
         return f"should i keep these to {place}, or go wider?"
     return "are these the kind of clients you want, or should i look for others?"
 
