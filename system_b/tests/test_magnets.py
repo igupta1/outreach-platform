@@ -821,7 +821,8 @@ def test_a_firms_own_bookkeeping_is_not_its_clients_industry():
     got = map_industry_candidates(said, said, tax)
     assert ("niche", "accounting_bookkeeping") not in got
     assert ("niche", "hvac_plumbing_electrical") in got
-    assert ("niche", "accounting_bookkeeping") in map_industry_candidates(
+    # 2026-11-16: never an accounting-firm niche (its leads are competitors).
+    assert ("niche", "accounting_bookkeeping") not in map_industry_candidates(
         "CPA and accounting firms", "accounting", tax)
     # the model's guess may not stand in for the firm's own service either
     assert map_industry_candidates("Non-Profit Accounting", "accounting", tax) == [

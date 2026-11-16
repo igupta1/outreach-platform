@@ -466,8 +466,9 @@ def framing_line(gift: Gift, prospect: Prospect, *, need: str) -> str:
 # kind -> (plural clause, singular clause) for the kinds with NO why. The
 # clause follows the noun: "here are 3 in tampa {clause}:".
 _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
-    NEW_LICENSE_SIGNAL: ("that just got contractor licenses, so each is setting up its books",
-                         "that just got a contractor license, so it is setting up its books"),
+    # 2026-11-16: no "just" (licences 2-3 months old) and no "setting up its
+    # books" (many licensees are companies formed years ago).
+    NEW_LICENSE_SIGNAL: ("that got new contractor licenses", "that got a new contractor license"),
     LICENSE_UPGRADE_SIGNAL: ("that moved up to a bigger contractor license, so each can take on bigger jobs",
                              "that moved up to a bigger contractor license, so it can take on bigger jobs"),
     NEW_BUSINESS_SIGNAL: ("that just registered, so each is setting up its books",
@@ -714,6 +715,9 @@ def _unrepeated(fact: str, phrase: str) -> str:
     for word in (" loan", " grant"):
         if word.strip() in phrase.lower() and word + "," in fact + ",":
             fact = fact.replace(word, "", 1)
+    # "got a new liquor license (liquor license)" (2026-11-16).
+    if "license" in phrase.lower():
+        fact = ", ".join(b for b in fact.split(", ") if not b.endswith("license"))
     return fact
 
 
@@ -1212,7 +1216,7 @@ def new_license_phrase(lead: Lead) -> str:
     licensing state when it is not the lead's own."""
     where = _elsewhere(lead, _licensing_state(lead))
     if _payload(lead).get("formed_class") == "new_company":
-        return f"new contracting company, just licensed{where}"
+        return f"new contracting company, newly licensed{where}"
     return f"newly licensed{where}" if where else "newly licensed contractor"
 
 
@@ -1527,8 +1531,8 @@ def _record_predicate(lead: Lead) -> str | None:
     if t == NEW_LICENSE_SIGNAL:
         where = _elsewhere(lead, _licensing_state(lead))
         if p.get("formed_class") == "new_company":
-            return f"is a new contracting company, just licensed{where}"
-        return f"just got a contractor license{where}"
+            return f"is a new contracting company, newly licensed{where}"
+        return f"got a new contractor license{where}"
     if t == LICENSE_UPGRADE_SIGNAL:
         return license_upgrade_phrase(lead)
     if t == NEW_BUSINESS_SIGNAL:

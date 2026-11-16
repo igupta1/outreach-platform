@@ -1157,6 +1157,11 @@ def _was(lead: Lead) -> str:
     looks like one is left out here too)."""
     prior = _payload(lead).get("prior_licensee") or {}
     name = prior.get("trade_name") or prior.get("dba") or prior.get("legal_name") or ""
+    # A licence-holding or property company is no former restaurant ("was 500
+    # Fourth Avenue License", "was Midros Properties", 2026-11-16).
+    if re.search(r"\b(?:licen[cs]e|propert(?:y|ies)|holdings?|realty|investments?|"
+                 r"management)\b|^\d", str(name), re.I):
+        return ""
     # One name, no legal tail (2026-11-15: "was Boka, Sushi Nonaka", "was
     # Snack Company Bedford Llc").
     name = str(name).split(",")[0] if "," in str(name) and not re.search(
@@ -1758,8 +1763,8 @@ def _practice_noun(lead: Lead) -> tuple[str, str]:
 
 DUTIES.update({
     "new_practice_npi": Duty(
-        plural="just registered as new businesses",
-        singular="just registered as a new business",
+        plural="got new provider ids",
+        singular="got a new provider id",
         why=("so each can now bill insurers under its own name",
              "so it can now bill insurers under its own name"),
         line="new practice entity, first organization npi",
@@ -1890,8 +1895,8 @@ DUTIES.update({
         noun=("contractor", "contractors"), dm="pulling large city building permits"),
     # Federal (SAM.gov monthly extract): a small business, new to SAM.
     "sam_new_entity_registration": Duty(
-        plural="just registered as federal contractors",
-        singular="just registered as a federal contractor",
+        plural="registered as federal contractors",
+        singular="registered as a federal contractor",
         why=("so each needs books ready for government contracts",
              "so it needs books ready for government contracts"),
         line="newly registered federal contractor",
@@ -1953,7 +1958,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
     'local_gov_single_audit_late': ('filed their required federal audits late', 'filed its required federal audit late', 'so each needs the next one on time', 'so it needs the next one on time'),
     'plan_late_contributions': ("paid employees' retirement money into the plan late", "paid employees' retirement money into the plan late", 'so each must make it up with interest', 'so it must make it up with interest'),
-    'new_practice_npi': ('just registered as new businesses', 'just registered as a new business', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
+    'new_practice_npi': ('got new provider ids', 'got a new provider id', 'so each needs its billing and books set up', 'so it needs its billing and books set up'),
     'hrsa_new_health_center': (None, None, 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'sbir_phase1_award': ('won their first federal research awards', 'won its first federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),
     'govcon_first_sbir_phase2': ('won their first large federal research awards', 'won its first large federal research award', 'so each must track and report every dollar', 'so it must track and report every dollar'),

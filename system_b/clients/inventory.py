@@ -693,7 +693,7 @@ def _entity_id(row: dict[str, Any]) -> str | None:
 # The sign on the door, not the owner's LLC (2026-11-05: "1745 Restaurant LLC"
 # is Ciao Nonna). Only for licence and permit records, where the regulator
 # prints the trade name it licensed; never a guess.
-_TRADE_NAME_TYPES = ("liquor_license_", "tx_new_sales_tax_permit", "tx_late_sales_tax_registration",
+_TRADE_NAME_TYPES = ("liquor_license_", "tx_new_mixed_beverage", "tx_new_sales_tax_permit", "tx_late_sales_tax_registration",
                      "tx_health_spa_new", "fl_health_studio_new", "ct_health_club_new",
                      "cannabis_", "chicago_new_food_license")
 _EATING_PLACE_RE = re.compile(r"eating place|restaurant", re.I)
@@ -1189,7 +1189,10 @@ _COMPETITORS = frozenset({"cpa_firm_license_delinquent", "cpa_firm_license_expir
 MAX_EVENT_AGE_DAYS = 365
 # An SBA loan approved within this many days may be called "just" approved
 # (`copy.duty._sba_recent`); older ones read "in the past year" (2026-11-15).
-SBA_RECENT_DAYS = 90
+SBA_RECENT_DAYS = 45
+# A loan approved more than this long ago is past "in the past year" by the
+# time a week's batch and its follow-ups go out (2026-11-16).
+SBA_MAX_AGE_DAYS = 340
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
 MAX_NONPROFIT_REVENUE = 10_000_000
@@ -1232,7 +1235,8 @@ _COMPETITOR_RE = re.compile(
 _VEHICLE_ANY_RE = re.compile(
     r"\b(?:spv|spe|reo|assetco|propco|holdco|lihtc|ldha|housing development fund|"
     r"limited dividend housing association|apartments(?: \w+){0,2} owner|owner \d+|"
-    r"family trust)\b|\bowner$|\bgp$|\boperator$|\bmf [ivx]+$")
+    r"family trust)\b|\bowner$|\bgp$|\boperator$|\bmf [ivx]+$|\bgroup [ivx]+$|"
+    r"\bintermediate$|\bemployees$|\blicense$")
 _GOVERNMENT_RE = re.compile(
     r"\b(?:authority|indian nation|tribe|tribal|workforce development board|"
     r"housing agency|public housing|county health)\b")
@@ -1337,15 +1341,34 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
         return "not_expanding"          # a Denver company registering in Colorado
     if t.startswith("liquor_license_new_owner"):
         prior = pay.get("prior_licensee") or {}
+        issued = pay.get("issue_date") or pay.get("date_issued") or pay.get("effective_date") \
+            or pay.get("original_licensure_date")
         try:
-            gap = (date.fromisoformat(str(pay.get("issue_date"))[:10])
+            gap = (date.fromisoformat(str(issued)[:10])
                    - date.fromisoformat(str(prior.get("expired"))[:10])).days
-        except ValueError:
+        except (TypeError, ValueError):
             gap = None
         if gap is not None and gap > 120:
             return "not_a_sale"         # a new tenant months after the last one closed
     if pay.get("late_report_filed_on"):
         return "already_filed"          # "will be late" after the report was filed
+    # A company with a ticker is a public company, whatever its filing says
+    # (2026-11-16: AudioEye, Battalion Oil, Nocera in 8-K and auditor gifts).
+    if pay.get("tickers") or pay.get("exchanges"):
+        return "public_company"
+    # A CPA or bookkeeping office is the reader's competitor (NAICS 5412).
+    if str(pay.get("naics") or "").startswith("5412"):
+        return "competitor"
+    if t == "plan_audit_first_due":
+        # A full Form 5500 with 100+ at the start of the year is likely audited
+        # already; a multiple-employer plan is audited at the plan; a 2024
+        # plan year's first audit was due a year ago (2026-11-16).
+        if "SF" not in str(pay.get("form") or "") and int(pay.get("participants_boy") or 0) >= 100:
+            return "already_audited"
+        if "multiple" in str(pay.get("plan_entity") or "").lower():
+            return "already_audited"
+        if int(pay.get("plan_year") or 9999) < 2025:
+            return "stale"
     if str(pay.get("naics") or "").startswith("5511"):
         return "holding_or_hotel"       # management of companies: a holding company
     if not pay.get("cik") and norm_company(lead.company) in _public_names():
@@ -1358,6 +1381,26 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     if _GOVERNMENT_RE.search(lc) and not t.startswith(
             ("local_gov", "union_", "college_", "charter_", "wi_choice", "proprietary_")):
         return "government"             # a county health authority, a tribal nation
+    # A person with a credential is a person ("Hankla, DMD", "John M.
+    # Romulus, D.D.S.", "E Shenk NP", 2026-11-16).
+    if re.search(r"(?:\s(?:d\.d\.s|d\.m\.d|m\.d|d\.o|n\.p|ph\.d)|"
+                 r",\s*(?:dds|dmd|md|do|np|od|phd))\.?"
+                 r"(?:\s*,?\s*(?:p\.?c|p\.?a|pllc|llc|inc|ltd|a professional\b.*)\.?)*\s*$",
+                 str(row.get("name") or lead.company or ""), re.I) or \
+            re.search(r"\sDO\s+A\s+Professional", str(row.get("name") or lead.company or "")):
+        return "person_name"
+    # A SAM registration under a bare personal name, no LLC/Inc: a sole
+    # proprietor ("Mustansir Barma", "Drew Sabban", 2026-11-16).
+    if t == "sam_new_entity_registration" and not re.search(
+            r"\b(?:llc|l\.l\.c|inc|corp|corporation|co|company|ltd|lp|llp|pllc|pc|group|"
+            r"services?|solutions|enterprises?|industries|partners|associates|consulting|"
+            r"construction|logistics|holdings|technologies|systems|international)\b\.?",
+            str(row.get("name") or ""), re.I):
+        return "person_name"
+    # A Dover/Lewes, Delaware "office" is a registered agent's address: a shell.
+    if t.startswith(("new_business_", "sam_")) and str(lead.state or "").upper() == "DE" and \
+            str(lead.city or "").strip().lower() in ("dover", "lewes", "claymont", "middletown"):
+        return "registered_agent"
     if t in ("sam_new_entity_registration",) or t.startswith(("tx_", "sbir_")):
         if looks_like_person(row.get("name") or lead.company):
             return "person_name"
@@ -1453,6 +1496,7 @@ def _mark_sba_recency(lead: Lead, today: date) -> None:
         sig.payload["approved_recently"] = False
         return
     sig.payload["approved_recently"] = age <= SBA_RECENT_DAYS
+    sig.payload["too_old"] = age > SBA_MAX_AGE_DAYS
 
 
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
@@ -1476,6 +1520,9 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
             log.debug("inventory: dropped %s — %s", lead.company, reason)
             continue
         _mark_sba_recency(lead, today)
+        if lead.headline_signal is not None and lead.headline_signal.payload.get("too_old"):
+            unusable["sba_loan_too_old"] += 1
+            continue
         kept.append(lead)
     if expired:
         log.info("inventory: dropped %d job lead(s) older than %d days",

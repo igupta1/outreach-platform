@@ -322,6 +322,10 @@ def map_industry_candidates(
             and not _CONSULTING_AS_CLIENT_RE.search(phrase or "")):
         del found["professional_services"]
     out = [_mp_for(parent, child) for parent, child in found.items()]
+    # Never "you work with accounting firms": every reading so far was the
+    # firm's OWN service ("startup accounting", "film accounting"), and its
+    # leads would be the reader's competitors (2026-11-16).
+    out = [mp for mp in out if mp != ("niche", "accounting_bookkeeping")]
     if out:
         out.sort(key=lambda mp: 0 if mp[0] == "niche" else 1)   # children first
         return out
@@ -331,7 +335,6 @@ def map_industry_candidates(
     # The guess may not turn a firm's own service into its clients' industry:
     # "companies that have outgrown basic bookkeeping" + guess "accounting"
     # is a bookkeeper's pitch, not a firm serving CPA firms.
-    if mp == ("niche", "accounting_bookkeeping") and not (
-            _SERVICE_AS_CLIENT_RE.search(phrase or "") or re.search(r"\bcpas?\b", phrase or "", re.I)):
+    if mp == ("niche", "accounting_bookkeeping"):
         return []
     return [mp] if mp else []

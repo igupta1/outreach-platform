@@ -69,3 +69,23 @@ def test_greeting_uses_the_mailbox_nickname_and_drops_stray_marks():
         "first_name"] == "Jeorgia"
     assert row_from_apollo({**base, "Email": "lead2@acme.com", "First Name": "Ann"}) is None
     assert row_from_apollo({**base, "Email": "marketing@acme.com", "First Name": "Ann"}) is None
+
+
+def test_public_competitor_and_audited_plans_are_dropped():
+    assert _why(_lead("auditor_change", {"tickers": ["BATL"]})) == "public_company"
+    assert _why(_lead("plan_audit_first_due", {"naics": "541211"})) == "competitor"
+    full = {"form": "Form 5500", "participants_boy": 119, "plan_year": 2025}
+    assert _why(_lead("plan_audit_first_due", full)) == "already_audited"
+    old = {"form": "Form 5500-SF", "participants_boy": 90, "plan_year": 2024}
+    assert _why(_lead("plan_audit_first_due", old)) == "stale"
+
+
+def test_a_credentialed_person_is_no_business():
+    assert _why(_lead("sba_7a_loan_approved", {}, name="Hankla, DMD")) == "person_name"
+    assert _why(_lead("sam_new_entity_registration", {}, name="Mustansir Barma")) == "person_name"
+    assert _why(_lead("sba_7a_loan_approved", {}, name="Ridge Road Dental")) is None
+
+
+def test_money_rounds_halves_up():
+    from system_b.copy.facts import money
+    assert money(3650000) == "$3.7m" and money(68500) == "$69k"

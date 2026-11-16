@@ -249,7 +249,6 @@ NICHE_WORDS: dict[str, tuple[str, str]] = {
     "catering": ("niche", "catering_events"),
     "agriculture": ("industry", "agriculture"),
     "legal": ("niche", "law_firm"),
-    "accounting": ("niche", "accounting_bookkeeping"),
     "fintech": ("industry", "fintech"),
     "lending": ("niche", "lending"),
     "crypto": ("niche", "crypto_web3"),
@@ -263,7 +262,8 @@ NICHE_WORDS: dict[str, tuple[str, str]] = {
 UNCOVERED = {"creator": ("niche", "content_creator"),
              "aerospace-defense": ("niche", "aerospace_defense"),
              "veterinary": ("niche", "veterinary"), "oil-gas": ("niche", "oil_gas"),
-             "video-games": ("niche", "gaming")}
+             "video-games": ("niche", "gaming"),
+             "accounting": ("niche", "accounting_bookkeeping")}
 EXTRA_PHRASES = {
     "faith-based": ["faith-based organizations", "churches", "religious organizations",
                     "houses of worship", "ministries"],
@@ -273,7 +273,6 @@ EXTRA_PHRASES = {
     "cpg": ["consumer packaged goods", "cpg brands"],
     "lending": ["lenders", "mortgage lenders", "lending industry"],
     "legal": ["law firms", "attorneys"],
-    "accounting": ["cpa firms", "accounting firms"],
     "fitness-wellness": ["fitness", "gyms and fitness studios", "yoga studios"],
     "property-management": ["property managers", "homeowners associations"],
     "crypto": ["blockchain companies", "digital assets"],
@@ -364,11 +363,11 @@ def test_a_new_npi_opener_is_record_only_with_the_practice_kind():
     atx = Prospect(firm_name="X", city="Austin", state="TX", first_name="Al")
     first = opener(dental, atx).splitlines()[0]
     # 2026-11-13, the user asked for a finance reason on every opener.
-    assert first.endswith("these 3 dental practices in austin just registered as new businesses, "
+    assert first.endswith("these 3 dental practices in austin got new provider ids, "
                           "so each needs its billing and books set up:")
     mixed = dental[:2] + [lead("new_practice_npi", "Calm Minds PLLC",
                                {"provider_type": "behavioral"}, city="Austin")]
-    assert "these 3 practices in austin just registered" in opener(mixed, atx).splitlines()[0]
+    assert "these 3 practices in austin got new provider ids" in opener(mixed, atx).splitlines()[0]
 
 
 def test_a_new_medicare_enrollment_keeps_its_clause():

@@ -61,7 +61,7 @@ _NICKNAMES = {
     "elizabeth": {"liz", "beth"}, "patricia": {"pat", "patty"}, "samuel": {"sam"},
     "benjamin": {"ben"}, "anthony": {"tony"}, "edward": {"ed", "eddie"}, "timothy": {"tim"},
     "gregory": {"greg"}, "jonathan": {"jon"}, "kenneth": {"ken"}, "ronald": {"ron"},
-    "donald": {"don"}, "charles": {"chuck", "charlie"}, "jeffrey": {"jeff"},
+    "donald": {"don"}, "charles": {"chuck", "charlie"}, "jeffrey": {"jeff"}, "bradley": {"brad"}, "theodore": {"ted", "teddy"},
     "zachary": {"zach"}, "douglas": {"doug"}, "frederick": {"fred"}, "victoria": {"vicki"},
 }
 # A numbered role box ("lead2@", "sales1@").

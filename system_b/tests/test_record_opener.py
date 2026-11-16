@@ -98,7 +98,7 @@ def test_place_is_named_only_when_every_lead_is_there():
 
 
 def test_licenses_and_registrations_say_why_plainly():
-    for t, clause in ((NL, "that just got contractor licenses, so each is setting up its books"),
+    for t, clause in ((NL, "that got new contractor licenses"),
                       (NB, "that just registered, so each is setting up its books")):
         g = gift([lead(t, name="A", industry="construction"),
                   lead(t, name="B", industry="construction")])

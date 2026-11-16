@@ -80,12 +80,19 @@ def money(v: object) -> str:
         return ""
     if x <= 0:
         return ""
+    # Halves round up ($3,650,000 -> $3.7m), never to even (2026-11-16).
+    from decimal import ROUND_HALF_UP, Decimal
+
+    def r(v: float, places: str) -> str:
+        return str(Decimal(repr(v)).quantize(Decimal(places), rounding=ROUND_HALF_UP))
+
     if x >= 1_000_000:
         m = x / 1_000_000
-        return f"${m:.1f}m".replace(".0m", "m") if m < 100 else f"${m:.0f}m"
+        return f"${r(m, '0.1')}m".replace(".0m", "m") if m < 100 else f"${r(m, '1')}m"
     if x >= 1_000:
-        return f"${x / 1000:.0f}k"
-    return f"${x:.0f}"
+        k = r(x / 1000, "1")
+        return "$1m" if k == "1000" else f"${k}k"
+    return f"${r(x, '1')}"
 
 
 # The names a finance reader knows on sight (2026-11-06: "transportation
@@ -154,9 +161,11 @@ def _person(lead: Lead) -> tuple[str, str] | None:
     # and a credential where the surname goes is no surname ("Renae M.D.").
     words = []
     for w in name.split():
-        if len(w) > 1 and (w.isupper() or w.islower()) and "." not in w \
+        if len(w) > 2 and (w.isupper() or w.islower()) and "." not in w \
                 and w.lower() not in _PARTICLES:
-            w = w.capitalize()
+            w = "-".join(x.capitalize() for x in w.split("-"))
+        elif "-" in w:
+            w = "-".join(x[:1].upper() + x[1:] for x in w.split("-"))
         if re.match(r"^Mc[a-z]", w):
             w = "Mc" + w[2:].capitalize()
         words.append(w)
@@ -347,6 +356,12 @@ def _industry(text: object) -> str:
         from system_b.gift.fit import naics_title
 
         t = " ".join(str(naics_title(code.group(1)) or "").split()).strip().lower()
-    if not t or len(t) > 45 or t in ("all other", "other", "unclassified"):
+    # A sector so broad it reads as a mistake beside the name ("Tailored
+    # Travels (manufacturing)", "a tree service (crop production)", 2026-11-16).
+    if not t or len(t) > 45 or t in ("all other", "other", "unclassified", "information",
+                                      "publishing industries", "crop production", "utilities",
+                                      "manufacturing", "transportation and warehousing",
+                                      "social assistance", "advertising and public relations",
+                                      "animal production", "mining"):
         return ""
     return t.replace(" and ", " & ") if len(t) > 35 else t
