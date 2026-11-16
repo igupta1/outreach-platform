@@ -1378,6 +1378,10 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
         return "competitor"
     if _VEHICLE_ANY_RE.search(lc) or _VEHICLE_ANY_RE.search(norm_company(lead.company)):
         return "holding_or_hotel"
+    # An SBA loan to "Island Palm Property" is a real-estate holding company.
+    if t.startswith("sba_") and re.search(r"\b(?:property|properties|realty|holdings|"
+                                          r"investments?)$", norm_company(lead.company)):
+        return "holding_or_hotel"
     if _GOVERNMENT_RE.search(lc) and not t.startswith(
             ("local_gov", "union_", "college_", "charter_", "wi_choice", "proprietary_")):
         return "government"             # a county health authority, a tribal nation

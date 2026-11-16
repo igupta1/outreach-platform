@@ -232,7 +232,7 @@ def spoken_name(name: str | None) -> str:
 
 # 2026-11-15, reading the 1,200 batch: registry leftovers that read as broken.
 _MORE_TAIL_RE = re.compile(
-    r"(?:,\s*(?:pl|ps|pa|p\s?c|gbc)\.?|\s+(?:apc|ps|fs)|,?\s+an?\s+professional"
+    r"(?:,\s*(?:pl|ps|pa|p\s?c|gbc)\.?|\s+(?:apc|ps|fs|dbe|l\.?c|l\s?p)\.?|,?\s+an?\s+professional"
     r"(?:\s+\w+)?(?:\s+(?:association|corporation|corp\w*))?|,?\s+professional\s+association)\s*$",
     re.I)
 _PAREN_STATE_RE = re.compile(r"\s*\([A-Z]{2}\)")
@@ -267,6 +267,17 @@ def _readable(name: str) -> str:
             w = "St."
         fixed.append(w)
     out = re.sub(r"\bMC ([A-Z][a-z]+)", r"Mc\1", " ".join(fixed))
+    # Short words left in capitals ("Transit Fixed/ON-Demand", "MI Tierra",
+    # "One Way UP"), a Roman numeral title-cased ("Iv Purpose"), a spaced
+    # hyphen ("Italian - American") (2026-11-16).
+    if not out.isupper():
+        out = re.sub(r"(?<![A-Za-z])(ON|UP|IN|OF|AT|TO|IL|MI|EL|LA|DI|DEL|LOS|LAS)(?=[-/ ][A-Z][a-z])",
+                     lambda m: m.group(1).capitalize(), out)
+        out = re.sub(r"(?<=[a-z]/)(ON|UP|IN)(?=-)", lambda m: m.group(1).capitalize(), out)
+        out = re.sub(r"(?<=/)(ON)(?=-)", "On", out)
+    out = re.sub(r"\b(Ii|Iii|Iv|Vi|Vii|Viii)\b", lambda m: m.group(1).upper(), out)
+    out = re.sub(r"\b(Italian|Mexican|African|Asian|Korean|Japanese|Chinese|Cuban|Irish) - "
+                 r"(American)\b", r"\1-\2", out)
     return out.strip()
 
 

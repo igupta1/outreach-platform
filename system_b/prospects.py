@@ -61,7 +61,7 @@ _NICKNAMES = {
     "elizabeth": {"liz", "beth"}, "patricia": {"pat", "patty"}, "samuel": {"sam"},
     "benjamin": {"ben"}, "anthony": {"tony"}, "edward": {"ed", "eddie"}, "timothy": {"tim"},
     "gregory": {"greg"}, "jonathan": {"jon"}, "kenneth": {"ken"}, "ronald": {"ron"},
-    "donald": {"don"}, "charles": {"chuck", "charlie"}, "jeffrey": {"jeff"}, "bradley": {"brad"}, "theodore": {"ted", "teddy"},
+    "donald": {"don"}, "charles": {"chuck", "charlie"}, "jeffrey": {"jeff"}, "agnieszka": {"agnes"}, "sebastian": {"seb"}, "bradley": {"brad"}, "theodore": {"ted", "teddy"},
     "zachary": {"zach"}, "douglas": {"doug"}, "frederick": {"fred"}, "victoria": {"vicki"},
 }
 # A numbered role box ("lead2@", "sales1@").
@@ -88,6 +88,16 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     # Michael, "larry@" for Lawrence (2026-11-15).
     if first and local in _NICKNAMES.get(first.lower(), ()):
         first = local.capitalize()
+    # "seb@" for Sebastian, "jimdaly@" for James: the short name the address
+    # starts with (2026-11-16).
+    elif first and local.isalpha() and 3 <= len(local) < len(first) and \
+            first.lower().startswith(local):
+        first = local.capitalize()
+    elif first:
+        for nick in sorted(_NICKNAMES.get(first.lower(), ()), key=len, reverse=True):
+            if len(nick) >= 3 and local.startswith(nick) and local != nick:
+                first = nick.capitalize()
+                break
     # A first name that is one letter ("J", "P") would open "hey j,"
     # (2026-11-15). The address's own name stands in when it is a plain word
     # that is not the surname ("michale@" for J. Michale Haubert); otherwise

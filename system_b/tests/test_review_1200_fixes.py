@@ -89,3 +89,15 @@ def test_a_credentialed_person_is_no_business():
 def test_money_rounds_halves_up():
     from system_b.copy.facts import money
     assert money(3650000) == "$3.7m" and money(68500) == "$69k"
+
+
+def test_spot_read_name_and_greeting_fixes():
+    assert spoken_name("Transit Fixed/ON-Demand") == "Transit Fixed/On-Demand"
+    assert spoken_name("MI Tierra Pupuseria & Bakery") == "Mi Tierra Pupuseria & Bakery"
+    assert spoken_name("Iv Purpose") == "IV Purpose"
+    assert spoken_name("Raptor Manufacturing LC") == "Raptor Manufacturing"
+    base = {"Website": "a.com", "Company Name": "A", "Last Name": "Daly"}
+    assert row_from_apollo({**base, "Email": "jimdaly@a.com", "First Name": "James"})[
+        "first_name"] == "Jim"
+    assert row_from_apollo({**base, "Email": "seb@a.com", "First Name": "Sebastian"})[
+        "first_name"] == "Seb"

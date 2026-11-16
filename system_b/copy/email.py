@@ -795,6 +795,9 @@ def record_opener(gift: Gift, prospect: Prospect, pack=None, *,
         if loc and city_display(lead.city) and city_display(lead.city).lower() in said.lower() \
                 and level == "state":
             loc = ""
+        # "Self Made Training Facility - San Diego": the city glued on (2026-11-16).
+        if city_display(lead.city):
+            said = re.sub(rf"\s*-\s*{re.escape(city_display(lead.city))}$", "", said, flags=re.I)
         name = f"{said}, {loc}" if loc else said
         # One fact from the lead's own record (copy.facts, 2026-11-05), then
         # (with `today`, email 1) a recent date and the person the record
