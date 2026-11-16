@@ -169,7 +169,7 @@ def _person(lead: Lead) -> tuple[str, str] | None:
             ("plan_", "welfare_", "pension_")):
         return None
     org = _LEGAL_END_RE.sub("", " ".join((lead.company or "").split())).lower()
-    name = _first_last(name)
+    name = _first_last(name).strip(" ,")
     if len(name.split()) < 2 or name.lower() == org:
         return None
     # A job word where the first name goes ("Placement Love", 2026-11-14).

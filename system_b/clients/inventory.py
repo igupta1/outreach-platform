@@ -1353,7 +1353,7 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     lc = (lead.company or "").lower()
     if _COMPETITOR_RE.search(lc):
         return "competitor"
-    if _VEHICLE_ANY_RE.search(lc):
+    if _VEHICLE_ANY_RE.search(lc) or _VEHICLE_ANY_RE.search(norm_company(lead.company)):
         return "holding_or_hotel"
     if _GOVERNMENT_RE.search(lc) and not t.startswith(
             ("local_gov", "union_", "college_", "charter_", "wi_choice", "proprietary_")):
