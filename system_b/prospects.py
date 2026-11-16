@@ -40,6 +40,14 @@ def _normalize_website(raw: str) -> str:
     return url
 
 
+_ROLE_INBOXES = frozenset({
+    "info", "office", "admin", "contact", "contactus", "hello", "support", "team", "tax",
+    "taxes", "accounting", "bookkeeping", "books", "mail", "inquiries", "inquiry",
+    "enquiries", "sales", "service", "services", "help", "billing", "frontdesk",
+    "reception", "general", "cpa", "staff", "clients", "client", "payroll", "finance",
+})
+
+
 def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     """Map one Apollo CSV record to the generator's row dict, or None if it has
     no website (nothing to research) or no email (nothing to export)."""
@@ -47,6 +55,22 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     email = _clean(record.get("Email"))
     if not website or not email:
         return None
+    # No shared inboxes (tax@, info@): the user's rule, and nobody reads them
+    # as a person (2026-11-15: two tax@ inboxes reached a batch).
+    local = email.split("@", 1)[0].lower()
+    if local in _ROLE_INBOXES:
+        return None
+    first = _clean(record.get("First Name")) or None
+    # A first name that is one letter ("J", "P") would open "hey j,"
+    # (2026-11-15). The address's own name stands in when it is a plain word
+    # that is not the surname ("michale@" for J. Michale Haubert); otherwise
+    # the contact is skipped.
+    if first and len(first.replace(".", "")) <= 1:
+        last = (_clean(record.get("Last Name")) or "").lower()
+        if local.isalpha() and len(local) >= 3 and last and last not in local:
+            first = local.capitalize()
+        else:
+            return None
     company = _clean(record.get("Company Name")) or _clean(
         record.get("Company Name for Emails")
     )
@@ -61,7 +85,7 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
                  or _clean(record.get("City")) or None),
         "state": (_clean(record.get("Company State"))
                   or _clean(record.get("State")) or None),
-        "first_name": _clean(record.get("First Name")) or None,
+        "first_name": first,
         # Carried for ONE reason: a LinkedIn reply weeks later shows a full
         # name, and "Paul" + a company column is a bad key to search a
         # thousand-row history by. Never rendered into copy.

@@ -64,7 +64,7 @@ def test_read_apollo_csv_filters(tmp_path):
     with open(p, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=["First Name", "Company Name", "Email", "Website"])
         w.writeheader()
-        w.writerow({"First Name": "A", "Company Name": "AceCo", "Email": "a@ace.com", "Website": "ace.com"})
+        w.writerow({"First Name": "Ann", "Company Name": "AceCo", "Email": "a@ace.com", "Website": "ace.com"})
         w.writerow({"First Name": "B", "Company Name": "NoSite", "Email": "b@b.com", "Website": ""})
     rows = read_apollo_csv(p)
     assert len(rows) == 1 and rows[0]["firm_name"] == "AceCo"

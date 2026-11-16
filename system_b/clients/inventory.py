@@ -23,6 +23,7 @@ a broken daily refresh can't silently produce week-old gifts.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -1214,6 +1215,64 @@ def _is_us_state(state: Any) -> bool:
     return norm_state(str(state).replace(".", "")) in _US_CODES
 
 
+_DATA = Path(__file__).resolve().parents[1] / "data"
+_LEGAL_TAIL_RE = re.compile(
+    r"(?:\s+(?:inc|incorporated|corp|corporation|co|company|llc|l l c|ltd|limited|plc|lp|llp|"
+    r"pc|p c|pa|p a|pllc|sa|ag|nv|se))+$")
+_VEHICLE_RE = re.compile(
+    r"\b(?:spv|spe|reo|assetco|propco|parent|fund|portfolio [ivx]+|series \d+|project)\b", re.I)
+_NUMBER_NAME_RE = re.compile(r"^\d[\d\s,.-]*$|^\d+\s+[a-z]+(?:\s+[a-z]+)?$")
+_YEAR_NAME_RE = re.compile(r"\s(?:19|20)\d\d$")
+_ACCOUNTING_NAME_RE = re.compile(r"\b(?:cpas?|accounting|accountants?|bookkeeping|bookkeepers?)\b")
+
+
+def norm_company(name: str | None) -> str:
+    """A company name reduced for list lookups: "The Toro Company" -> "toro"."""
+    n = (name or "").lower().replace("&", " and ").replace("+", " ")
+    n = re.sub(r"[^a-z0-9]+", " ", n).strip()
+    n = re.sub(r"^the\s+", "", n)
+    return _LEGAL_TAIL_RE.sub("", n).strip()
+
+
+@functools.lru_cache(maxsize=1)
+def _public_names() -> frozenset[str]:
+    """US public companies (SEC company_tickers.json saved as
+    data/public-companies.json); empty when the file is absent."""
+    try:
+        rows = json.loads((_DATA / "public-companies.json").read_text())
+    except (OSError, ValueError):
+        return frozenset()
+    vals = rows.values() if isinstance(rows, dict) else rows
+    return frozenset(n for r in vals if (n := norm_company(r.get("title"))))
+
+
+@functools.lru_cache(maxsize=1)
+def _never_gift() -> frozenset[str]:
+    try:
+        lines = (_DATA / "never-gift.txt").read_text().splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(n for ln in lines if (n := norm_company(ln.split("#")[0])))
+
+
+def small_business_reason(name: str) -> str | None:
+    """Why a new-business / SBA lead is no small firm's client, or None."""
+    n = norm_company(name)
+    if not n:
+        return "not_a_company"
+    if n in _public_names():
+        return "public_company"
+    if "registered agent" in n:
+        return "registered_agent"
+    if _NUMBER_NAME_RE.match(n) or _YEAR_NAME_RE.search(n):
+        return "not_a_company"
+    if _VEHICLE_RE.search(n):
+        return "holding_or_hotel"
+    if _ACCOUNTING_NAME_RE.search(n):
+        return "competitor"
+    return None
+
+
 def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     """Why this lead is no client for a small finance firm, or None."""
     if row.get("state") not in (None, "") and not _is_us_state(row.get("state")):
@@ -1247,6 +1306,22 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     if (lead.signal_type or "") == "new_business_expanding" and \
             _BIG_AGENTS_RE.search(str(pay.get("registered_agent_org") or "")):
         return "big_registered_agent"
+    # 2026-11-15, reading a 1,200 batch: a registration in another state is
+    # also what Dropbox, Toro and Accenture file, and these records carry no
+    # size. A new-business or SBA lead drops when it is a public company (the
+    # SEC's list, data/public-companies.json), a vehicle rather than a business,
+    # a bare number, a registered agent, another accounting firm, or a person.
+    t = lead.signal_type or ""
+    if t.startswith(("new_business_", "sba_")):
+        why = small_business_reason(lead.company or "")
+        if why:
+            return why
+        if t.startswith("new_business_") and looks_like_person(row.get("name") or lead.company):
+            return "person_name"
+    # A reviewer's list of organizations never to gift, any type
+    # (data/never-gift.txt, one name per line).
+    if norm_company(lead.company) in _never_gift():
+        return "never_gift"
     # Too big for an outside bookkeeper or fractional CFO (2026-11-13, the
     # user): a national arm ("Arauco Pulp North America"), a nonprofit past
     # MAX_NONPROFIT_REVENUE (it has its own finance staff), or a headcount

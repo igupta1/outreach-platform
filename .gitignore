@@ -57,3 +57,6 @@ system_b/data/inventory/
 system_b/data/not-finance.csv
 system_b/data/model-cache.json
 system_b/data/research-cache.json
+# public SEC company list and the reviewers' never-gift list (lead filters)
+system_b/data/public-companies.json
+system_b/data/never-gift.txt
