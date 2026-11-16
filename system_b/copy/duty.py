@@ -1984,7 +1984,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'bd_material_weakness': ('reported weak financial controls in their yearly audited reports', 'reported weak financial controls in its yearly audited report', 'so each must fix them', 'so it must fix them'),
     'va_new_class_a_contractor': ('got new virginia contractor licenses', 'got a new virginia contractor license', 'so each had to prove its net worth', 'so it had to prove its net worth'),
     'va_new_class_b_contractor': ('got new virginia contractor licenses', 'got a new virginia contractor license', 'so each had to prove its net worth', 'so it had to prove its net worth'),
-    'ny_new_law_firm': ('registered as new law firms in new york', 'registered as a new law firm in new york', 'so each is setting up its books', 'so it is setting up its books'),
+    'ny_new_law_firm': ('registered as new law firms', 'registered as a new law firm', 'so each is setting up its books', 'so it is setting up its books'),
     'ny_omig_final_audit': ('were told by a state medicaid audit to pay money back', 'was told by a state medicaid audit to pay money back', None, None),
     'union_funds_shortage': ('reported missing or lost funds to the labor department', 'reported missing or lost funds to the labor department', 'so each needs tighter money controls', 'so it needs tighter money controls'),
     'pension_unpaid_min_contribution': ('fell short on required payments into their pension plans', 'fell short on required payments into its pension plan', 'so each must catch up', 'so it must catch up'),

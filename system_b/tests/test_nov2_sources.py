@@ -156,6 +156,8 @@ def test_a_bare_gift_has_a_short_subject_with_no_noun():
     one = gift([lead("liquor_license_new_owner_tx", "A Llc", {})])
     assert short_subject(one, Prospect(firm_name="X", city="Houston", state="TX",
                                        first_name="A")) == "one in houston under a new owner"
+    # No place: a noun stands in (2026-11-15: "3 expanding into another state").
+    assert short_subject(g, Prospect(firm_name="X", first_name="A")) == "3 businesses under new owners"
 
 
 def test_a_previous_licensee_that_looks_like_a_person_is_not_named():

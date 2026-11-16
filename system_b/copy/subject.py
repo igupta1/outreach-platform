@@ -263,7 +263,10 @@ def short_subject(gift: Gift, prospect: Prospect) -> str | None:
         what = DUTIES[kind].short_for(gift.leads)
     if bare_gift(gift.leads):
         # No business noun (Restaurants): "3 in houston with new liquor licenses".
-        where = f"in {place}" if place else ""
+        # With no place either, "3 expanding into another state" lacked a
+        # subject (2026-11-15): "businesses", which a licence or registration
+        # always is, stands in.
+        where = f"in {place}" if place else ("business" if n == 1 else "businesses")
         count = " ".join(w for w in ("one" if n == 1 else str(n), where) if w)
         return f"{count} {what}".lower()
     head = " ".join(w for w in (place, noun) if w)
