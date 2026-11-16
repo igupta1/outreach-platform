@@ -59,3 +59,38 @@ def test_wording_says_approved_and_names_no_lender_person_dollar_or_date():
         one = body([lead(t, "Acme Dental Pllc")]).lower()
         assert "just got an sba loan and will need clean books for its lender" in one
         assert "likely" not in one
+
+
+def _aged(t: str, name: str, recent: bool) -> Lead:
+    ld = lead(t, name)
+    ld.signals[0].payload["approved_recently"] = recent
+    return ld
+
+
+def test_just_only_when_every_loan_is_recent():
+    # 2026-11-15, the user: "just got" overstated loans approved months earlier.
+    t = TYPES[0]
+    fresh = body([_aged(t, n, True) for n in ("Acme Dental Pllc", "Birch Roofing Llc")]).lower()
+    assert "just got sba loans" in fresh
+    mixed = body([_aged(t, "Acme Dental Pllc", True), _aged(t, "Birch Roofing Llc", False)]).lower()
+    assert "just got" not in mixed
+    assert "got sba loans in the past year and will need clean books for their lender" in mixed
+    one = body([_aged(t, "Acme Dental Pllc", False)]).lower()
+    assert "got an sba loan in the past year and will need clean books for its lender" in one
+    d = DUTIES[t]
+    assert d.short_for([_aged(t, "A", False), _aged(t, "B", True)]) == "with sba loans in the past year"
+    assert d.short_for([_aged(t, "A", True)]) == "that just got an sba loan"
+    for p in ("with sba loans in the past year", "with an sba loan in the past year"):
+        assert len(p) <= 34
+
+
+def test_loader_marks_recency():
+    from system_b.clients.inventory import SBA_RECENT_DAYS, _mark_sba_recency
+    t = TYPES[0]
+    new, old = lead(t, "New Co"), lead(t, "Old Co")
+    old.signals[0].date = "2026-01-02"
+    _mark_sba_recency(new, TODAY)
+    _mark_sba_recency(old, TODAY)
+    assert SBA_RECENT_DAYS == 120
+    assert new.signals[0].payload["approved_recently"] is True
+    assert old.signals[0].payload["approved_recently"] is False

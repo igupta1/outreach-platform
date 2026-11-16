@@ -1186,6 +1186,9 @@ _BIG_INSTITUTION_RE = re.compile(
 _NEED_MET = frozenset({"plan_audit_first_filed"})
 _COMPETITORS = frozenset({"cpa_firm_license_delinquent", "cpa_firm_license_expired", "ny_new_cpa_firm"})
 MAX_EVENT_AGE_DAYS = 365
+# An SBA loan approved within this many days may be called "just" approved
+# (`copy.duty._sba_recent`); older ones read "in the past year" (2026-11-15).
+SBA_RECENT_DAYS = 120
 MAX_ANNUAL_FILING_AGE_DAYS = 730
 MAX_PLAN_PARTICIPANTS = 500
 MAX_NONPROFIT_REVENUE = 10_000_000
@@ -1304,6 +1307,21 @@ def _property_location(row: dict[str, Any], lead: Lead) -> None:
         lead.city, lead.state = None, None
 
 
+def _mark_sba_recency(lead: Lead, today: date) -> None:
+    """Mark an SBA loan lead `approved_recently` (within SBA_RECENT_DAYS)."""
+    if not (lead.signal_type or "").startswith("sba_"):
+        return
+    sig = lead.headline_signal
+    if sig is None:
+        return
+    try:
+        age = (today - date.fromisoformat(lead.newest_date[:10])).days
+    except ValueError:
+        sig.payload["approved_recently"] = False
+        return
+    sig.payload["approved_recently"] = age <= SBA_RECENT_DAYS
+
+
 def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
     kept: list[Lead] = []
     expired = 0
@@ -1323,6 +1341,7 @@ def _adapt_rows(rows: list[dict[str, Any]], *, today: date) -> list[Lead]:
             unusable[reason.split("=")[0]] += 1
             log.debug("inventory: dropped %s — %s", lead.company, reason)
             continue
+        _mark_sba_recency(lead, today)
         kept.append(lead)
     if expired:
         log.info("inventory: dropped %d job lead(s) older than %d days",

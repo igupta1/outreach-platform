@@ -986,17 +986,46 @@ DUTIES.update({
 # 2026-11-13, the user (option 3): the need is in the sentence itself.
 _SBA_WHY = None
 
+
+# 2026-11-15, the user: "just got" overstated loans approved 7-10 months
+# earlier (the SBA file is quarterly; leads run up to MAX_EVENT_AGE_DAYS old).
+# The loader marks a loan approved within SBA_RECENT_DAYS `approved_recently`;
+# "just" only when every lead is, else "in the past year" (always true: older
+# events are dropped at load). A lead with no mark (tests) reads as recent.
+def _sba_recent(leads: list[Lead]) -> bool:
+    for ld in leads:
+        sig = ld.headline_signal
+        if sig is not None and sig.payload.get("approved_recently") is False:
+            return False
+    return True
+
+
+def _sba_plural(leads: list[Lead]) -> str:
+    return ("just got sba loans and will need clean books for their lender" if _sba_recent(leads)
+            else "got sba loans in the past year and will need clean books for their lender")
+
+
+def _sba_singular(lead: Lead) -> str:
+    return ("just got an sba loan and will need clean books for its lender" if _sba_recent([lead])
+            else "got an sba loan in the past year and will need clean books for its lender")
+
+
+def _sba_short(leads: list[Lead]) -> tuple[str, str]:
+    return (("that just got sba loans", "that just got an sba loan") if _sba_recent(leads)
+            else ("with sba loans in the past year", "with an sba loan in the past year"))
+
+
 DUTIES.update({
     "sba_7a_loan_approved": Duty(
-        plural="just got sba loans and will need clean books for their lender",
-        singular="just got an sba loan and will need clean books for its lender",
+        plural=_sba_plural,
+        singular=_sba_singular,
         why=_SBA_WHY,
         line="approved for an sba loan",
         short=("approved for sba loans", "approved for an sba loan"),
         noun=("business", "businesses"), dm="getting approved for sba 7(a) loans"),
     "sba_504_loan_approved": Duty(
-        plural="just got sba loans and will need clean books for their lender",
-        singular="just got an sba loan and will need clean books for its lender",
+        plural=_sba_plural,
+        singular=_sba_singular,
         why=_SBA_WHY,
         line="approved for an sba loan",
         short=("approved for sba loans", "approved for an sba loan"),
@@ -2101,3 +2130,6 @@ for _t, _v in _PLAIN_SHORT.items():
     for _table in (DUTIES, HELD_DUTIES):
         if _t in _table:
             _table[_t] = replace(_table[_t], short=_v)
+# SBA subjects follow the loan's age like the opener does (`_sba_recent`).
+for _t in ("sba_7a_loan_approved", "sba_504_loan_approved"):
+    DUTIES[_t] = replace(DUTIES[_t], short=_sba_short)
