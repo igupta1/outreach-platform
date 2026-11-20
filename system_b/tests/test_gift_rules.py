@@ -86,9 +86,21 @@ def test_a_weak_city_lead_gives_way_to_a_strong_one_in_the_state():
     assert got.leads[0].company == "State Charity" and got.geo_level == "state"
 
 
-def test_growth_comes_first_and_trouble_last_for_a_firm_that_does_not_fix_it():
+def test_problems_come_first_and_a_weak_city_event_yields_to_them():
+    """2026-11-19, the user: problem leads first. A WEAK event in their city
+    (a new license) yields to a problem elsewhere in their state."""
+    city_new_license = lead("City License Llc", NL)
+    city_lien = lead("City Lien Co", "state_tax_lien", industry="other")
+    state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
+    state_license = lead("State License Llc", NL, city="Boulder")
+    assert names(geo(), [state_audit, city_lien, state_license, city_new_license], target=4)[0] == \
+        "State Charity"
+
+
+def test_growth_comes_first_and_trouble_last_for_a_firm_that_does_not_fix_it(monkeypatch):
     """2026-11-05, the user: new money and new duties first; trouble mainly to
-    the firms that fix that exact problem."""
+    the firms that fix that exact problem. Off since 2026-11-19 (`GROWTH_FIRST`)."""
+    monkeypatch.setattr(engine, "GROWTH_FIRST", True)
     city_new_license = lead("City License Llc", NL)
     city_lien = lead("City Lien Co", "state_tax_lien", industry="other")
     state_audit = lead("State Charity", NP, city="Boulder", industry="nonprofit")
@@ -294,9 +306,9 @@ def test_types_follow_the_strength_order_and_score_orders_within_a_type():
     # A CPA fixes the charity's audit problem: the original strength order.
     assert names(geo(is_cpa=True), leads, target=7) == [
         "Charity", "Award 50", "Award 10", "Contract", "Grant", "Upgrade", "New License 99"]
-    # Anyone else: new money and new duties first, the charity's trouble last.
+    # Anyone else, since 2026-11-19 (`GROWTH_FIRST` off): the same order.
     assert names(geo(), leads, target=7) == [
-        "Award 50", "Award 10", "Contract", "Grant", "Upgrade", "New License 99", "Charity"]
+        "Charity", "Award 50", "Award 10", "Contract", "Grant", "Upgrade", "New License 99"]
 
 
 def test_the_strength_order_is_the_users():

@@ -395,10 +395,26 @@ def test_a_firms_own_trade_ranks_after_its_client_industries():
     assert mps[0] == ("industry", "legal")
 
 
-def test_a_firm_with_no_industry_gets_general_leads_in_its_state_first():
-    """2026-11-12: new businesses / loans before charity or plan audits, but
-    only in the firm's own state."""
+def test_a_firm_with_no_industry_gets_problem_leads_first():
+    """2026-11-19, the user: problem leads first, for firms with no stated
+    industry too (`GENERAL_FIRST` off)."""
     from system_b.gift.engine import single_kind_gift
+    research = _research([], exclusivity="none", classification="generalist")
+    prospect, _ = resolve_gift(research, _row(), FakeScraper([]), fit=_FIT_YES)
+    leads = [mk(f"n{i}", "nonprofit_going_concern", industry="nonprofit", city="Denver",
+                state="CO", date="2026-07-05", company=f"Charity {i}") for i in range(3)]
+    leads += [mk(f"s{i}", "sba_7a_loan_approved", industry="construction", city="Denver",
+                 state="CO", date="2026-07-05", company=f"Builder {i} Co") for i in range(3)]
+    g = single_kind_gift(prospect, FakeScraper(leads))
+    assert g is not None and {ld.signal_type for ld in g.leads} == {"nonprofit_going_concern"}
+
+
+def test_a_firm_with_no_industry_gets_general_leads_in_its_state_first(monkeypatch):
+    """2026-11-12: new businesses / loans before charity or plan audits, but
+    only in the firm's own state. Off since 2026-11-19 (`GENERAL_FIRST`)."""
+    from system_b.gift import engine
+    from system_b.gift.engine import single_kind_gift
+    monkeypatch.setattr(engine, "GENERAL_FIRST", True)
     research = _research([], exclusivity="none", classification="generalist")
     prospect, _ = resolve_gift(research, _row(), FakeScraper([]), fit=_FIT_YES)
     leads = [mk(f"n{i}", "nonprofit_going_concern", industry="nonprofit", city="Denver",
@@ -409,10 +425,12 @@ def test_a_firm_with_no_industry_gets_general_leads_in_its_state_first():
     assert g is not None and {ld.signal_type for ld in g.leads} == {"sba_7a_loan_approved"}
 
 
-def test_general_leads_in_the_firms_city_before_its_state():
+def test_general_leads_in_the_firms_city_before_its_state(monkeypatch):
     """2026-11-13: a general kind that fills the gift in the firm's city wins
-    over one that only fills it across the state."""
+    over one that only fills it across the state (with `GENERAL_FIRST`)."""
+    from system_b.gift import engine
     from system_b.gift.engine import single_kind_gift
+    monkeypatch.setattr(engine, "GENERAL_FIRST", True)
     research = _research([], exclusivity="none", classification="generalist")
     prospect, _ = resolve_gift(research, _row(), FakeScraper([]), fit=_FIT_YES)
     leads = [mk(f"s{i}", "sba_7a_loan_approved", industry="construction", city="Boulder",

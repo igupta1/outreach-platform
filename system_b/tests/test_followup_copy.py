@@ -57,7 +57,8 @@ def test_followup_subject_is_blank_and_no_signoff():
 def test_step3_is_final_and_distinct():
     lead = mk("l1", "job_fractional_cfo", city="Denver", state="CO")
     d = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "last one from me" in d.body
+    assert d.body.startswith("one last one")
+    assert d.body.endswith("no worries if this isn't useful, i'll stop here.")
 
 
 def test_step_must_be_2_or_3():
@@ -167,9 +168,9 @@ def test_followups_ask_for_the_same_thing_email_1_does():
     # 2026-11-05: email 2 asks a different, easy question. 2026-11-12, the
     # user: email 3 is the version the campaign sent (the custom-tools pivot).
     assert d2.body.rstrip().endswith("?") and "worth a look?" not in d2.body
-    assert d3.body == ("last one from me.\n\nno worries if leads aren't what you're short on. "
-                       "i build custom tools, so if something else is draining your week, "
-                       "what is it?")
+    # 2026-11-19, the user: email 3 is email 2's shape plus a goodbye.
+    assert d3.body.endswith("no worries if this isn't useful, i'll stop here.")
+    assert "draining your week" not in d3.body
     assert "15 min" not in d2.body and "15 min" not in d3.body
     for banned in ("keep sending these as they surface", "i'll keep them coming"):
         assert banned not in d2.body and banned not in d3.body
@@ -183,23 +184,22 @@ def test_fallback_followup_still_makes_the_ask():
 
 # --- email #3 pivots off leads entirely ------------------------------------
 
-def test_step3_never_lists_a_lead_even_when_one_is_passed():
-    """The premise, not the quantity, is what is wrong for a reader who ignored
-    the first four companies. Email #3 drops the gift and asks about their real
-    bottleneck, so a lead handed to it is ignored rather than printed."""
+def test_step3_gifts_one_last_lead_and_says_goodbye():
+    """2026-11-19, the user: the custom-tools pivot drew no positive reply in
+    1,613 sends, so email 3 is email 2's shape (one more lead) plus a goodbye;
+    with no lead it is the goodbye alone."""
     lead = mk("l1", "job_finance_lead", city="Denver", state="CO",
               company="Zenith Widgets", evidence="Controller")
     d = build_followup_email(lead, _prospect(), step=3, today=TODAY)
-    assert "Zenith" not in d.body
-    assert "is looking for" not in d.body
-    assert d.body.startswith("last one from me.")
-    # with no lead passed it renders identically — one shape, not two
-    assert d.body == build_followup_email(None, _prospect(), step=3, today=TODAY).body
+    assert "Zenith" in d.body
+    assert d.body.endswith("no worries if this isn't useful, i'll stop here.")
+    dry = build_followup_email(None, _prospect(), step=3, today=TODAY)
+    assert dry.body == "last one from me. no worries if this isn't useful, i'll stop here."
 
 
-def test_step3_consumes_no_lead_from_the_inventory():
-    """Email #3 gifts nothing, so it must not burn a lead pulling one. Only
-    Email #2 appears in `extra_ids`, and step 3's slot in `leads` is None."""
+def test_step3_pulls_its_own_lead_never_email_2s():
+    """Email #3 gifts one more lead: a different one from email 2's, and both
+    appear in `extra_ids` aligned with the follow-up leads."""
     from datetime import date
 
     from system_b.gift.engine import build_gift
@@ -221,9 +221,10 @@ def test_step3_consumes_no_lead_from_the_inventory():
     _drafts, extra, followup_leads = _followup_drafts(
         prospect, gift, sc, pack, date(2026, 7, 8)
     )
-    assert len(extra) == 1                       # only Email #2 pulled one
-    assert followup_leads[1] is None             # step 3 carries no lead
-    assert followup_leads[0] is not None and followup_leads[0].id == extra[0]
+    assert len(extra) == 2
+    assert [ld.id for ld in followup_leads] == extra
+    assert extra[0] != extra[1]
+    assert not ({ld.id for ld in gift.leads} & set(extra))
 
 
 def test_followup_niche_qualifier_carries_its_noun():

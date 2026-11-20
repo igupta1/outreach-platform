@@ -65,9 +65,9 @@ def test_pain_never_crosses_a_band():
     lien = lead("Big Lien", LIEN, pain=99)
     plan = lead("First Plan Audit", PLAN, pain=30)
     award = lead("Award", DB, pain=20)
-    # Since 2026-11-05 a duty just switched on shares the top band with an
-    # award (`band_for`: new money and new duties first), so pain orders them.
-    assert names([lien, plan, award]) == ["First Plan Audit", "Award", "Big Lien"]
+    # 2026-11-19 (`GROWTH_FIRST` off): the award is STRONG, the first plan
+    # audit MEDIUM, the lien WEAK, whatever their pain.
+    assert names([lien, plan, award]) == ["Award", "First Plan Audit", "Big Lien"]
 
 
 def test_the_city_still_comes_first_inside_a_band():

@@ -331,11 +331,21 @@ def band_for(lead: Lead, prospect: Prospect | None) -> int:
     switched on) or MEDIUM (licences, loans, new businesses, grants). Trouble:
     its own band for a firm that fixes it, else after everything else."""
     base = strength_band(lead)
-    if prospect is None:
+    if prospect is None or not GROWTH_FIRST:
         return base
     if (lead.signal_type or "") in TROUBLE_TYPES:
         return base if fixes_trouble(lead, prospect) else TROUBLE_LAST
     return STRONG if base in (STRONG, MEDIUM) else MEDIUM
+
+
+# 2026-11-19, the user ("prioritize problem leads"): growth-first is OFF. The
+# emails built before it (619 sent Oct 25 - Nov 12) drew 8 positive replies,
+# 6 of them on problem leads (audit findings, federal jobs); the 994 built
+# after it (48% events: SBA loans, liquor permits, registrations) drew none.
+# Off, every firm gets the plain strength order: problems first, events last,
+# and a WEAK event in their city yields to a stronger lead elsewhere in their
+# state (`CITY_YIELDS_FROM`). True brings growth-first back.
+GROWTH_FIRST = False
 
 
 # Inside the prospect's own state, a WEAK lead in their city no longer beats a
@@ -1271,6 +1281,13 @@ GENERAL_TYPES: frozenset[str] = frozenset({
 })
 
 
+# 2026-11-19, the user ("prioritize problem leads"): off. With it on, a firm
+# with no stated industry got GENERAL_TYPES (SBA loans, liquor permits, new
+# businesses) in its city before any problem lead in its state: 80 test emails
+# had 2% problem leads. True brings it back.
+GENERAL_FIRST = False
+
+
 def single_kind_gift(
     prospect: Prospect, scraper: _Scraper, *, target: int = GIFT_TARGET,
     pack: NichePack | None = None, niche_only: bool = False, build=None,
@@ -1284,7 +1301,7 @@ def single_kind_gift(
     A mixed gift is the last resort."""
     build = build or build_gift
     g = build(prospect, scraper, target=target, pack=pack, niche_only=niche_only)
-    general_first = prospect.classification != "niched" and not niche_only
+    general_first = GENERAL_FIRST and prospect.classification != "niched" and not niche_only
     one_kind = g is not None and len({ld.signal_type for ld in g.leads}) <= 1
     if g is None:
         return g

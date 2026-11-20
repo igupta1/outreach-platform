@@ -38,10 +38,10 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     `leads` is aligned to steps 2 and 3 — the review gate surfaces those leads'
     evidence too.
 
-    ONLY Email #2 gifts a lead (one fresh one, not already used across the
-    sequence; Option A, so no recency date). Email #3 is the pivot: it drops the
-    gift and asks what their bottleneck actually is, so no lead is pulled or
-    consumed for it and its slot in `leads` is always None."""
+    Email #2 and email #3 each gift one fresh lead, not already used across the
+    sequence (Option A, so no recency date); email #3 adds a goodbye
+    (2026-11-19: the old no-lead pivot drew no positive reply). Email #3's slot
+    in `leads` is None only when no further lead was found."""
     used = [lead.id for lead in gift.leads]
     extra_ids: list[str] = []
 
@@ -70,17 +70,26 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     if not (niched and gift.all_niche):
         attempts += [dict(signal_types=kinds, in_state=True), dict(in_state=True),
                      dict(signal_types=kinds, nationwide=True), {}]   # last: any lead nearby
-    g = None
-    for opts in attempts:
-        g = build_gift(prospect, sc, target=1, pack=pack, **opts)
-        if g is not None and (g.all_niche or not opts.get("niche_only")):
-            break
-        g = None
-    lead = g.leads[0] if g else None
+    def _one_more():
+        for opts in attempts:
+            g = build_gift(prospect, sc, target=1, pack=pack, **opts)
+            if g is not None and (g.all_niche or not opts.get("niche_only")):
+                return g.leads[0]
+        return None
+
+    lead = _one_more()
     if lead is not None:
         extra_ids.append(lead.id)
+        prospect.sent_lead_ids = [*prospect.sent_lead_ids, lead.id]
+        prospect.used_leads = [*prospect.used_leads, lead]
         if name_fixer is not None:
             name_fixer.tidy([lead])
+    # Email 3 (2026-11-19): one last lead of the same kind, found the same way.
+    lead3 = _one_more() if lead is not None else None
+    if lead3 is not None:
+        extra_ids.append(lead3.id)
+        if name_fixer is not None:
+            name_fixer.tidy([lead3])
 
     # "keep these to ohio?" only when email 1's leads were in Ohio.
     ask_state = gift.geo_level in ("city", "state")
@@ -98,10 +107,12 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
                              include_signoff=False,
                              gift_signals={ld.signal_type for ld in gift.leads},
                              vary_key=vary_key, ask_state=ask_state, question=question),
-        build_followup_email(None, prospect, step=3, today=today, pack=pack,
-                             include_signoff=False, vary_key=vary_key),
+        build_followup_email(lead3, prospect, step=3, today=today, pack=pack,
+                             include_signoff=False,
+                             gift_signals={ld.signal_type for ld in gift.leads},
+                             vary_key=vary_key, ask_state=ask_state),
     ]
-    return drafts, extra_ids, [lead, None]
+    return drafts, extra_ids, [lead, lead3]
 
 
 # --- Backlog ---------------------------------------------------------------

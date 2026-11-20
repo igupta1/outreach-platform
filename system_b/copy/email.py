@@ -1603,6 +1603,30 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     return f"{first}\n\n{_followup_ask(prospect, pack, vary_key, ask_state, question)}"
 
 
+_GOODBYE = "no worries if this isn't useful, i'll stop here."
+
+
+def _final_with_lead(lead: Lead | None, prospect: Prospect, pack, vary_key: str | None, *,
+                     ask_state: bool, gift_signals, today: date, flags: list[str]) -> str:
+    """Email 3: one last lead in email 2's words, then the goodbye. With no
+    lead to give it is the goodbye alone."""
+    if lead is not None:
+        record = _record_followup(lead, prospect, pack, vary_key, ask_state=ask_state,
+                                  gift_signals=gift_signals, today=today, question="?")
+        if record is not None:
+            flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
+            first = record.split("\n\n", 1)[0]
+            for start in ("one more", "also"):
+                if first.startswith(start):
+                    first = "one last one" + first[len(start):]
+                    break
+            return f"{first}\n\n{_GOODBYE}"
+        line, lf = _lead_line(lead, today, "none", pack=pack, with_date=False)
+        flags.extend(lf)
+        return f"one last one:\n\n{line}\n\n{_GOODBYE}"
+    return f"last one from me. {_GOODBYE}"
+
+
 def build_followup_email(
     lead: Lead | None,
     prospect: Prospect,
@@ -1627,9 +1651,8 @@ def build_followup_email(
     `gift_signals` (email 1's signal types) decides whether email 2 may say
     "showing the same signal"; None keeps the old wording.
 
-    Email #3 (step 3) is ALWAYS `_FINAL_PIVOT`: no lead, no gift, one question
-    about their real bottleneck. `lead` is accepted and ignored there so the
-    signature stays uniform for callers that still pass one.
+    Email #3 (step 3) is email 2's shape with one last lead and a goodbye
+    (`_final_with_lead`); with no lead it is the goodbye alone.
 
     Honesty is identical to Email #1: dates only for high-confidence signals,
     raises templated with no dollar figure, all via `_lead_line`. Signoff is
@@ -1641,9 +1664,11 @@ def build_followup_email(
     final = step == 3
 
     if final:
-        # 2026-11-12, the user: email 3 stays the version the campaign sent
-        # (`_FINAL_PIVOT`) for every pack. `offer.final_note` is kept, unused.
-        core = _FINAL_PIVOT
+        # 2026-11-19, the user: the custom-tools pivot drew no positive reply
+        # in 1,613 sends (only "stop" / "unsubscribe"), so email 3 is now
+        # email 2's shape, one more lead, plus a goodbye.
+        core = _final_with_lead(lead, prospect, pack, vary_key, ask_state=ask_state,
+                                gift_signals=gift_signals, today=today, flags=flags)
     elif lead is not None and (record := _record_followup(
             lead, prospect, pack, vary_key, ask_state=ask_state,
             gift_signals=gift_signals, today=today, question=question)) is not None:
