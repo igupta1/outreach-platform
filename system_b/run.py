@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -161,6 +162,24 @@ def _review_path(out_path: str) -> Path:
     p = Path(out_path)
     stem = p.name[: -len(p.suffix)] if p.suffix else p.name
     return p.with_name(f"{stem}.review.json")
+
+
+_OWNER_RE = re.compile(r"\b(owner|founder|co-?founder|principal|proprietor|president|ceo|"
+                       r"chief executive|managing (partner|member|director)|sole)\b", re.I)
+_PARTNER_RE = re.compile(r"\bpartner\b", re.I)
+
+
+def owner_rank(title: str | None) -> int:
+    """0 an owner or founder, 1 anyone else, 2 a partner who is not the
+    managing or founding one (a partner at a bigger CPA firm). The email
+    results (2026-11-19): 87% owners in the batches that drew replies, 73%
+    with 12% partners in the batches that drew none."""
+    t = title or ""
+    if _OWNER_RE.search(t):
+        return 0
+    if _PARTNER_RE.search(t):
+        return 2
+    return 1
 
 
 def _location_only(res: dict) -> bool:
@@ -548,7 +567,9 @@ def main() -> None:
               f"voice: {res.get('pack', '?')} from {res.get('voice_source', '?')})")
 
     def _strongest(pr: tuple[dict, dict]) -> list:
-        return pr[1].get("strength") or [9, 9, 9, 0]
+        # Owners before staff (2026-11-19, the user: "prefer firm owners over
+        # partners at bigger CPA firms"), then the strongest leads.
+        return [owner_rank(pr[0].get("title")), *(pr[1].get("strength") or [9, 9, 9, 0])]
 
     matched.sort(key=_strongest)                       # stable: file order breaks ties
     location_only.sort(key=_strongest)

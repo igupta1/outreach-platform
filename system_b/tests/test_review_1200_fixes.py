@@ -101,3 +101,15 @@ def test_spot_read_name_and_greeting_fixes():
         "first_name"] == "Jim"
     assert row_from_apollo({**base, "Email": "seb@a.com", "First Name": "Sebastian"})[
         "first_name"] == "Seb"
+
+
+def test_owners_are_drafted_before_partners_at_bigger_firms():
+    """2026-11-19, the user: prefer firm owners over partners at bigger CPA firms."""
+    from system_b.run import owner_rank
+    assert owner_rank("Founder & CEO") == 0
+    assert owner_rank("Managing Partner") == 0
+    assert owner_rank("Owner") == 0
+    assert owner_rank("Controller") == 1
+    assert owner_rank(None) == 1
+    assert owner_rank("Tax Partner") == 2
+    assert owner_rank("Partner") == 2
