@@ -172,3 +172,23 @@ def test_sister_organizations_count_as_one():
 def test_the_place_question_never_names_a_place_without_its_lead():
     assert followup_question(None, "fresno") == "should i keep these to fresno, or go wider?"
     assert followup_question(None, None).startswith("are these the kind of clients")
+
+
+def test_a_state_that_is_part_of_the_name_stays():
+    from system_b.copy.lex import spoken_name
+    assert spoken_name("YWCA of Southern Arizona") == "YWCA of Southern Arizona"
+    assert spoken_name("Land Trust for Louisiana") == "Land Trust for Louisiana"
+    assert spoken_name("United Way of West Tennessee") == "United Way of West Tennessee"
+    assert spoken_name("Grace House of Memphis Tennessee") == "Grace House of Memphis"
+
+
+def test_registry_city_short_forms_are_spelled_out():
+    from system_b.copy.lex import city_display
+    assert city_display("Santa Rsa Bch") == "santa rosa beach"
+    assert city_display("Ft. Lauderdale") == "fort lauderdale"
+    assert city_display("St Paul") == "st paul"
+
+
+def test_apostrophes_in_childrens_and_womens():
+    assert inv._clean_company_name("Childrens Home Society") == "Children's Home Society"
+    assert inv._clean_company_name("Womens Fund of East Tennessee") == "Women's Fund of East Tennessee"

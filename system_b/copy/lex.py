@@ -235,6 +235,13 @@ _MORE_TAIL_RE = re.compile(
     r"(?:,\s*(?:pl|ps|pa|p\s?c|gbc)\.?|\s+(?:apc|ps|fs|dbe|l\.?c|l\s?p)\.?|,?\s+an?\s+professional"
     r"(?:\s+\w+)?(?:\s+(?:association|corporation|corp\w*))?|,?\s+professional\s+association)\s*$",
     re.I)
+# A word that makes the state after it part of the name: "YWCA of Southern
+# Arizona", "Land Trust for Louisiana", "Bridges of Greater New York"
+# (2026-11-21: stripping it left "YWCA of Southern").
+_KEEPS_STATE = frozenset({"of", "in", "and", "&", "for", "greater", "northern", "southern",
+                          "eastern", "western", "central", "north", "south", "east", "west",
+                          "northeast", "northwest", "southeast", "southwest", "upstate",
+                          "downstate", "coastal", "rural", "serving", "across"})
 _PAREN_STATE_RE = re.compile(r"\s*\([A-Z]{2}\)")
 _UNIT_RE = re.compile(r"\s+(?:ste|suite|location)\s*#?\s*\d+\b.*$", re.I)
 _ACRONYMS = frozenset({"NAACP", "UNICEF", "ASPCA", "YMCA", "YWCA", "AMVETS", "NASCAR"})
@@ -254,7 +261,7 @@ def _readable(name: str) -> str:
     words = out.split()
     for n in (2, 1):
         if len(words) > n + 2 and " ".join(words[-n:]).lower() in _STATE_FULL.values() \
-                and words[-n - 1].lower() not in ("of", "in", "and", "&"):
+                and words[-n - 1].lower() not in _KEEPS_STATE:
             words = words[:-n]
             break
     fixed = []
@@ -350,8 +357,20 @@ def revenue_display(rng: tuple[float | None, float | None] | None) -> str:
     return ""
 
 
+# A registry's short forms of city words ("Santa Rsa Bch", 2026-11-21).
+_CITY_WORDS = {"bch": "beach", "rsa": "rosa", "hts": "heights", "hgts": "heights",
+               "spgs": "springs", "spg": "springs", "mtn": "mountain", "twp": "township",
+               "vlg": "village", "jct": "junction", "cty": "city", "lk": "lake", "crk": "creek",
+               "hbr": "harbor", "bch.": "beach", "pk": "park", "vly": "valley", "fls": "falls"}
+_CITY_FIRST = {"ft": "fort", "mt": "mount", "n": "north", "s": "south", "e": "east",
+               "w": "west"}
+
+
 def city_display(city: str | None) -> str:
-    return (city or "").strip().lower()
+    words = (city or "").strip().lower().split()
+    out = [(_CITY_FIRST.get(w.rstrip("."), w) if i == 0 and len(words) > 1 else w)
+           for i, w in enumerate(words)]
+    return " ".join(_CITY_WORDS.get(w, w) for w in out)
 
 
 def state_display(state: str | None) -> str:

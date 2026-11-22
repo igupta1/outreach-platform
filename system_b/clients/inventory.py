@@ -587,6 +587,7 @@ def _tidy_words(name: str) -> str:
                 (i == 0 or w in ("SU", "EL")) and words[i + 1][:1].isupper() and not words[i + 1].isupper():
             w = w.title()
         w = re.sub(r"^Mc([a-z])", lambda m: "Mc" + m.group(1).upper(), w)
+        w = {"Childrens": "Children's", "Womens": "Women's"}.get(w, w)
         m = re.fullmatch(r"([A-Za-z]{4,}?)(inc|corporation)", w)
         if m and m.group(1).lower() not in ("zinc",):
             w = m.group(1) if m.group(2) == "inc" else f"{m.group(1)} Corporation"
