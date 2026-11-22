@@ -190,12 +190,23 @@ def _state_tax_kind(leads: list[Lead]) -> str:
         else "liens or warrants"
 
 
+def _filing_state(leads: list[Lead]) -> str:
+    """"new york " when the state that filed is not where the companies are
+    (2026-11-21: NYS warrants against Wyoming LLCs read as Wyoming's)."""
+    from system_b.copy.lex import state_display
+    j = {str(_payload(ld).get("jurisdiction") or "").lower() for ld in leads}
+    if len(j) == 1 and next(iter(j)) and all(
+            state_display(next(iter(j))) != state_display(ld.state) for ld in leads):
+        return state_display(next(iter(j))) + " "
+    return ""
+
+
 def _state_tax_plural(leads: list[Lead]) -> str:
-    return f"had state tax {_state_tax_kind(leads)} filed against them"
+    return f"had {_filing_state(leads)}state tax {_state_tax_kind(leads)} filed against them"
 
 
 def _state_tax_one(lead: Lead) -> str:
-    return f"had a state tax {_instrument(lead)} filed against it"
+    return f"had a {_filing_state([lead])}state tax {_instrument(lead)} filed against it"
 
 
 def _state_tax_short(leads: list[Lead]) -> tuple[str, str]:
