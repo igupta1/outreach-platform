@@ -151,7 +151,10 @@ def _person(lead: Lead) -> tuple[str, str] | None:
     """(name, plain role) of the record's named contact, or None. Single-letter
     initials are dropped ("Douglas K Bardin" -> "Douglas Bardin"); a "contact"
     that is the organization's own name is not a person."""
-    # "Broadwater,III" -> "Broadwater III" (2026-11-21).
+    # "Sharron, Joseph" is last-comma-first: which is which is a guess, so
+    # no name (2026-11-21). "Broadwater,III" -> "Broadwater III".
+    if re.search(r"[A-Za-z]{2,}, [A-Z][a-z]+$", lead.contact_name or ""):
+        return None
     name = " ".join(re.sub(r",(?=\S)", " ", lead.contact_name or "").split())
     role = role_word(lead.contact_title)
     if not name or not role:

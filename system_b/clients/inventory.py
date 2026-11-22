@@ -1344,7 +1344,7 @@ MAX_FEDERAL_SPEND = 25_000_000
 # "Elizabeth S Ludgate Test Trust", "Industrial Security Integrators, LL",
 # "Regal P".
 _GARBLED_NAME_RE = re.compile(
-    r"(?i:\b(?:formerly|prev|fka|irrv|irrev|test trust|testamentary)\b)|\b\d{7,8}\b|,\s*LL$|"
+    r"(?i:\b(?:formerly|prev|fka|irrv|irrev|test trust|testamentary)\b)|\b\d{7,}\b|,\s*LL$|"
     r"\w{4}\s[D-WYZ]$")                        # "Regal P", not "Plan B" or "Vitamin C"
 MIN_FRAUD_LOSS = 1_000
 MIN_CONDO_UNITS = 20
@@ -1645,7 +1645,7 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
             return "housing_property"
         if _PROPERTY_NAME_RE.search(name) and (not ntee or ntee.startswith("L")):
             return "housing_property"
-        if revenue is not None and federal > 3 * max(revenue, 1):
+        if revenue is not None and federal > 2 * max(revenue, 1):
             return "housing_property"
         if revenue is not None and revenue < MIN_NONPROFIT_REVENUE and t.startswith("nonprofit"):
             return "too_small"

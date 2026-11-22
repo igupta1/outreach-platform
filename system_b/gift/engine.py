@@ -868,7 +868,9 @@ def _operator_keys(lead: Lead) -> set[str]:
         p.update(s.payload or {})
     keys: set[str] = set()
     for field in ("contact_name", "contact_email", "return_signer"):
-        v = re.sub(r"[^a-z0-9@.]", "", str(p.get(field) or "").lower())
+        # The record's person sits on the lead itself as well as in the
+        # payload (2026-11-21: Edward Cordoba ran two schools in one email).
+        v = re.sub(r"[^a-z0-9@.]", "", str(p.get(field) or getattr(lead, field, None) or "").lower())
         if len(v) >= 6:
             keys.add(f"{field}:{v}")
     street = re.sub(r"[^a-z0-9]", "", str(p.get("street") or "").lower())
