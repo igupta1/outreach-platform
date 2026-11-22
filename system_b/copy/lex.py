@@ -5,6 +5,7 @@ casual voice; company names are the only thing kept verbatim (elsewhere).
 
 from __future__ import annotations
 
+import functools
 import re
 
 # Taxonomy token -> plain-English label used in copy. The spec is explicit:
@@ -193,6 +194,29 @@ def _incorporated_in_re() -> re.Pattern:
 _INCORPORATED_IN: re.Pattern | None = None
 
 
+@functools.lru_cache(maxsize=1)
+def _words() -> frozenset[str]:
+    """The system word list, lower case; empty where there is none."""
+    try:
+        with open("/usr/share/dict/words", encoding="utf-8") as fh:
+            return frozenset(w.strip().lower() for w in fh)
+    except OSError:
+        return frozenset()
+
+
+def _looks_acronym(word: str) -> bool:
+    """At most one vowel and three consonants in a row no English word has:
+    "WSCADV", "GECMS", "NWICDC", "USBTA" -> True; "SMITH", "STRAND" -> False."""
+    low = word.lower()
+    if low.startswith(("mc", "mac")) or any(f in _words() for f in (low, low.rstrip("s"))):
+        return False
+    vowels = sum(c in "aeiouy" for c in low)
+    run = re.search(r"[bcdfghjklmnpqrstvwxz]{3}", re.sub(r"(.)\1", r"\1", low))
+    common = ("str", "sch", "chr", "thr", "nds", "nts", "rst", "nst", "ngs", "ght", "rch", "tch",
+              "scr", "spr", "spl", "shr", "phr", "lds", "rds", "rts", "nch", "rth", "ndr", "ntr")
+    return vowels <= 1 and bool(run) and not any(c in low for c in common)
+
+
 def _undoubled(name: str) -> str:
     """"Homeward Bound USA Homeward Bound Adirondacks" -> "Homeward Bound
     Adirondacks": a registry that wrote a parent name before the org's own
@@ -271,7 +295,9 @@ def _readable(name: str) -> str:
     fixed = []
     for w in words:
         core = w.rstrip(".,")
-        if core.isalpha() and core.isupper() and len(core) >= 5 and core not in _ACRONYMS \
+        if core.isalpha() and len(core) >= 4 and _looks_acronym(core):
+            w = w.replace(core, core.upper())       # "Wscadv" -> "WSCADV" (2026-11-21)
+        elif core.isalpha() and core.isupper() and len(core) >= 5 and core not in _ACRONYMS \
                 and set(core.lower()) & _VOWELS:
             w = w.capitalize()
         elif w == "ST.":

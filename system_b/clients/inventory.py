@@ -1351,7 +1351,8 @@ _PROPERTY_NAME_RE = re.compile(
 # A HUD project number ("Wilshire House 122-EH476") or a street address
 # ("Transform 1012 N Main Street") in the name: one building.
 _PROPERTY_ID_RE = re.compile(r"\b\d{3}-[A-Z]{2}\d{3}\b|\b\d{2,5} (?:[NSEW]\.? )?\w+ "
-                             r"(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)\b",
+                             r"(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|"
+                             r"hwy|highway|parkway|pkwy|pike)\b",
                              re.I)
 _SCHOOL_GOV_RE = re.compile(r"\b(?:school district|public schools|board of education|"
                             r"unified school|independent school district|isd|county schools|"
@@ -1557,7 +1558,7 @@ counseling advocacy advocates employment independence independent intervention
 """.split())
 
 
-_KNOWN_TYPOS = frozenset({"disabitilites", "kidness"})
+_KNOWN_TYPOS = frozenset({"disabitilites", "kidness", "profedsional", "oommonwealth", "codno", "sqaureish", "aerodefensel", "mattthew"})
 
 
 def _a_word(w: str) -> bool:
@@ -1686,7 +1687,8 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
         return "too_big"
     if _public_company_name(name):
         return "public_company"
-    if t.startswith("nonprofit") and misspelled_word(name):
+    if misspelled_word(name) and (t.startswith("nonprofit") or any(
+            w.lower() in _KNOWN_TYPOS for w in re.findall(r"[A-Za-z]+", name))):
         return "misspelled_name"
     if _person_words(name) or _bare_person_name(name):
         return "person_name"
