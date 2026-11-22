@@ -108,21 +108,21 @@ def preview():
 def test_two_years_renders_exactly_in_the_record_opener_format(preview):
     framing, lines = preview["nonprofit_990_missed_2yr"]["opener"]
     assert framing.endswith("these 3 nonprofits in denver are two years behind on their irs "
-                            "returns, so one more year costs each its tax exemption:")
-    assert lines == ["Mile High Youth Fund (fy2023 and fy2024, next one due soon)",
-                     "Front Range Arts (fy2023 and fy2024)",
-                     "Colorado Food Bank Network (fy2023 and fy2024)"]
+                            "returns, so each could soon lose its tax exemption:")
+    assert lines == ["Mile High Youth Fund (no 990 for fy2023 and fy2024, next one due soon)",
+                     "Front Range Arts (no 990 for fy2023 and fy2024)",
+                     "Colorado Food Bank Network (no 990 for fy2023 and fy2024)"]
     assert preview["nonprofit_990_missed_2yr"]["opener_one"][0].endswith(
-        "this nonprofit in denver is two years behind on its irs returns, so one more "
-        "year costs it its tax exemption:")
+        "this nonprofit in denver is two years behind on its irs returns, so it could "
+        "soon lose its tax exemption:")
 
 
 def test_one_year_renders_exactly(preview):
     framing, lines = preview["nonprofit_990_missed_1yr"]["opener"]
     assert framing.endswith("these 3 nonprofits in denver are a year behind on their irs "
-                            "returns, so each risks losing its tax exemption:")
-    assert lines[0] == "Mile High Youth Fund (fy2024, next one due soon)"
-    assert lines[1] == "Front Range Arts (fy2024)"
+                            "returns, so each needs to catch up on its filings:")
+    assert lines[0] == "Mile High Youth Fund (no 990 for fy2024, next one due soon)"
+    assert lines[1] == "Front Range Arts (no 990 for fy2024)"
 
 
 @pytest.mark.parametrize("t", GAPS)

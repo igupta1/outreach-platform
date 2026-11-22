@@ -101,6 +101,15 @@ def _followup_drafts(prospect: Any, gift: Any, sc: Any, pack: Any, today: date,
     niche = niche_claim(gift, prospect) if gift.all_niche else None
     place = (city_display(prospect.city) if gift.geo_level == "city"
              else state_display(prospect.state) if gift.geo_level == "state" else None)
+    # The place asked about must hold email 2's own lead (2026-11-21 review:
+    # "keep these to san jose?" right after a lead in fresno): a lead elsewhere
+    # in the state asks about the state; one out of state asks neither.
+    if place and lead is not None:
+        same_state = state_display(lead.state) == state_display(prospect.state)
+        if gift.geo_level == "city" and city_display(lead.city) != place:
+            place = state_display(prospect.state) if same_state else None
+        elif gift.geo_level == "state" and not same_state:
+            place = None
     question = offer.followup_question(niche_noun(niche) if niche else None, place)
     drafts: list[Any] = [
         build_followup_email(lead, prospect, step=2, today=today, pack=pack,

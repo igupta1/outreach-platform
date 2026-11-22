@@ -877,7 +877,8 @@ DUTIES: dict[str, Duty] = {
 
 def _gap_years(lead: Lead) -> str:
     years = [str(y) for y in _payload(lead).get("missed_tax_years") or []]
-    detail = " and ".join(f"fy{y}" for y in years)
+    # "no 990 for fy2024", not a bare "fy2024" (2026-11-21 review).
+    detail = ("no 990 for " + " and ".join(f"fy{y}" for y in years)) if years else ""
     if _payload(lead).get("next_deadline_within_90_days") is True:
         detail = f"{detail}, next one due soon" if detail else "next one due soon"
     return detail
@@ -1972,8 +1973,8 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_excess_benefit': ('reported on their 990s that an insider was overpaid', 'reported on its 990 that an insider was overpaid', 'so each must correct it with the irs', 'so it must correct it with the irs'),
     'construction_first_prevailing_wage_intent': ('started their first government jobs', 'started its first government job', "so each must report its workers' pay to the state", "so it must report its workers' pay to the state"),
     'nonprofit_deficit_low_cash': ('spent more than they took in two years running and have under a month of cash left', 'spent more than it took in two years running and has under a month of cash left', '', ''),
-    'nonprofit_990_missed_1yr': ('are a year behind on their irs returns', 'is a year behind on its irs return', 'so each risks losing its tax exemption', 'so it risks losing its tax exemption'),
-    'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so one more year costs each its tax exemption', 'so one more year costs it its tax exemption'),
+    'nonprofit_990_missed_1yr': ('are a year behind on their irs returns', 'is a year behind on its irs return', 'so each needs to catch up on its filings', 'so it needs to catch up on its filings'),
+    'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so each could soon lose its tax exemption', 'so it could soon lose its tax exemption'),
     'nonprofit_exemption_revoked': ('lost their tax-exempt status after three years of no returns', 'lost its tax-exempt status after three years of no returns', 'so each must refile to get it back', 'so it must refile to get it back'),
     'cpa_firm_license_delinquent': ('let their cpa firm licenses lapse', 'let its cpa firm license lapse', '', ''),
     'h2b_seasonal_employer': ('were approved to hire seasonal foreign workers', 'was approved to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),

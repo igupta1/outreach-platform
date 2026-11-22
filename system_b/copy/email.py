@@ -604,12 +604,15 @@ def _record_detail(lead: Lead, kind: str) -> str:
     if kind.startswith("audit_"):
         what, repeat = _audit_facts(lead) or ("", False)
         bits = []
+        # Said as a finding, never a bare noun: "grant handling flagged two
+        # years in a row", not "grant handling two years in a row" (2026-11-21
+        # review: the bare form read as a fragment).
         if kind == "audit_mixed":
-            bits.append("financial controls" if what == "controls" else "grant handling")
+            bits.append("financial controls flagged" if what == "controls" else "grant handling flagged")
         # One detail, so no comma (2026-11-14: "grant handling, two years in
         # a row" filled both of a line's two places).
         if repeat:
-            bits.append("two years in a row")
+            bits.append("two years in a row" if bits else "flagged two years in a row")
         return " ".join(bits)
     # One plain fact per lead (2026-11-06): "hourly" and "more than one" were
     # contract jargon beside the dollar figure, which says more.
@@ -731,7 +734,12 @@ def _two_details(fact: str, kind_detail: str, lead: Lead, today: date | None) ->
         return ", ".join(b for b in (kind_detail, fact) if b)
     ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "",
               fresh_date(lead, today)]
-    return ", ".join([b for b in ranked if b][:2])
+    kept = [b for b in ranked if b][:2]
+    # A date after an amount says when: "$10.6m on oct 29", never "$10.6m,
+    # oct 29" (2026-11-21 review: it read as a fragment).
+    if len(kept) == 2 and kept[1] == ranked[3] and kept[0].startswith("$"):
+        return f"{kept[0]} on {kept[1]}"
+    return ", ".join(kept)
 
 
 def record_opener(gift: Gift, prospect: Prospect, pack=None, *,

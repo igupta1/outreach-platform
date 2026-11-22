@@ -755,7 +755,7 @@ def test_title_cased_acronyms_are_restored():
         "Houston Sro Housing Corporation": "Houston SRO Housing Corporation",
         "Mds Ii": "MDS II",
         "Region Iii Workforce Investment Board": "Region III Workforce Investment Board",
-        "Ywca Of Southern Arizona": "YWCA Of Southern Arizona",
+        "Ywca Of Southern Arizona": "YWCA of Southern Arizona",
         "Charterchoice Collaborative Sfa": "Charterchoice Collaborative SFA",
         "Basic Nwfl Inc": "Basic NWFL Inc",
         "Land Iq, Llc": "Land IQ, LLC",
@@ -772,7 +772,7 @@ def test_one_reading_registry_abbreviations_are_expanded():
         "Cooper Ridge Fncng & Outdr Llc": "Cooper Ridge Fencing & Outdoor LLC",
         "Tree of Knowledge Learning Ctr LLC": "Tree of Knowledge Learning Center LLC",
         "Pa Assoc Of Conservation Districts Inc":
-            "PA Association Of Conservation Districts Inc",
+            "PA Association of Conservation Districts Inc",
     }
     for raw, want in cases.items():
         assert _clean(raw) == want, raw
@@ -780,9 +780,9 @@ def test_one_reading_registry_abbreviations_are_expanded():
 
 def test_real_words_and_names_keep_their_case():
     """Words, surnames and names that chose their own casing are not initials."""
-    for name in ("Think Of Us", "Me 'Oe LLC", "Kwang Lee Inc", "Nguyen Construction",
+    for name in ("Think of Us", "Me 'Oe LLC", "Kwang Lee Inc", "Nguyen Construction",
                  "Mxene Co", "Sri Ganesh Temple", "Lynn Gym LLC", "Ag Land Trust",
-                 "Mcdonald Partners", "Square One Builders", "iRobot", "F3EA Inc",
+                 "McDonald Partners", "Square One Builders", "iRobot", "F3EA Inc",
                  "St. Mary Housing", "Dr Smith Dental, Ltd.", "Kscube Labs"):
         assert _clean(name) == name, name
 
@@ -825,9 +825,9 @@ def test_vowel_pair_initials_and_hyphen_pieces_are_restored():
     assert _clean("AOC CALTON LTD") == "AOC Calton Ltd"
     assert _clean("Aoc Calton Ltd") == "AOC Calton Ltd"
     assert _clean("Friends Of Little Saigon Seattle Fls-S") == \
-        "Friends Of Little Saigon Seattle FLS-S"
+        "Friends of Little Saigon Seattle"
     # Words that start with two vowels, and hyphenated words, keep their case.
-    for name in ("Oak Grove Builders", "Out Of The Box LLC", "Aid To Families",
+    for name in ("Oak Grove Builders", "Out of the Box LLC", "Aid to Families",
                  "Ion Roofing", "Co-Op Partners", "Self-Help Credit Union",
                  "Well-Being Center", "X-Ray Services", "Go-Jo Builders",
                  "Bi-Bett Corporation", "Su-Kam Power", "D-Fi LLC"):

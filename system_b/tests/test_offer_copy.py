@@ -262,7 +262,7 @@ def test_a_lead_shows_at_most_two_details_fact_then_person():
     today = date(2026, 11, 12)
     assert _two_details("$7.8m", "first federal job", ld, today) == "$7.8m, president Nicholas Hammond"
     bare = _contact_lead(when="2026-10-28", name="")
-    assert _two_details("$7.8m", "", bare, today) == "$7.8m, oct 28"        # date fills in
+    assert _two_details("$7.8m", "", bare, today) == "$7.8m on oct 28"        # date fills in
     assert _two_details("", "first federal job", bare, today) == "first federal job, oct 28"
 
 

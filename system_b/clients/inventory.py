@@ -37,7 +37,7 @@ from typing import Any
 import httpx
 
 from system_b import config
-from system_b.clients.people import looks_like_person
+from system_b.clients.people import BUSINESS_WORDS as _BUSINESS_WORDS_ALL, looks_like_person
 from system_b.places import dc_city
 from system_b.clients.scraper_client import SnapshotScraper
 from system_b.copy.names import front_the
@@ -554,7 +554,52 @@ def _clean_company_name(name: str) -> str:
     name = re.sub(r"\s*\(attorney\)\s*$", "", name, flags=re.IGNORECASE)
     name = front_the(name.replace(" / ", " ").strip(" /|-"))
     name = _MULTISPACE_RE.sub(" ", name).strip()
-    return _fix_title_tokens(_fix_shouting(name))
+    return _tidy_words(_fix_title_tokens(_fix_shouting(name)))
+
+
+_SMALL_WORDS = frozenset({"of", "with", "for", "and", "the", "in", "at", "on", "to", "a", "an", "by"})
+_ARTICLE_STARTS = {"Su": "Su", "Al": "Al", "El": "El", "La": "La", "Los": "Los", "Las": "Las"}
+
+
+def _tidy_words(name: str) -> str:
+    """The 2026-11-21 review's name fixes: "United Way Of West Tennessee" ->
+    "United Way of West Tennessee"; "... Information Center LYRIC" drops the
+    acronym that repeats the name; "Mckee" -> "McKee"; "SU Casa" / "AL
+    Hadi" / "LA Casa DE Salud" -> "Su Casa" / "Al Hadi" / "La Casa de Salud";
+    "Wichitainc" -> "Wichita"; "Housing Devel Development" -> "Housing
+    Development"."""
+    words = name.split(" ")
+    # A trailing acronym spelled by the words before it.
+    if len(words) >= 4:
+        acr = re.sub(r"[^A-Za-z]", "", words[-1])
+        initials = "".join(w[0] for w in words[:-1] if w[:1].isalpha()).upper()
+        if len(acr) >= 3 and words[-1].replace("-", "").isupper() and _subsequence(acr.upper(), initials) \
+                and len(acr) >= 0.6 * len(initials):
+            words = words[:-1]
+    out: list[str] = []
+    for i, w in enumerate(words):
+        if i and w.lower() in _SMALL_WORDS and w[:1].isupper() and not w.isupper() \
+                and not out[-1].endswith((":", "-", "/")):
+            w = w.lower()
+        if w in ("DE", "DEL") and 0 < i < len(words) - 1:
+            w = w.lower()
+        if w in ("SU", "AL", "EL", "LA", "LOS", "LAS") and i < len(words) - 1 and \
+                (i == 0 or w in ("SU", "EL")) and words[i + 1][:1].isupper() and not words[i + 1].isupper():
+            w = w.title()
+        w = re.sub(r"^Mc([a-z])", lambda m: "Mc" + m.group(1).upper(), w)
+        m = re.fullmatch(r"([A-Za-z]{4,}?)(inc|corporation)", w)
+        if m and m.group(1).lower() not in ("zinc",):
+            w = m.group(1) if m.group(2) == "inc" else f"{m.group(1)} Corporation"
+        if out and len(out[-1]) >= 4 and w.lower().startswith(out[-1].lower()) and w.lower() != out[-1].lower():
+            out[-1] = w                     # "Devel Development"
+            continue
+        out.append(w)
+    return " ".join(out)
+
+
+def _subsequence(short: str, long: str) -> bool:
+    it = iter(long)
+    return all(c in it for c in short)
 
 
 # Part-time words safe to print in front of a role. leadgen matches a WIDER set
@@ -1262,6 +1307,265 @@ def _public_names() -> frozenset[str]:
     return frozenset(n for r in vals if (n := norm_company(r.get("title"))))
 
 
+# --- 2026-11-21 review of the 1,919 batch (4 readers x 50 random emails) ------
+# HUD-assisted housing PROPERTIES file 990s and federal audits like charities,
+# but they are single buildings: names like "Antonian Towers PA26-T841-007",
+# "Rayne Elderly Housing Corporation", a manager's office for an address, and
+# federal spending (the HUD loan) many times their revenue. Every one read as
+# an odd gift.
+_PROPERTY_NAME_RE = re.compile(
+    r"\b(?:towers?|apartments?|elderly housing|senior housing|senior citizens housing|"
+    r"housing (?:development|corporation|corp|inc|incorporated|for the elderly)|"
+    r"residences? of|voa\b|development fund company|townhomes?)\b", re.I)
+# A name the source cut off: it ends on "of", "for", "and", a cut word, or
+# "of" + a direction ("United Way Of West", "Community Action of East
+# Central", "Blackberry McCarr Develop"). "Hot Springs, Town of" is how a
+# registry writes a town, and is kept.
+_CUT_END_RE = re.compile(
+    r"(?<!, town)(?<!, city)(?<!, village)(?<!, county)(?<!, borough)(?<!, township)"
+    r"\s(?:of|for|and|&|develop|devel)$|"
+    r"\b(?:of|for) (?:greater|northern|southern|eastern|western|north|south|east|"
+    r"west|northeast|northwest|southeast|southwest|central|east central|west central)$", re.I)
+# Hospitals and health systems have their own finance departments; an animal
+# hospital or a one-doctor "medical center PLLC" does not.
+_HOSPITAL_RE = re.compile(r"\b(?:hospital|health network|health system|healthcare network|"
+                          r"medical center)\b", re.I)
+_SMALL_CLINIC_RE = re.compile(r"\b(?:equine|veterinary|animal|pet|pllc|dental)\b|"
+                              r"medical center,? (?:llc|sc|pc|pa|inc)\b", re.I)
+_FOUNDATION_WORD_RE = re.compile(r"\b(?:family|charitable|foundation|trust|fund)\b", re.I)
+# What may follow a public company's name and still be that company
+# ("Agilon Health Management", "New Fortress Energy Inc and Subs").
+_PUBLIC_TAIL = frozenset({"inc", "llc", "lp", "usa", "us", "and", "subs", "subsidiaries",
+                          "management", "operating", "company", "comp", "corp", "co",
+                          "holdings", "of", "the"})
+# Car brands a dealership is named for ("Chuck Fairbanks Chevrolet").
+_BRAND_WORDS = frozenset({"chevrolet", "ford", "dodge", "toyota", "honda", "nissan", "chrysler",
+                          "jeep", "buick", "gmc", "kia", "hyundai", "subaru", "cadillac", "lincoln",
+                          "mazda", "volkswagen", "audi", "bmw", "lexus", "acura", "ram"})
+MIN_NONPROFIT_REVENUE = 100_000
+
+
+@functools.lru_cache(maxsize=2)
+def _prospect_names(column: str) -> frozenset[str]:
+    """First or last names of the people in the prospect lists: enough to tell
+    that "Kayle Stremler" or "Nisha Jackson" is a person (2026-11-21)."""
+    import csv
+    names: set[str] = set()
+    for f in ("prospects.csv", "seen-prospects.csv"):
+        try:
+            with (_DATA / f).open(encoding="utf-8") as fh:
+                for r in csv.DictReader(fh):
+                    n = (r.get(column.title()) or r.get(column.lower().replace(" ", "_"))
+                         or "").strip().lower()
+                    if len(n) >= 3 and n.isalpha():
+                        names.add(n)
+        except OSError:
+            pass
+    return frozenset(names)
+
+
+def _first_names() -> frozenset[str]:
+    return _prospect_names("First Name")
+
+
+@functools.lru_cache(maxsize=2)
+def _dictionary(common_only: bool) -> frozenset[str]:
+    """Dictionary words: lower-case entries only (common words: "house",
+    "security") or proper nouns too ("Alaska"). Empty where the system has
+    no word list, which turns the person checks off."""
+    try:
+        lines = Path("/usr/share/dict/words").read_text().splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(w.strip().lower() for w in lines if not common_only or w[:1].islower())
+
+
+def _in(words: frozenset[str], w: str) -> bool:
+    """`w` or its singular is in `words` ("securities", "herbs")."""
+    return any(f in words for f in (w, w[:-1] if w.endswith("s") else w,
+                                    w[:-3] + "y" if w.endswith("ies") else w,
+                                    w[:-2] if w.endswith("es") else w))
+
+
+def _surname(word: str) -> bool:
+    """A last name: no common English word ("House", "Securities"), and one
+    a prospect has or no dictionary has ("Stremler"). False where the system
+    has no word list."""
+    w = word.lower().strip(".,")
+    if not _dictionary(True) or len(w) <= 2 or w in _BRAND_WORDS or _in(_dictionary(True), w):
+        return False
+    if w.endswith(("ing", "ed", "ics", "tion", "ment", "ness")):
+        return False                    # "Ruby Robotics", "Echo Investing", "Israel Empowered"
+    return w in _prospect_names("Last Name") or not _in(_dictionary(False), w)
+
+
+def _person_words(name: str) -> bool:
+    """A bare person's name: "Nisha Jackson", "Jill A Oliver", "Dennis Montes
+    LLC". Three words only with a middle initial."""
+    text = re.sub(r"[\s,]+(?:llc|inc|corp|pllc|pc|pa|ltd)\.?$", "", name.strip(), flags=re.I)
+    words = text.split()
+    if not all(re.fullmatch(r"[A-Z][a-z'\-]+|[A-Z]\.?", w) for w in words):
+        return False
+    if len(words) == 3 and len(words[1].rstrip(".")) != 1:
+        return False
+    if len(words) not in (2, 3) or words[0].lower() not in _first_names():
+        return False
+    if any(w.lower() in _BUSINESS_WORDS_ALL or w.lower() in _BRAND_WORDS for w in words):
+        return False
+    return _surname(words[-1])
+
+
+def _named_for_people(name: str) -> bool:
+    """A foundation named for a person or family: "Audrey Backus Charitable
+    Trust", "The Weiss Family Foundation", "Rob And Katie Ruelas Family
+    Foundation" (2026-11-21: one shared a surname with the recipient). The
+    foundation word ends the name ("Chris Elliott Fund End Brain Cancer" is a
+    charity), and the words before it end on a surname."""
+    m = re.search(r"\b(?:family |charitable )?(?:foundation|trust|fund)"
+                  r"(?:,? (?:inc|incorporated|trust|corp)\.?)?$", name.strip(), re.I)
+    if not m:
+        return False
+    before = [w.strip(".,&") for w in name[:m.start()].split()]
+    before = [w for w in before if w and w.lower() not in ("the", "and")]
+    if len(before) < 2 or not re.fullmatch(r"[A-Z][a-z'\-]+", before[-1]):
+        return False
+    if any(w.lower() in _BUSINESS_WORDS_ALL for w in before):
+        return False
+    if m.group(0).lower().startswith("family"):
+        return _surname(before[-1]) or before[0].lower() in _first_names()
+    return before[0].lower() in _first_names() and _surname(before[-1])
+
+
+def _public_company_name(name: str | None) -> bool:
+    """The lead IS a public company under a longer filing name ("Agilon
+    Health Management, Inc."), not a business that shares a word with one
+    ("Johnson & Johnson Cleaning Service")."""
+    words = norm_company(name).split()
+    pub = _public_names()
+    for k in range(2, len(words)):
+        if " ".join(words[:k]) in pub and all(w in _PUBLIC_TAIL for w in words[k:]):
+            return True
+    return False
+
+
+# Words organization names use, spelled right: a name word one or two
+# letters off one of these is the record's typo ("Assocation", "Athlethic",
+# "Specialests", "Refferal", "Develoment": the 2026-11-21 review).
+_NAME_VOCAB = frozenset("""
+association associations foundation development institute coalition organization
+international opportunities opportunity rehabilitation corporation incorporated prevention
+university initiative initiatives research heritage philanthropy nonprofit emergency
+childhood professional professionals ministries entrepreneurship achievement referral
+athletic athletics specialists disabilities disability addiction welfare council defenders
+strengthening reintegration subsidiary acquisition tomorrow sheriffs business endowment
+affiliates tennessee partnership partnerships community communities services education
+children champion champions ambulance society congress resources environmental conservation
+management neighborhood neighborhoods recreation assistance behavioral healthcare
+collaborative cooperative transportation technology scholarship scholarships ministry
+academy alliance network project programs district volunteer volunteers veterans families
+counseling advocacy advocates employment independence independent intervention
+""".split())
+
+
+_KNOWN_TYPOS = frozenset({"disabitilites"})
+
+
+def _a_word(w: str) -> bool:
+    """`w` is a dictionary word, or one with a common ending
+    ("educational", "developmental", "athletes")."""
+    full = _dictionary(False)
+    if _in(full, w):
+        return True
+    return any(w.endswith(suf) and (_in(full, w[:-len(suf)]) or _in(full, w[:-len(suf)] + "e"))
+               for suf in ("ing", "ed", "ly", "er", "ers", "ness", "ment", "ments", "ation",
+                           "ations", "al", "ally", "ive", "ives", "ity", "ist", "ists", "ism",
+                           "ional", "ent", "ence", "or", "ors", "ic", "ar"))
+# Right as spelled: Latin, British.
+_NOT_TYPOS = frozenset({"communitas", "humanitas", "counselling", "programmes", "centres",
+                        "alamance", "healthpark", "institut"})
+
+
+def _osa(a: str, b: str) -> int:
+    """Edit distance counting a swap of neighbours as one edit."""
+    d = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        d[i][0] = i
+    for j in range(len(b) + 1):
+        d[0][j] = j
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            d[i][j] = min(d[i - 1][j] + 1, d[i][j - 1] + 1,
+                          d[i - 1][j - 1] + (a[i - 1] != b[j - 1]))
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1)
+    return d[len(a)][len(b)]
+
+
+def misspelled_word(name: str) -> str | None:
+    """A name word that is a near-miss of a common organization word:
+    "Disabitilites", "Athlethic", "Refferal", "Specialests". The lead is
+    swapped, never corrected (the name is the fact a recipient checks).
+    Spanish words ("Fundacion", "Profesional") are not English typos."""
+    for raw in re.findall(r"[A-Za-z]{7,}", name):
+        w = raw.lower()
+        if w in _NAME_VOCAB or raw[1:].isupper() or "cion" in w or w.startswith("profesional") \
+                or w.endswith("acional"):
+            continue
+        if w in _KNOWN_TYPOS:
+            return raw
+        if w in _NOT_TYPOS or _a_word(w) or w.endswith(("o", "os", "iva", "ivo", "ale", "ia")):
+            continue
+        limit = 1 if len(w) < 8 else 2
+        for v in _NAME_VOCAB:
+            if v[0] == w[0] and abs(len(v) - len(w)) <= limit and _osa(w, v) <= limit:
+                if w.rstrip("s") == v.rstrip("s") or w == v + "s":
+                    break
+                return raw
+    return None
+
+
+def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str | None:
+    """The 2026-11-21 review's drops, for every type."""
+    name = lead.company or ""
+    t = lead.signal_type or ""
+    try:
+        revenue = float(pay["total_revenue"]) if pay.get("total_revenue") not in (None, "") else None
+        federal = float(pay.get("fac_federal_expended") or 0)
+    except (TypeError, ValueError):
+        revenue, federal = None, 0.0
+    ntee = str(pay.get("ntee_code") or "").upper()
+    # HUD-assisted housing PROPERTIES file 990s and federal audits like
+    # charities, but each is one building: "Antonian Towers PA26-T841-007",
+    # "MDBM-Epsilon Senior Housing Corporation", a manager's office for an
+    # address, and federal spending (the HUD loan) many times its revenue.
+    if t.startswith(("nonprofit", "hud_")):
+        if ntee.startswith(("L21", "L22")):
+            return "housing_property"
+        if _PROPERTY_NAME_RE.search(name) and (not ntee or ntee.startswith("L")):
+            return "housing_property"
+        if revenue is not None and federal > 3 * max(revenue, 1):
+            return "housing_property"
+        if revenue is not None and revenue < MIN_NONPROFIT_REVENUE and t.startswith("nonprofit"):
+            return "too_small"
+    # A family's or couple's grant-making foundation; a memorial charity named
+    # for one person ("Taylor Hooton Foundation") runs programs and is kept.
+    if t.startswith("nonprofit") and _named_for_people(name) and (
+            re.search(r"\b(?:family|charitable)\b|\band\b|&", name, re.I)
+            or ntee.startswith(("T2", "T3"))):
+        return "person_foundation"
+    if _CUT_END_RE.search(name.strip()) or re.search(r"\b[A-Z]{2}\d{2}-[A-Z]\d{3}-\d{3}\b", name):
+        return "cut_off_name"
+    if _HOSPITAL_RE.search(name) and not _SMALL_CLINIC_RE.search(name):
+        return "too_big"
+    if _public_company_name(name):
+        return "public_company"
+    if t.startswith("nonprofit") and misspelled_word(name):
+        return "misspelled_name"
+    if _person_words(name):
+        return "person_name"
+    return None
+
+
 @functools.lru_cache(maxsize=1)
 def _never_gift() -> frozenset[str]:
     try:
@@ -1412,6 +1716,9 @@ def _not_a_buyer(row: dict[str, Any], lead: Lead, today: date) -> str | None:
     # (data/never-gift.txt, one name per line).
     if norm_company(lead.company) in _never_gift():
         return "never_gift"
+    why = review_reason(row, lead, pay)
+    if why:
+        return why
     # Too big for an outside bookkeeper or fractional CFO (2026-11-13, the
     # user): a national arm ("Arauco Pulp North America"), a nonprofit past
     # MAX_NONPROFIT_REVENUE (it has its own finance staff), or a headcount

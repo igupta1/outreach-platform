@@ -61,9 +61,9 @@ def test_the_users_example_renders_exactly():
         "saw you work with nonprofits.\n\nthese 3 in atlanta had weak financial "
         "controls flagged in their federal audits, so each must fix it before its "
         "next audit:\n\n"
-        "1. Georgia Court Appointed Special Advocates (two years in a row)\n"
+        "1. Georgia Court Appointed Special Advocates (flagged two years in a row)\n"
         "2. Cathedral Towers\n"
-        "3. Georgia Works (two years in a row)\n\n"
+        "3. Georgia Works (flagged two years in a row)\n\n"
         "i'm an engineer. i built this and i'm seeing if it helps firms like yours.\n\n"
         "happy to send 3 like these every monday, matched to your clients. worth a look?"
     )
@@ -74,7 +74,7 @@ def test_mixed_audit_findings_say_problems_and_name_each():
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("these 2 in atlanta had problems flagged in their federal "
                             "audits, so each must fix it before its next audit:")
-    assert lines == ["A (financial controls)", "B (grant handling)"]
+    assert lines == ["A (financial controls flagged)", "B (grant handling flagged)"]
 
 
 def test_place_is_named_only_when_every_lead_is_there():
@@ -133,7 +133,7 @@ def test_one_lead_reads_in_the_singular():
     assert framing.endswith("this one in atlanta had weak financial controls flagged in "
                             "its federal audit, so it must fix it before its next audit:")
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo")).body
-    assert "\n\nGeorgia Works (two years in a row)\n\n" in body   # unnumbered
+    assert "\n\nGeorgia Works (flagged two years in a row)\n\n" in body   # unnumbered
 
 
 def test_non_record_leads_keep_the_legacy_path():

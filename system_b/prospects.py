@@ -68,6 +68,73 @@ _NICKNAMES = {
 _ROLE_NUMBERED_RE = re.compile(r"^(?:lead|sales|info|office|team|admin|support)\d+$")
 
 
+# Who is not the person to email at a finance firm (2026-11-21 review: a VP of
+# Sales, a realtor, a VC mentor, a founder whose firm was sold).
+_NOT_A_BUYER_TITLE_RE = re.compile(
+    r"\b(broker|realtor|mentor|acquired by|chief technology)\b", re.I)
+_SALES_TITLE_RE = re.compile(r"\b(sales|business development|marketing)\b", re.I)
+_OWNER_TITLE_RE = re.compile(r"\b(founder|owner|ceo|chief executive|(?<!vice )president|principal|"
+                             r"managing (partner|member|director)|cfo|controller|cpa)\b", re.I)
+_FINANCE_DOMAIN_RE = re.compile(r"cpa|acct|accoun|acount|book|tax|cfo|financ|ledg|payr|fin|"
+                                r"advis|consult|number|profit|money|capital|controller|audit|"
+                                r"count|wealth|asset", re.I)
+
+
+def _stem(domain: str) -> str:
+    parts = domain.lower().strip().removeprefix("www.").split(".")
+    return parts[-2] if len(parts) >= 2 else parts[0]
+
+
+def wrong_company_address(email: str, website: str, company: str | None,
+                          first: str | None, last: str | None) -> bool:
+    """True when the address plainly belongs to another organization than the
+    firm on file (2026-11-21 review: an @fb.com, @meundies.com or a school
+    district's address on a bookkeeping firm). An address is kept when its
+    domain matches the website, shares a run of letters with it or the firm's
+    name, reads as a finance firm, or carries the person's own name."""
+    local_part, _, domain = email.lower().partition("@")
+    if _FINANCE_DOMAIN_RE.search(local_part):     # "teesbookkeeping@swva.net"
+        return False
+    a = _stem(domain)
+    full = re.sub(r"[^a-z]", "", domain)
+    comp_letters = re.sub(r"[^a-z]", "", (company or "").lower())
+    if len(comp_letters) >= 3 and comp_letters[:3] in full[:3]:      # "g@gcobiz.com" for G.CO
+        return False
+    if any(full[i:i + 5] in comp_letters for i in range(len(full) - 4)):   # ctohub.business.site
+        return False
+    b = _stem(re.sub(r"^https?://", "", website).split("/", 1)[0])
+    comp = re.sub(r"[^a-z]", "", (company or "").lower())
+    if a == b or a in b or b in a:
+        return False
+    if any(a[i:i + 4] in b or a[i:i + 4] in comp for i in range(len(a) - 3)):
+        return False
+    if _FINANCE_DOMAIN_RE.search(a):
+        return False
+    for name in (first, last):
+        n = re.sub(r"[^a-z]", "", (name or "").lower())
+        if len(n) >= 3 and n in a:
+            return False
+    words = re.findall(r"[A-Za-z]+", company or "")
+    initials = "".join(w[0] for w in words).lower()
+    if len(initials) >= 2 and a.startswith(initials[:3]):
+        return False
+    if words and len(words[0]) >= 3 and words[0].lower() in a:
+        return False
+    if b in {"business", "carrd"}:          # a site builder's domain says nothing
+        return False
+    return True
+
+
+def not_a_buyer_title(title: str | None) -> bool:
+    """A title that is not the firm's decision maker: a broker, realtor or
+    mentor, a firm already acquired, a CTO; sales / business development /
+    marketing unless the title also says founder, owner, principal, CFO..."""
+    t = title or ""
+    if _NOT_A_BUYER_TITLE_RE.search(t):
+        return True
+    return bool(_SALES_TITLE_RE.search(t)) and not _OWNER_TITLE_RE.search(t)
+
+
 def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     """Map one Apollo CSV record to the generator's row dict, or None if it has
     no website (nothing to research) or no email (nothing to export)."""
@@ -78,7 +145,13 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     # No shared inboxes (tax@, info@): the user's rule, and nobody reads them
     # as a person (2026-11-15: two tax@ inboxes reached a batch).
     local = email.split("@", 1)[0].lower()
-    if local in _ROLE_INBOXES or _ROLE_NUMBERED_RE.match(local):
+    if local in _ROLE_INBOXES or _ROLE_NUMBERED_RE.match(local) or local.startswith("qbonline"):
+        return None
+    if not_a_buyer_title(record.get("Title")):
+        return None
+    if website.endswith(".vc") or wrong_company_address(
+            email, website, record.get("Company Name"), record.get("First Name"),
+            record.get("Last Name")):
         return None
     first = _clean(record.get("First Name")) or None
     # Stray punctuation ("Jeorgia'", 2026-11-15).

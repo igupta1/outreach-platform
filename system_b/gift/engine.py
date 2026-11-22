@@ -851,7 +851,41 @@ def _same_company(lead: Lead, gift: list[Lead]) -> bool:
     if ident and any(other.identity == ident for other in gift):
         return True
     name = _name_key(lead.company)
-    return bool(name) and any(_names_collide(name, _name_key(o.company)) for o in gift)
+    if name and any(_names_collide(name, _name_key(o.company)) for o in gift):
+        return True
+    return any(_same_operator(lead, o) for o in gift)
+
+
+def _operator_keys(lead: Lead) -> set[str]:
+    """What ties sister organizations to one operator: the contact person or
+    address on the record, or a coined brand word opening the name
+    ("Adviniacare at ...", "Adviniacare of ..."). 2026-11-21 review: one
+    sequence listed five Adviniacare homes and four leads with one contact."""
+    from system_b.clients.inventory import _dictionary
+    from system_b.clients.people import BUSINESS_WORDS
+    p: dict = {}
+    for s in lead.signals or []:
+        p.update(s.payload or {})
+    keys: set[str] = set()
+    for field in ("contact_name", "contact_email", "return_signer"):
+        v = re.sub(r"[^a-z0-9@.]", "", str(p.get(field) or "").lower())
+        if len(v) >= 6:
+            keys.add(f"{field}:{v}")
+    street = re.sub(r"[^a-z0-9]", "", str(p.get("street") or "").lower())
+    if len(street) >= 6 and street[0].isdigit():
+        keys.add(f"street:{street}:{str(lead.state or '').lower()}")
+    m = re.match(r"[A-Za-z]+", (lead.company or "").strip())
+    first = m.group(0).lower() if m else ""
+    words = _dictionary(False)
+    city = re.sub(r"[^a-z]", "", str(lead.city or "").lower())
+    if len(first) >= 5 and words and first not in words and first not in BUSINESS_WORDS \
+            and not city.startswith(first):         # "Bakersfield Food Bank"
+        keys.add(f"brand:{first}")
+    return keys
+
+
+def _same_operator(a: Lead, b: Lead) -> bool:
+    return bool(_operator_keys(a) & _operator_keys(b))
 
 
 def _names_collide(a: str, b: str) -> bool:
