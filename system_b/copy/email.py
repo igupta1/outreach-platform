@@ -1607,7 +1607,7 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     lead_city, lead_state = city_display(lead.city), state_display(lead.state)
     # "one more" only for one more of the same kind; another kind (a late
     # deposit after three hud owners) is "also" (2026-11-06).
-    more = "one more" if gift_signals is None or lead.signal_type in gift_signals else "also, one"
+    more = "one more" if gift_signals is None or lead.signal_type in gift_signals else "another"
     # No place twice: "one more in new york: Tennr in new york", "Grace House
     # of Memphis in memphis" (2026-11-15).
     shown_city = lead_city
@@ -1639,7 +1639,7 @@ def _final_with_lead(lead: Lead | None, prospect: Prospect, pack, vary_key: str 
         if record is not None:
             flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
             first = record.split("\n\n", 1)[0]
-            for start in ("one more", "also, one", "also"):
+            for start in ("one more", "another", "also"):
                 if first.startswith(start):
                     first = "one last one" + first[len(start):]
                     break

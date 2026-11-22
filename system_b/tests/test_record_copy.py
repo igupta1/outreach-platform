@@ -182,7 +182,7 @@ def test_email_2_is_one_plain_sentence_in_email_1s_words():
     tail = "\n\nshould i keep these to florida, or go wider?"
     assert same.body == "one more in tampa: B won a federal construction job (oct 6)." + tail
     # another kind is "also", not "one more" (2026-11-06)
-    assert diff.body == ("also, one in tampa: New Co just registered as a new company (oct 6)."
+    assert diff.body == ("another in tampa: New Co just registered as a new company (oct 6)."
                          + tail)
     for body in (same.body, diff.body):
         assert "same signal" not in body and "offer still stands" not in body

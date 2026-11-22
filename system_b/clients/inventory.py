@@ -1619,9 +1619,20 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
                 return "too_small"                  # a 4-unit condo association
         except (TypeError, ValueError):
             pass
-    # A plan closing from a 2024 filing is likely closed already.
-    if t == "plan_termination_pending" and str(pay.get("plan_year") or "9999")[:4] < "2025":
+    # A benefit-plan record from a 2024 plan year, filed a year ago, is no
+    # news (2026-11-22 read): a closing plan is closed, late deposits are old.
+    if t.startswith(("plan_", "welfare_", "pension_")) and str(pay.get("plan_year") or "9999")[:4] < "2025":
         return "stale"
+    # Trivial amounts read as noise: a $2.8k Medicaid repayment, a $1,000
+    # prevailing-wage job (2026-11-22 read).
+    try:
+        if t.startswith("ny_omig") and pay.get("amount") and float(pay["amount"]) < 15_000:
+            return "trivial_amount"
+        award = float(pay.get("award_amount") or pay.get("contract_amount") or 0)
+        if award and award < 25_000 and ("prevailing" in t or "construction" in t or "davis" in t):
+            return "trivial_amount"
+    except (TypeError, ValueError):
+        pass
     if t.startswith("nonprofit") and _PROPERTY_NAME_RE.search(name) and not ntee.startswith(("E", "P7")):
         return "housing_property"
     if federal > MAX_FEDERAL_SPEND:
