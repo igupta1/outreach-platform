@@ -733,9 +733,8 @@ def _two_details(fact: str, kind_detail: str, lead: Lead, today: date | None) ->
     note) the fact and the kind's detail, as before."""
     if today is None:
         return ", ".join(b for b in (kind_detail, fact) if b)
-    # A total across several awards has no one date.
-    when = "" if " across " in (fact or "") else fresh_date(lead, today)
-    ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "", when]
+    ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "",
+              fresh_date(lead, today)]
     kept = [b for b in ranked if b][:2]
     # A date after an amount says when: "$10.6m on oct 29", never "$10.6m,
     # oct 29" (2026-11-21 review: it read as a fragment).
@@ -1085,14 +1084,20 @@ def nonprofit_phrase(lead: Lead) -> str:
     on the linked filing, and a number that has since moved is worse than
     none."""
     p = _payload(lead)
-    # The record's own headline first (2026-11-21 review): a lead whose latest
-    # audit is missing or late is said to be that, not a finding from an
-    # older audit the record text never mentions.
-    if p.get("fac_overdue"):
-        return "their latest federal audit isn't on file"
-    days = p.get("fac_days_late")
-    if p.get("fac_late") and isinstance(days, int) and days >= 60:
-        return f"filed their federal audit {days // 30} months late"
+    # Say what the record's own headline says (2026-11-21, two full reads): a
+    # record headlined "not on file" or "N days after the deadline" is that,
+    # not a finding from an older audit; a record headlined by a finding is
+    # the finding, not the lateness flag it also carries.
+    head = ((lead.headline_signal.plain_words_description if lead.headline_signal else "")
+            or "").lower()
+    finding_head = any(w in head for w in ("material weakness", "deficiency", "finding",
+                                           "questioned", "noncompliance"))
+    if not finding_head:
+        if "not on file" in head and p.get("fac_overdue"):
+            return "their latest federal audit isn't on file"
+        days = p.get("fac_days_late")
+        if "after the" in head and "deadline" in head and isinstance(days, int) and days >= 60:
+            return f"filed their federal audit {days // 30} months late"
     if p.get("fac_repeat_material_weakness"):
         return "auditors flagged their controls, two years running"
     if p.get("fac_material_weakness"):

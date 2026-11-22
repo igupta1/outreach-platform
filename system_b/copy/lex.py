@@ -369,7 +369,8 @@ _CITY_WORDS = {"bch": "beach", "rsa": "rosa", "hts": "heights", "hgts": "heights
                "lks": "lakes", "hls": "hills", "uppr": "upper", "bloomfld": "bloomfield",
                # A registry's misspellings (2026-11-21 review).
                "gainsville": "gainesville", "kissimme": "kissimmee", "cheter": "chester",
-               "lanse": "l'anse", "rehobeth": "rehoboth", "rsa.": "rosa"}
+               "lanse": "l'anse", "rehobeth": "rehoboth", "rsa.": "rosa", "sugarhill": "sugar hill",
+               "sugarland": "sugar land", "phila": "philadelphia", "cpe": "cape", "lees": "lee's"}
 _CITY_FIRST = {"ft": "fort", "mt": "mount", "n": "north", "s": "south", "e": "east",
                "w": "west"}
 

@@ -184,8 +184,14 @@ def _person(lead: Lead) -> tuple[str, str] | None:
     name = _first_last(name).strip(" ,")
     if len(name.split()) < 2 or name.lower() == org:
         return None
-    # A job word where the first name goes ("Placement Love", 2026-11-14).
-    if name.split()[0].lower() in _NOT_FIRST_NAMES:
+    # A job word where the first name goes ("Placement Love", 2026-11-14), or
+    # where the surname goes ("Eric President", "Erin Manager"), a digit
+    # ("Eugene 2Nd") or a tripled letter ("Mattthew"), 2026-11-21.
+    if name.split()[0].lower() in _NOT_FIRST_NAMES or name.split()[-1].lower() in (
+            "president", "manager", "director", "officer", "administrator", "secretary",
+            "treasurer", "chair", "chairman", "owner", "ceo", "cfo"):
+        return None
+    if re.search(r"\d|(\w)\1\1", name):
         return None
     return name, role
 
@@ -277,13 +283,9 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     award = money(p.get("award_amount"))
     # Several awards: their total, as the plural "won federal jobs" says
     # (2026-11-15: "won federal construction jobs ($168k)" was one of two).
-    n_awards = int(p.get("awards_in_window") or 1)
-    if award and n_awards > 1 and p.get("total_in_window"):
-        # The total says how many it adds up (2026-11-21 review: "$201k on
-        # nov 16" read as one award; the nov 16 one was $159k).
-        total = money(p.get("total_in_window"))
-        if total:
-            return f"{total} across {n_awards} awards"
+    # The one award the line names, never the window's total (2026-11-21
+    # reads: "$201k on nov 16" was two awards; the nov 16 one was $159k, and
+    # "won a federal contract ($1.6m across 3 awards)" contradicted itself).
     if award:
         # 2026-11-12: the figure alone; the agency ("va") was a third detail.
         return award

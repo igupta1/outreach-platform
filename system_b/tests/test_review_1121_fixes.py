@@ -196,11 +196,11 @@ def test_apostrophes_in_childrens_and_womens():
 
 # --- full read of the 1,885 batch (2026-11-21) -------------------------------
 
-def test_a_total_across_awards_is_said_as_one_with_no_date():
+def test_the_award_named_is_the_one_award_not_the_total():
     from system_b.copy.facts import record_fact
     lead = _lead("federal_construction_award",
                  {"award_amount": 159000, "awards_in_window": 2, "total_in_window": 201000})
-    assert record_fact(lead, with_contact=False) == "$201k across 2 awards"
+    assert record_fact(lead, with_contact=False) == "$159k"
 
 
 def test_more_no_value_leads_are_dropped():

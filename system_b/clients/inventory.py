@@ -568,7 +568,7 @@ def _tidy_words(name: str) -> str:
     Hadi" / "LA Casa DE Salud" -> "Su Casa" / "Al Hadi" / "La Casa de Salud";
     "Wichitainc" -> "Wichita"; "Housing Devel Development" -> "Housing
     Development"."""
-    words = name.split(" ")
+    words = [_acronym_case(w) for w in name.split(" ")]
     # A trailing acronym spelled by the words before it.
     if len(words) >= 4:
         acr = re.sub(r"[^A-Za-z]", "", words[-1])
@@ -596,6 +596,35 @@ def _tidy_words(name: str) -> str:
             continue
         out.append(w)
     return " ".join(out)
+
+
+_OK_CLUSTERS = ("str", "sch", "chr", "thr", "nds", "nts", "rst", "nst", "ngs", "ght", "rch", "tch",
+                "scr", "spr", "spl", "shr", "phr", "lds", "rds", "rts", "nch", "mpt", "rth", "ndr",
+                "ntr", "mpl", "ckl", "nkl", "rtl", "ngl", "rdw", "ctr", "xpr", "mps", "lms", "rms")
+
+
+def _acronym_case(w: str) -> str:
+    """"Gecms" -> "GECMS", "Wscadv" -> "WSCADV", "Jbtech" -> "JBTECH": a
+    title-cased token with a consonant run no English word has (second read,
+    2026-11-21). Words a dictionary or a surname list knows are left alone."""
+    if not re.fullmatch(r"[A-Z][a-z]{3,6}", w):
+        return w
+    low = w.lower()
+    if low.startswith(("mc", "mac")) or _in(_dictionary(False), low) \
+            or low in _prospect_names("Last Name"):
+        return w
+    vowels = sum(c in "aeiouy" for c in low)
+    onset = low[:2]
+    bad_onset = all(c not in "aeiouy" for c in onset) and onset not in _ONSETS
+    if vowels <= 1 and (bad_onset or re.search(r"[bcdfghjklmnpqrstvwxz]{3}",
+                                                re.sub(r"(.)\1", r"\1", low))):
+        return w.upper()
+    return w
+
+
+# Two consonants an English word can start with.
+_ONSETS = frozenset("bl br cl cr dr fl fr gl gr pl pr sc sk sl sm sn sp st sw tr tw wh wr th sh "
+                    "ch ph kn gn qu ks dw sv kl kr kw ts zh".split())
 
 
 def _subsequence(short: str, long: str) -> bool:
@@ -1337,6 +1366,15 @@ _GARBLED_NAME_RE = re.compile(
     r"(?i:\b(?:formerly|prev|fka|irrv|irrev|test trust|testamentary)\b)|\b\d{7,8}\b|,\s*LL$|"
     r"\w{4}\s[D-WYZ]$")                        # "Regal P", not "Plan B" or "Vitamin C"
 MIN_FRAUD_LOSS = 1_000
+MIN_CONDO_UNITS = 20
+# A one-asset company for any record type (second read, 2026-11-21): "Bell
+# Apartment", "Crimson/RELP/Springwoods Parcel 1A", "5280 High School
+# Building Corporation", "Astoria Gardens Tenant Association", "Gateway
+# QALICB", "Billingsley Off-Site Construction No. 8", "Rhove Real Estate 1".
+_ONE_ASSET_RE = re.compile(
+    r"\b(?:apartments?|parcel \w+|building corp(?:oration)?|tenant association|qalicb|"
+    r"retirement community|homes phase|realty \d+|real estate \d+)\b|"
+    r"\bno\.? ?\d+$|\b(?:phase|crossing) (?:i{1,3}|iv|v|\d)$", re.I)
 # A name the source cut off: it ends on "of", "for", "and", a cut word, or
 # "of" + a direction ("United Way Of West", "Community Action of East
 # Central", "Blackberry McCarr Develop"). "Hot Springs, Town of" is how a
@@ -1439,6 +1477,11 @@ def _bare_person_name(name: str) -> bool:
     """"Damon McCoy", "Kayle Stremler", "Levon Douglas Barrison", "Ronald A.
     Maxwell", "Sharron, Joseph": two to four name-shaped words, no business
     or common English word, no legal form (2026-11-21 review)."""
+    if re.match(r"^dr\.?\s", name.strip(), re.I):
+        return True                                 # "DR. Nicholas Lagow"
+    # A credential after a name is still a person ("Bret Schermerhorn LMHC").
+    name = re.sub(r"[\s,]+(?:lmhc|lcsw|lpc|md|m\.d\.|do|dds|dpm|phd|psyd|np|rn|cpa|esq|jd)\.?$",
+                  "", name.strip(), flags=re.I)
     if not _dictionary(True) or re.search(r"\d|&|\b(?:llc|inc|corp|co|ltd|lp|pllc|pc|pa)\b\.?",
                                           name, re.I):
         return False
@@ -1587,8 +1630,17 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
     # address, and federal spending (the HUD loan) many times its revenue.
     # Every HUD record is one property and its owner LLC (2026-11-21 review:
     # five in one email, none a business a bookkeeper could win).
-    if t.startswith("hud_") or _PROPERTY_ID_RE.search(name):
+    if t.startswith("hud_") or _PROPERTY_ID_RE.search(name) or _ONE_ASSET_RE.search(name):
         return "housing_property"
+    if "condo" in t:
+        try:
+            if int(float(pay.get("units_total") or 0)) < MIN_CONDO_UNITS:
+                return "too_small"                  # a 4-unit condo association
+        except (TypeError, ValueError):
+            pass
+    # A plan closing from a 2024 filing is likely closed already.
+    if t == "plan_termination_pending" and str(pay.get("plan_year") or "9999")[:4] < "2025":
+        return "stale"
     if t.startswith("nonprofit") and _PROPERTY_NAME_RE.search(name) and not ntee.startswith(("E", "P7")):
         return "housing_property"
     if federal > MAX_FEDERAL_SPEND:

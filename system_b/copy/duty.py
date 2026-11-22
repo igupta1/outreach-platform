@@ -2003,7 +2003,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_ubi_no_990t': ("earned business income but didn't file the tax return for it", "earned business income but didn't file the tax return for it", 'so each must catch up with the irs', 'so it must catch up with the irs'),
     'startup_first_form_d': ('started raising money from investors', 'started raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
     'startup_new_form_d': ('just started a new round of raising money from investors', 'just started a new round of raising money from investors', 'so each has a new raise to book', 'so it has a new raise to book'),
-    'proprietary_90_10_near_limit': ('get nearly all their revenue from federal student aid', 'gets nearly all its revenue from federal student aid', 'and two years over the limit ends that aid', 'and two years over the limit ends that aid'),
+    'proprietary_90_10_near_limit': ('get most of their revenue from federal student aid', 'gets most of its revenue from federal student aid', 'and two years over the limit ends that aid', 'and two years over the limit ends that aid'),
     'construction_fl_stop_work_order': ("were ordered by the state to stop work over workers' comp", "was ordered by the state to stop work over workers' comp", 'and none shows as lifted yet', "and it doesn't show as lifted yet"),
     'plan_prohibited_transaction': ('reported a banned deal involving their benefit plans', 'reported a banned deal involving its benefit plan', 'so each must correct it', 'so it must correct it'),
     'fl_new_mortgage_lender': (None, None, 'so each must report its finances every quarter', 'so it must report its finances every quarter'),

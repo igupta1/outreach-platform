@@ -159,6 +159,20 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     # Stray punctuation ("Jeorgia'", 2026-11-15).
     if first:
         first = first.strip(" '\".,;:-`") or None
+    # First and last swapped ("hey melton" for tony@, 2026-11-21): the
+    # address is the last name, so it is the first name.
+    last_raw = (_clean(record.get("Last Name")) or "").strip()
+    if first and last_raw and local.isalpha() and local == last_raw.lower() \
+            and local != first.lower():
+        first = last_raw
+    # First and last glued ("Jibrankhan" for Jibran Khan, 2026-11-21).
+    if first and last_raw and len(first) > len(last_raw) + 2 \
+            and first.lower().endswith(last_raw.lower()):
+        first = first[:len(first) - len(last_raw)].capitalize()
+    # A firm word where the name goes ("hey accounting").
+    if first and first.lower() in ("accounting", "bookkeeping", "tax", "cfo", "admin", "office",
+                                   "team", "finance", "info", "smile", "west"):
+        return None
     # The name the person signs with, when the address shows it: "mike@" for
     # Michael, "larry@" for Lawrence (2026-11-15).
     if first and local in _NICKNAMES.get(first.lower(), ()):
