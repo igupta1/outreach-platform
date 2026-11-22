@@ -743,7 +743,7 @@ def test_a_significant_deficiency_reads_as_a_flagged_control():
 def test_dated_audit_problems_never_say_missed():
     overdue = nonprofit_phrase(lead_with(NP, {"fac_overdue": True, "fac_audit_year": 2024}))
     late = nonprofit_phrase(lead_with(NP, {"fac_late": True, "fac_days_late": 125}))
-    assert overdue == "their next federal audit isn't on file"
+    assert overdue == "their latest federal audit isn't on file"
     assert late == "filed their federal audit 4 months late"
     assert "missed" not in overdue + late
 

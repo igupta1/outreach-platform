@@ -119,7 +119,7 @@ def test_two_years_renders_exactly_in_the_record_opener_format(preview):
 
 def test_one_year_renders_exactly(preview):
     framing, lines = preview["nonprofit_990_missed_1yr"]["opener"]
-    assert framing.endswith("these 3 nonprofits in denver are a year behind on their irs "
+    assert framing.endswith("these 3 nonprofits in denver are behind on their irs "
                             "returns, so each needs to catch up on its filings:")
     assert lines[0] == "Mile High Youth Fund (no 990 for fy2024, next one due soon)"
     assert lines[1] == "Front Range Arts (no 990 for fy2024)"

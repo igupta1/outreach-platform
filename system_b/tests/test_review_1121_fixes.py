@@ -192,3 +192,42 @@ def test_registry_city_short_forms_are_spelled_out():
 def test_apostrophes_in_childrens_and_womens():
     assert inv._clean_company_name("Childrens Home Society") == "Children's Home Society"
     assert inv._clean_company_name("Womens Fund of East Tennessee") == "Women's Fund of East Tennessee"
+
+
+# --- full read of the 1,885 batch (2026-11-21) -------------------------------
+
+def test_a_total_across_awards_is_said_as_one_with_no_date():
+    from system_b.copy.facts import record_fact
+    lead = _lead("federal_construction_award",
+                 {"award_amount": 159000, "awards_in_window": 2, "total_in_window": 201000})
+    assert record_fact(lead, with_contact=False) == "$201k across 2 awards"
+
+
+def test_more_no_value_leads_are_dropped():
+    assert _why(_lead("hud_new_owner", {}, name="Chancellor Renovation LP")) == "housing_property"
+    assert _why(_lead("nonprofit_going_concern", {}, name="Wilshire House 122-EH476")) \
+        == "housing_property"
+    assert _why(_lead("plan_fraud_loss", {"amount": 13}, name="The Avalon Group")) == "trivial_amount"
+    assert _why(_lead("ny_omig_final_audit", {"amount": None}, name="Rome Health")) == "no_amount"
+    assert _why(_lead("nonprofit_going_concern", {"fac_federal_expended": 138_100_000},
+                      name="Healthx Partners")) == "too_big"
+    assert _why(_lead("local_gov_single_audit_late", {}, name="Pike County School District")) \
+        == "government"
+    assert _why(_lead("nonprofit_going_concern", {},
+                      name="Mandela Partners Prev Mandela Marketplace")) == "garbled_name"
+    assert _why(_lead("plan_late_contributions", {}, name="Plan B")) is None
+
+
+@pytest.mark.skipif(not HAS_WORDS, reason="needs the system word list")
+def test_bare_person_names_are_dropped():
+    assert _why(_lead("federal_cost_reimbursement_contract", {}, name="Damon McCoy")) == "person_name"
+    assert _why(_lead("federal_cost_reimbursement_contract", {}, name="Casa Latina")) is None
+
+
+def test_record_people_read_cleanly():
+    from system_b.copy.facts import _person
+    lead = _lead("nonprofit_going_concern", {})
+    lead.contact_name, lead.contact_title = "Leigh McKELVEY", "Executive Director"
+    assert _person(lead)[0] == "Leigh McKelvey"
+    lead.contact_name = "Christina JD"
+    assert _person(lead) is None

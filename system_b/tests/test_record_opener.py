@@ -59,7 +59,7 @@ def test_the_users_example_renders_exactly():
     assert body == (
         "hey troy,\n\n"
         "saw you work with nonprofits.\n\nthese 3 in atlanta had weak financial "
-        "controls flagged in their federal audits, so each must fix it before its "
+        "controls flagged in their federal audits, so each must fix the findings before its "
         "next audit:\n\n"
         "1. Georgia Court Appointed Special Advocates (flagged two years in a row)\n"
         "2. Cathedral Towers\n"
@@ -73,7 +73,7 @@ def test_mixed_audit_findings_say_problems_and_name_each():
     g = gift([lead(NP, MW, name="A"), lead(NP, GRANTS, name="B")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("these 2 in atlanta had problems flagged in their federal "
-                            "audits, so each must fix it before its next audit:")
+                            "audits, so each must fix the findings before its next audit:")
     assert lines == ["A (financial controls flagged)", "B (grant handling flagged)"]
 
 
@@ -86,7 +86,7 @@ def test_place_is_named_only_when_every_lead_is_there():
     assert framing == ("these 2 companies in tennessee "
                        "won federal construction jobs, so each must file payroll reports "
                        "every week:")
-    assert lines == ["A, nashville", "B, memphis (first federal job)"]
+    assert lines == ["A, nashville", "B, memphis (first federal job since 2008)"]
     # Arlington WA is not Arlington TX: same city name, two states -> no place.
     g2 = gift([lead(FG, name="A", city="Arlington", state="WA"),
                lead(FG, name="B", city="Arlington", state="TX")], geo="none")
@@ -131,7 +131,7 @@ def test_one_lead_reads_in_the_singular():
     g = gift([lead(NP, REPEAT, name="Georgia Works")], all_niche=True)
     framing, lines = record_opener(g, TROY)
     assert framing.endswith("this one in atlanta had weak financial controls flagged in "
-                            "its federal audit, so it must fix it before its next audit:")
+                            "its federal audit, so it must fix the findings before its next audit:")
     body = build_email_1(g, TROY, today=TODAY, pack=pack_for("cfo")).body
     assert "\n\nGeorgia Works (flagged two years in a row)\n\n" in body   # unnumbered
 
@@ -147,7 +147,7 @@ def test_the_audit_why_is_true_of_an_audit_of_any_age():
     report it fixed (2 CFR 200.511(b)). Same words, old audit or new."""
     g = gift([lead(NP, MW, name="A"), lead(NP, {**MW, **OLD}, name="B")], all_niche=True)
     framing, _ = record_opener(g, TROY)
-    assert framing.endswith("so each must fix it before its next audit:")
+    assert framing.endswith("so each must fix the findings before its next audit:")
     assert "file a plan" not in framing and "now" not in framing
 
 
@@ -170,5 +170,5 @@ def test_email_two_for_an_audit_not_yet_on_file_is_one_plain_sentence():
     from system_b.copy.email import build_followup_email
     overdue = lead(NP, {"fac_overdue": True}, name="Solitas House")
     body = build_followup_email(overdue, TROY, step=2, today=TODAY, pack=pack_for("cfo")).body
-    assert body.startswith("one more in atlanta: Solitas House doesn't have its next "
-                           "federal audit on file yet.")
+    assert body.startswith("one more in atlanta: Solitas House doesn't have its latest "
+                           "federal audit on file.")

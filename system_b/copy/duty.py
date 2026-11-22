@@ -351,8 +351,8 @@ def _local_body(lead: Lead) -> tuple[str, str]:
     """A school district is a school to the reader, not a "local government"."""
     return _SCHOOLS if lead.niche == "k12_school" else _LOCAL_GOV
 
-_AUDIT_WHY = ("so each must fix it before its next audit",
-              "so it must fix it before its next audit")
+_AUDIT_WHY = ("so each must fix the findings before its next audit",
+              "so it must fix the findings before its next audit")
 _GRANT_RULES = ("so each now has strict federal reporting rules",
                 "so it now has strict federal reporting rules")
 
@@ -690,12 +690,12 @@ DUTIES: dict[str, Duty] = {
         short=("past the full-audit line", "past the full-audit line"),
         noun=_CU, org=True, dm="past the size that needs a full audit"),
     "cu_stale_audit": Duty(
-        plural="haven't had an audit in over two years",
-        singular="hasn't had an audit in over two years",
-        why=("though they need one every year", "though it needs one every year"),
-        line="no audit in over two years",
-        short=("with audits over two years old", "with an audit over two years old"),
-        noun=_CU, org=True, dm="with audits over two years old"),
+        plural="are overdue for their yearly audit",
+        singular="is overdue for its yearly audit",
+        why=("so each needs one done", "so it needs one done"),
+        line="yearly audit overdue",
+        short=("overdue for an audit", "overdue for an audit"),
+        noun=_CU, org=True, dm="overdue for an audit"),
     "rega_tier2_1k_missing": Duty(
         plural=_rega_plural, singular=_rega_one,
         line="behind on its yearly sec report",
@@ -1973,12 +1973,12 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'nonprofit_excess_benefit': ('reported on their 990s that an insider was overpaid', 'reported on its 990 that an insider was overpaid', 'so each must correct it with the irs', 'so it must correct it with the irs'),
     'construction_first_prevailing_wage_intent': ('started their first government jobs', 'started its first government job', "so each must report its workers' pay to the state", "so it must report its workers' pay to the state"),
     'nonprofit_deficit_low_cash': ('spent more than they took in two years running and have under a month of cash left', 'spent more than it took in two years running and has under a month of cash left', '', ''),
-    'nonprofit_990_missed_1yr': ('are a year behind on their irs returns', 'is a year behind on its irs return', 'so each needs to catch up on its filings', 'so it needs to catch up on its filings'),
+    'nonprofit_990_missed_1yr': ('are behind on their irs returns', 'is behind on its irs return', 'so each needs to catch up on its filings', 'so it needs to catch up on its filings'),
     'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so each could soon lose its tax exemption', 'so it could soon lose its tax exemption'),
     'nonprofit_exemption_revoked': ('lost their tax-exempt status after three years of no returns', 'lost its tax-exempt status after three years of no returns', 'so each must refile to get it back', 'so it must refile to get it back'),
     'cpa_firm_license_delinquent': ('let their cpa firm licenses lapse', 'let its cpa firm license lapse', '', ''),
-    'h2b_seasonal_employer': ('were approved to hire seasonal foreign workers', 'was approved to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
-    'h2b_first_time_employer': ('got their first approval to hire seasonal foreign workers', 'got its first approval to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
+    'h2b_seasonal_employer': ('applied to hire seasonal foreign workers', 'applied to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
+    'h2b_first_time_employer': ('applied for the first time to hire seasonal foreign workers', 'applied for the first time to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
     'nonprofit_asset_diversion': ('reported on their 990s that money or assets went missing', 'reported on its 990 that money or assets went missing', 'so each needs tighter money controls', 'so it needs tighter money controls'),
     'church_990t_first': ('filed their first tax return for side business income', 'filed its first tax return for side business income', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
     'church_990t_no_preparer': ('filed side-income tax returns with no accountant', 'filed a side-income tax return with no accountant', 'so each must keep filing when it earns enough', 'so it must keep filing when it earns enough'),
@@ -2106,9 +2106,9 @@ _PLAIN_SHORT: dict[str, tuple[str, str]] = {
     'startup_new_form_d': ('raising a new round of money', 'raising a new round of money'),
     'sba_7a_loan_approved': ('that just got sba loans', 'that just got an sba loan'),
     'sba_504_loan_approved': ('that just got sba loans', 'that just got an sba loan'),
-    'h2b_first_time_employer': ('approved for seasonal workers', 'approved for seasonal workers'),
-    'h2b_seasonal_employer': ('approved for seasonal workers', 'approved for seasonal workers'),
-    'h2b_seasonal_employer_other_industry': ('approved for seasonal workers', 'approved for seasonal workers'),
+    'h2b_first_time_employer': ('applying for seasonal workers', 'applying for seasonal workers'),
+    'h2b_seasonal_employer': ('applying for seasonal workers', 'applying for seasonal workers'),
+    'h2b_seasonal_employer_other_industry': ('applying for seasonal workers', 'applying for seasonal workers'),
     'va_new_class_a_contractor': ('with new contractor licenses', 'with a new contractor license'),
     'va_new_class_b_contractor': ('with new contractor licenses', 'with a new contractor license'),
     'va_contractor_upgraded_class_a': ('moving up to a bigger license', 'moving up to a bigger license'),
@@ -2127,7 +2127,7 @@ _PLAIN_SHORT: dict[str, tuple[str, str]] = {
     'church_990t_no_preparer': ('filing side-income returns alone', 'filing a side-income return alone'),
     'new_practice_npi': ('newly registered', 'newly registered'),
     'new_practice_medicare_enrollment': ('just enrolled in medicare', 'just enrolled in medicare'),
-    'nonprofit_990_missed_1yr': ('a year behind on irs returns', 'a year behind on irs returns'),
+    'nonprofit_990_missed_1yr': ('behind on irs returns', 'behind on irs returns'),
     'nonprofit_990_missed_2yr': ('two years behind on irs returns', 'two years behind on irs returns'),
     'nonprofit_new_501c3': ('newly approved by the irs', 'newly approved by the irs'),
     'nonprofit_first_990': ('filing irs returns on their own', 'filing irs returns on its own'),

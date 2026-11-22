@@ -489,8 +489,8 @@ _RECORD_CLAUSE: dict[str, tuple[str, str]] = {
 # file it already exists and "has to file" is false. What stays true until the
 # finding is resolved: the next audit's summary schedule of prior findings has
 # to report it fixed (200.511(b)). Present tense, any audit age, and a deadline.
-_AUDIT_WHY = ("so each must fix it before its next audit",
-              "so it must fix it before its next audit")
+_AUDIT_WHY = ("so each must fix the findings before its next audit",
+              "so it must fix the findings before its next audit")
 _RECORD_WHY: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
     "audit_controls": (("had weak financial controls flagged in their federal audits",
                         "had weak financial controls flagged in its federal audit"),
@@ -564,7 +564,7 @@ def _audit_trouble(lead: Lead) -> bool:
         return False
     phrase = magnet_phrase(lead)
     return phrase.startswith(("auditors flagged", "filed their federal audit")) \
-        or phrase == "their next federal audit isn't on file"
+        or phrase == "their latest federal audit isn't on file"
 
 
 def _mixed(leads) -> str:
@@ -617,7 +617,8 @@ def _record_detail(lead: Lead, kind: str) -> str:
     # One plain fact per lead (2026-11-06): "hourly" and "more than one" were
     # contract jargon beside the dollar figure, which says more.
     if kind == DAVIS_BACON_SIGNAL:
-        return "first federal job" if p.get("first_contract_on_record") else ""
+        # The record reads "first federal contract on record since FY2008".
+        return "first federal job since 2008" if p.get("first_contract_on_record") else ""
     if kind == COST_CONTRACT_SIGNAL:
         return ""
     if kind == FUNDS_SIGNAL:
@@ -732,8 +733,9 @@ def _two_details(fact: str, kind_detail: str, lead: Lead, today: date | None) ->
     note) the fact and the kind's detail, as before."""
     if today is None:
         return ", ".join(b for b in (kind_detail, fact) if b)
-    ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "",
-              fresh_date(lead, today)]
+    # A total across several awards has no one date.
+    when = "" if " across " in (fact or "") else fresh_date(lead, today)
+    ranked = [fact or kind_detail, contact(lead), kind_detail if fact else "", when]
     kept = [b for b in ranked if b][:2]
     # A date after an amount says when: "$10.6m on oct 29", never "$10.6m,
     # oct 29" (2026-11-21 review: it read as a fragment).
@@ -1083,6 +1085,14 @@ def nonprofit_phrase(lead: Lead) -> str:
     on the linked filing, and a number that has since moved is worse than
     none."""
     p = _payload(lead)
+    # The record's own headline first (2026-11-21 review): a lead whose latest
+    # audit is missing or late is said to be that, not a finding from an
+    # older audit the record text never mentions.
+    if p.get("fac_overdue"):
+        return "their latest federal audit isn't on file"
+    days = p.get("fac_days_late")
+    if p.get("fac_late") and isinstance(days, int) and days >= 60:
+        return f"filed their federal audit {days // 30} months late"
     if p.get("fac_repeat_material_weakness"):
         return "auditors flagged their controls, two years running"
     if p.get("fac_material_weakness"):
@@ -1105,7 +1115,7 @@ def nonprofit_phrase(lead: Lead) -> str:
     # since an agency can grant an extension. No fiscal-year label: lead lines
     # are lowercased prose, and "fy2024" reads as a typo.
     if p.get("fac_overdue"):
-        return "their next federal audit isn't on file"
+        return "their latest federal audit isn't on file"
     days = p.get("fac_days_late")
     if p.get("fac_late") and isinstance(days, int) and days >= 60:
         return f"filed their federal audit {days // 30} months late"
@@ -1516,10 +1526,10 @@ def _record_predicate(lead: Lead) -> str | None:
             phrase = nonprofit_phrase(lead)
             if phrase.startswith("filed their federal audit"):
                 return phrase.replace("their", "its", 1)
-            if phrase == "their next federal audit isn't on file":
+            if phrase == "their latest federal audit isn't on file":
                 # Absence on the clearinghouse only: an agency can grant an
                 # extension, so never "missed" or "late".
-                return "doesn't have its next federal audit on file yet"
+                return "doesn't have its latest federal audit on file"
             return None
         what, repeat = facts
         said = ("had weak financial controls flagged in its federal audit"
@@ -1592,7 +1602,7 @@ def _record_followup(lead: Lead, prospect: Prospect, pack=None,
     lead_city, lead_state = city_display(lead.city), state_display(lead.state)
     # "one more" only for one more of the same kind; another kind (a late
     # deposit after three hud owners) is "also" (2026-11-06).
-    more = "one more" if gift_signals is None or lead.signal_type in gift_signals else "also"
+    more = "one more" if gift_signals is None or lead.signal_type in gift_signals else "also, one"
     # No place twice: "one more in new york: Tennr in new york", "Grace House
     # of Memphis in memphis" (2026-11-15).
     shown_city = lead_city
@@ -1624,7 +1634,7 @@ def _final_with_lead(lead: Lead | None, prospect: Prospect, pack, vary_key: str 
         if record is not None:
             flags.extend(_lead_line(lead, today, "none", pack=pack, with_date=False)[1])
             first = record.split("\n\n", 1)[0]
-            for start in ("one more", "also"):
+            for start in ("one more", "also, one", "also"):
                 if first.startswith(start):
                     first = "one last one" + first[len(start):]
                     break

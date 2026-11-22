@@ -260,8 +260,12 @@ def _readable(name: str) -> str:
     # "Grace House of Memphis Tennessee": a state name glued on the end.
     words = out.split()
     for n in (2, 1):
-        if len(words) > n + 2 and " ".join(words[-n:]).lower() in _STATE_FULL.values() \
-                and words[-n - 1].lower() not in _KEEPS_STATE:
+        # Only a long name, and never after another state: "World Trade
+        # Center Delaware", "Prevent Child Abuse Utah", "The Open Door of
+        # Indiana Pennsylvania" are whole names (2026-11-21).
+        if len(words) > n + 3 and " ".join(words[-n:]).lower() in _STATE_FULL.values() \
+                and words[-n - 1].lower() not in _KEEPS_STATE \
+                and words[-n - 1].lower() not in _STATE_FULL.values():
             words = words[:-n]
             break
     fixed = []
@@ -361,7 +365,11 @@ def revenue_display(rng: tuple[float | None, float | None] | None) -> str:
 _CITY_WORDS = {"bch": "beach", "rsa": "rosa", "hts": "heights", "hgts": "heights",
                "spgs": "springs", "spg": "springs", "mtn": "mountain", "twp": "township",
                "vlg": "village", "jct": "junction", "cty": "city", "lk": "lake", "crk": "creek",
-               "hbr": "harbor", "bch.": "beach", "pk": "park", "vly": "valley", "fls": "falls"}
+               "hbr": "harbor", "bch.": "beach", "pk": "park", "vly": "valley", "fls": "falls",
+               "lks": "lakes", "hls": "hills", "uppr": "upper", "bloomfld": "bloomfield",
+               # A registry's misspellings (2026-11-21 review).
+               "gainsville": "gainesville", "kissimme": "kissimmee", "cheter": "chester",
+               "lanse": "l'anse", "rehobeth": "rehoboth", "rsa.": "rosa"}
 _CITY_FIRST = {"ft": "fort", "mt": "mount", "n": "north", "s": "south", "e": "east",
                "w": "west"}
 

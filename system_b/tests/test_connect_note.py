@@ -24,7 +24,7 @@ def test_three_leads_in_email_1s_words():
     note = build_connect_note(g, NICHED, pack=CFO)
     assert note == (
         "hey troy, saw you work with nonprofits. these 3 in atlanta had "
-        "weak financial controls flagged in their federal audits, so each must fix it "
+        "weak financial controls flagged in their federal audits, so each must fix the findings "
         "before its next audit: Georgia Works; Cathedral Towers; Hope Atlanta.\n\n"
         "i'm an engineer. my system finds these. want 3 a week?"
     )

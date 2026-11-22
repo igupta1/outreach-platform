@@ -573,7 +573,7 @@ def _tidy_words(name: str) -> str:
     if len(words) >= 4:
         acr = re.sub(r"[^A-Za-z]", "", words[-1])
         initials = "".join(w[0] for w in words[:-1] if w[:1].isalpha()).upper()
-        if len(acr) >= 3 and words[-1].replace("-", "").isupper() and _subsequence(acr.upper(), initials) \
+        if len(acr) >= 3 and _subsequence(acr.upper(), initials) \
                 and len(acr) >= 0.6 * len(initials):
             words = words[:-1]
     out: list[str] = []
@@ -1315,9 +1315,28 @@ def _public_names() -> frozenset[str]:
 # federal spending (the HUD loan) many times their revenue. Every one read as
 # an odd gift.
 _PROPERTY_NAME_RE = re.compile(
-    r"\b(?:towers?|apartments?|elderly housing|senior housing|senior citizens housing|"
-    r"housing (?:development|corporation|corp|inc|incorporated|for the elderly)|"
-    r"residences? of|voa\b|development fund company|townhomes?)\b", re.I)
+    r"\b(?:towers?|apartments?|elderly housing|senior housing|senior citizens?'?s? housing|"
+    r"housing (?:development|corporation|corp|inc|incorporated|for the elderly|cooperative)|"
+    r"residences? of|voa\b|development fund company|townhomes?|suites|terrace(?: inc)?$|"
+    r"plaza inc$)\b", re.I)
+# A HUD project number ("Wilshire House 122-EH476") or a street address
+# ("Transform 1012 N Main Street") in the name: one building.
+_PROPERTY_ID_RE = re.compile(r"\b\d{3}-[A-Z]{2}\d{3}\b|\b\d{2,5} (?:[NSEW]\.? )?\w+ "
+                             r"(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)\b",
+                             re.I)
+_SCHOOL_GOV_RE = re.compile(r"\b(?:school district|public schools|board of education|"
+                            r"unified school|independent school district|isd|county schools|"
+                            r"archdiocese|diocese of)\b", re.I)
+MAX_FEDERAL_SPEND = 25_000_000
+# A record's leftovers in the name (2026-11-21 review): "...Formerly
+# Coordinated", "Mandela Partners Prev Mandela Marketplace", "Shiloh
+# Foundation Irrv Trust 12142007", "Woodridge Nonprofit Corporation 04411116",
+# "Elizabeth S Ludgate Test Trust", "Industrial Security Integrators, LL",
+# "Regal P".
+_GARBLED_NAME_RE = re.compile(
+    r"(?i:\b(?:formerly|prev|fka|irrv|irrev|test trust|testamentary)\b)|\b\d{7,8}\b|,\s*LL$|"
+    r"\w{4}\s[D-WYZ]$")                        # "Regal P", not "Plan B" or "Vitamin C"
+MIN_FRAUD_LOSS = 1_000
 # A name the source cut off: it ends on "of", "for", "and", a cut word, or
 # "of" + a direction ("United Way Of West", "Community Action of East
 # Central", "Blackberry McCarr Develop"). "Hot Springs, Town of" is how a
@@ -1329,8 +1348,8 @@ _CUT_END_RE = re.compile(
     r"west|northeast|northwest|southeast|southwest|central|east central|west central)$", re.I)
 # Hospitals and health systems have their own finance departments; an animal
 # hospital or a one-doctor "medical center PLLC" does not.
-_HOSPITAL_RE = re.compile(r"\b(?:hospital|health network|health system|healthcare network|"
-                          r"medical center)\b", re.I)
+_HOSPITAL_RE = re.compile(r"\b(?:hospitals?|health network|health systems?|healthcare network|"
+                          r"healthcare system|medical center)\b", re.I)
 _SMALL_CLINIC_RE = re.compile(r"\b(?:equine|veterinary|animal|pet|pllc|dental)\b|"
                               r"medical center,? (?:llc|sc|pc|pa|inc)\b", re.I)
 _FOUNDATION_WORD_RE = re.compile(r"\b(?:family|charitable|foundation|trust|fund)\b", re.I)
@@ -1416,6 +1435,33 @@ def _person_words(name: str) -> bool:
     return _surname(words[-1])
 
 
+def _bare_person_name(name: str) -> bool:
+    """"Damon McCoy", "Kayle Stremler", "Levon Douglas Barrison", "Ronald A.
+    Maxwell", "Sharron, Joseph": two to four name-shaped words, no business
+    or common English word, no legal form (2026-11-21 review)."""
+    if not _dictionary(True) or re.search(r"\d|&|\b(?:llc|inc|corp|co|ltd|lp|pllc|pc|pa)\b\.?",
+                                          name, re.I):
+        return False
+    words = [w.strip(".,") for w in re.split(r"[\s,]+", name.strip()) if w.strip(".,")]
+    if not 2 <= len(words) <= 4:
+        return False
+    if not all(re.fullmatch(r"(?:Mc|O'|Mac)?[A-Z][a-z'\-]+(?:-[A-Z][a-z]+)?|[A-Z]", w) for w in words):
+        return False
+    plain = [w.lower() for w in words if len(w) > 1]
+    if any(w in _BUSINESS_WORDS_ALL or w in _SPANISH_WORDS for w in plain):
+        return False
+    # "Ronald A. Maxwell": a known first name, a middle initial, a surname.
+    if len(words) == 3 and len(words[1]) == 1 and plain[0] in _first_names():
+        return True
+    if any(_in(_dictionary(True), w) for w in plain):
+        return False
+    return len(plain) >= 2
+
+
+_SPANISH_WORDS = frozenset({"casa", "la", "el", "de", "del", "los", "las", "latina", "latino",
+                            "familia", "nuestra", "mi", "su", "san", "santa", "vida"})
+
+
 def _named_for_people(name: str) -> bool:
     """A foundation named for a person or family: "Audrey Backus Charitable
     Trust", "The Weiss Family Foundation", "Rob And Katie Ruelas Family
@@ -1468,7 +1514,7 @@ counseling advocacy advocates employment independence independent intervention
 """.split())
 
 
-_KNOWN_TYPOS = frozenset({"disabitilites"})
+_KNOWN_TYPOS = frozenset({"disabitilites", "kidness"})
 
 
 def _a_word(w: str) -> bool:
@@ -1539,6 +1585,28 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
     # charities, but each is one building: "Antonian Towers PA26-T841-007",
     # "MDBM-Epsilon Senior Housing Corporation", a manager's office for an
     # address, and federal spending (the HUD loan) many times its revenue.
+    # Every HUD record is one property and its owner LLC (2026-11-21 review:
+    # five in one email, none a business a bookkeeper could win).
+    if t.startswith("hud_") or _PROPERTY_ID_RE.search(name):
+        return "housing_property"
+    if t.startswith("nonprofit") and _PROPERTY_NAME_RE.search(name) and not ntee.startswith(("E", "P7")):
+        return "housing_property"
+    if federal > MAX_FEDERAL_SPEND:
+        return "too_big"
+    if _SCHOOL_GOV_RE.search(name):
+        return "government"
+    if t == "plan_fraud_loss":
+        try:
+            if float(pay.get("amount") or 0) < MIN_FRAUD_LOSS:
+                return "trivial_amount"             # a $13 "fraud loss"
+        except (TypeError, ValueError):
+            pass
+    if t.startswith("ny_omig") and not pay.get("amount"):
+        return "no_amount"                          # "told to pay money back" unshown
+    # A required single audit needs $1m of federal spending: a charity far
+    # below that ticked the 990 box by mistake.
+    if t == "nonprofit_single_audit_not_done" and revenue is not None and revenue < 1_000_000:
+        return "too_small"
     if t.startswith(("nonprofit", "hud_")):
         if ntee.startswith(("L21", "L22")):
             return "housing_property"
@@ -1556,13 +1624,19 @@ def review_reason(row: dict[str, Any], lead: Lead, pay: dict[str, Any]) -> str |
         return "person_foundation"
     if _CUT_END_RE.search(name.strip()) or re.search(r"\b[A-Z]{2}\d{2}-[A-Z]\d{3}-\d{3}\b", name):
         return "cut_off_name"
+    if _GARBLED_NAME_RE.search(name):
+        return "garbled_name"
+    words = name.split()
+    if t.startswith("nonprofit") and len(words) == 1 and len(name) >= 6 \
+            and _in(_dictionary(True), name.lower().strip(".,")):
+        return "garbled_name"                   # "Nutrition", "Flexible": a name cut to one word
     if _HOSPITAL_RE.search(name) and not _SMALL_CLINIC_RE.search(name):
         return "too_big"
     if _public_company_name(name):
         return "public_company"
     if t.startswith("nonprofit") and misspelled_word(name):
         return "misspelled_name"
-    if _person_words(name):
+    if _person_words(name) or _bare_person_name(name):
         return "person_name"
     return None
 

@@ -182,7 +182,7 @@ def test_email_2_is_one_plain_sentence_in_email_1s_words():
     tail = "\n\nshould i keep these to florida, or go wider?"
     assert same.body == "one more in tampa: B won a federal construction job (oct 6)." + tail
     # another kind is "also", not "one more" (2026-11-06)
-    assert diff.body == ("also in tampa: New Co just registered as a new company (oct 6)."
+    assert diff.body == ("also, one in tampa: New Co just registered as a new company (oct 6)."
                          + tail)
     for body in (same.body, diff.body):
         assert "same signal" not in body and "offer still stands" not in body
@@ -318,7 +318,7 @@ def test_different_audit_problems_share_one_plain_sentence():
                             "so each must get its audits back on track:")
     assert lines[0].startswith("A: auditors flagged their financial controls")
     assert lines[1].startswith("B: filed their federal audit 3 months late")
-    assert lines[2].startswith("C: their next federal audit isn't on file")
+    assert lines[2].startswith("C: their latest federal audit isn't on file")
 
 
 def test_a_kind_detail_is_one_detail():

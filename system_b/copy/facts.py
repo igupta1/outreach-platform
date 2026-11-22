@@ -151,7 +151,8 @@ def _person(lead: Lead) -> tuple[str, str] | None:
     """(name, plain role) of the record's named contact, or None. Single-letter
     initials are dropped ("Douglas K Bardin" -> "Douglas Bardin"); a "contact"
     that is the organization's own name is not a person."""
-    name = " ".join((lead.contact_name or "").split())
+    # "Broadwater,III" -> "Broadwater III" (2026-11-21).
+    name = " ".join(re.sub(r",(?=\S)", " ", lead.contact_name or "").split())
     role = role_word(lead.contact_title)
     if not name or not role:
         return None
@@ -166,8 +167,10 @@ def _person(lead: Lead) -> tuple[str, str] | None:
             w = "-".join(x.capitalize() for x in w.split("-"))
         elif "-" in w:
             w = "-".join(x[:1].upper() + x[1:] for x in w.split("-"))
-        if re.match(r"^Mc[a-z]", w):
-            w = "Mc" + w[2:].capitalize()
+        if re.match(r"^Mc[a-z]", w) or re.match(r"^Mc[A-Z]{2,}$", w):
+            w = "Mc" + w[2:].capitalize()       # "McKELVEY" -> "McKelvey"
+        if re.match(r"^O[A-Z][a-z]{2,}$", w):
+            w = "O'" + w[1:]                    # "ONeal" -> "O'Neal"
         words.append(w)
     while words and re.sub(r"[^a-z]", "", words[-1].lower()) in _CREDENTIALS:
         words.pop()
@@ -189,7 +192,7 @@ def _person(lead: Lead) -> tuple[str, str] | None:
 
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
 _CREDENTIALS = {"md", "do", "dds", "dmd", "np", "phd", "cpa", "esq", "rn", "pa", "lcsw", "dc",
-                "od", "dvm", "pharmd", "facs", "mba"}
+                "od", "dvm", "pharmd", "facs", "mba", "jd", "cgma", "cfp", "ea", "lpc"}
 _NOT_FIRST_NAMES = frozenset({
     "placement", "director", "manager", "officer", "office", "admin", "administrator",
     "executive", "president", "secretary", "treasurer", "chair", "chairman", "board",
@@ -274,8 +277,13 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
     award = money(p.get("award_amount"))
     # Several awards: their total, as the plural "won federal jobs" says
     # (2026-11-15: "won federal construction jobs ($168k)" was one of two).
-    if award and int(p.get("awards_in_window") or 1) > 1 and p.get("total_in_window"):
-        award = money(p.get("total_in_window")) or award
+    n_awards = int(p.get("awards_in_window") or 1)
+    if award and n_awards > 1 and p.get("total_in_window"):
+        # The total says how many it adds up (2026-11-21 review: "$201k on
+        # nov 16" read as one award; the nov 16 one was $159k).
+        total = money(p.get("total_in_window"))
+        if total:
+            return f"{total} across {n_awards} awards"
     if award:
         # 2026-11-12: the figure alone; the agency ("va") was a third detail.
         return award
@@ -296,7 +304,13 @@ def record_fact(lead: Lead, *, with_contact: bool = True) -> str:
         if late:
             return f"{late} in late contributions"
     revenue = money(p.get("total_revenue"))
-    if revenue and (lead.signal_type or "").startswith("nonprofit"):
+    # A 990's revenue below the federal money an audit says was spent is an
+    # older or different year: a CPA reads the pair as wrong (2026-11-21).
+    try:
+        older = float(p.get("fac_federal_expended") or 0) > float(p.get("total_revenue") or 0)
+    except (TypeError, ValueError):
+        older = False
+    if revenue and not older and (lead.signal_type or "").startswith("nonprofit"):
         return f"{revenue} in revenue"
     # Participants WITH account balances: what the audit rule counts and what
     # the record's own sentence says (2026-11-15: "398 in the plan" beside a

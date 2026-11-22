@@ -71,7 +71,8 @@ _ROLE_NUMBERED_RE = re.compile(r"^(?:lead|sales|info|office|team|admin|support)\
 # Who is not the person to email at a finance firm (2026-11-21 review: a VP of
 # Sales, a realtor, a VC mentor, a founder whose firm was sold).
 _NOT_A_BUYER_TITLE_RE = re.compile(
-    r"\b(broker|realtor|mentor|acquired by|chief technology)\b", re.I)
+    r"\b(broker|realtor|mentor|acquired by|chief technology|exited|former|headhunter|"
+    r"recruiter|customer relations|content creator)\b", re.I)
 _SALES_TITLE_RE = re.compile(r"\b(sales|business development|marketing)\b", re.I)
 _OWNER_TITLE_RE = re.compile(r"\b(founder|owner|ceo|chief executive|(?<!vice )president|principal|"
                              r"managing (partner|member|director)|cfo|controller|cpa)\b", re.I)
@@ -145,7 +146,8 @@ def row_from_apollo(record: dict[str, str]) -> dict[str, Any] | None:
     # No shared inboxes (tax@, info@): the user's rule, and nobody reads them
     # as a person (2026-11-15: two tax@ inboxes reached a batch).
     local = email.split("@", 1)[0].lower()
-    if local in _ROLE_INBOXES or _ROLE_NUMBERED_RE.match(local) or local.startswith("qbonline"):
+    if local in _ROLE_INBOXES or _ROLE_NUMBERED_RE.match(local) or local.startswith("qbonline") \
+            or local in ("tools", "smile", "advisor", "advisors", "wbs"):
         return None
     if not_a_buyer_title(record.get("Title")):
         return None
