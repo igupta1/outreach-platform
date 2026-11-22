@@ -169,6 +169,9 @@ _OWNER_RE = re.compile(r"\b(owner|founder|co-?founder|principal|proprietor|presi
 _PARTNER_RE = re.compile(r"\bpartner\b", re.I)
 
 
+MAX_PER_FIRM = 3
+
+
 def owner_rank(title: str | None) -> int:
     """0 an owner or founder, 1 anyone else, 2 a partner who is not the
     managing or founding one (a partner at a bigger CPA firm). The email
@@ -573,9 +576,21 @@ def main() -> None:
 
     matched.sort(key=_strongest)                       # stable: file order breaks ties
     location_only.sort(key=_strongest)
+    # At most MAX_PER_FIRM people per firm (2026-11-21, the user: "we can
+    # email both of them, as long as it's 3 or less people at the same firm").
+    # Owners sort first (`_strongest`), so a firm's extra people are the ones left out.
+    per_firm: dict[str, int] = {}
+
+    def _room(p: dict) -> bool:
+        key = (p.get("website") or p.get("firm_name") or "").lower()
+        per_firm[key] = per_firm.get(key, 0) + 1
+        return per_firm[key] <= MAX_PER_FIRM
+
     for p, res in matched:
         if target is not None and len(results) >= target:
             break
+        if not _room(p):
+            continue
         results.append(res)
     if target is not None and len(matched) > len(results):
         print(f"[run] {len(matched)} industry matches; the {len(results)} with the "
@@ -586,6 +601,8 @@ def main() -> None:
         if target is not None and len(results) >= target:
             break
         firm = p.get("firm_name", "?")
+        if not _room(p):
+            continue
         results.append(res)
         allocations.record(res.get("lead_identities") or [], firm, p.get("state"), today)
         print(f"  · {res['company']:32} ok, location-only ({res.get('gift_size')} in gift)")
