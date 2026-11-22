@@ -170,6 +170,22 @@ _PARTNER_RE = re.compile(r"\bpartner\b", re.I)
 
 
 MAX_PER_FIRM = 3
+_EXEC_RE = re.compile(r"\b(cfo|coo|chief|vp|vice president|director|head|controller)\b", re.I)
+
+
+def influence_rank(title: str | None) -> int:
+    """Who speaks for the firm, for choosing its MAX_PER_FIRM people
+    (2026-11-21, the user: "the 3 most influential people"): an owner or
+    founder, then a partner, then an executive, then anyone else. Unlike
+    `owner_rank`, which sorts the whole batch, a partner outranks staff here."""
+    t = title or ""
+    if _OWNER_RE.search(t):
+        return 0
+    if _PARTNER_RE.search(t):
+        return 1
+    if _EXEC_RE.search(t):
+        return 2
+    return 3
 
 
 def owner_rank(title: str | None) -> int:
@@ -579,12 +595,18 @@ def main() -> None:
     # At most MAX_PER_FIRM people per firm (2026-11-21, the user: "we can
     # email both of them, as long as it's 3 or less people at the same firm").
     # Owners sort first (`_strongest`), so a firm's extra people are the ones left out.
-    per_firm: dict[str, int] = {}
+    def _firm_key(p: dict) -> str:
+        return (p.get("website") or p.get("firm_name") or "").lower()
+
+    # Each firm's MAX_PER_FIRM most influential drafted people (`influence_rank`).
+    by_firm: dict[str, list[dict]] = {}
+    for p, _res in [*matched, *location_only]:
+        by_firm.setdefault(_firm_key(p), []).append(p)
+    allowed = {id(p) for people in by_firm.values()
+               for p in sorted(people, key=lambda q: influence_rank(q.get("title")))[:MAX_PER_FIRM]}
 
     def _room(p: dict) -> bool:
-        key = (p.get("website") or p.get("firm_name") or "").lower()
-        per_firm[key] = per_firm.get(key, 0) + 1
-        return per_firm[key] <= MAX_PER_FIRM
+        return id(p) in allowed
 
     for p, res in matched:
         if target is not None and len(results) >= target:

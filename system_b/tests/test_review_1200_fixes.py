@@ -113,3 +113,10 @@ def test_owners_are_drafted_before_partners_at_bigger_firms():
     assert owner_rank(None) == 1
     assert owner_rank("Tax Partner") == 2
     assert owner_rank("Partner") == 2
+
+
+def test_a_firms_three_are_its_most_influential_people():
+    """2026-11-21, the user: up to 3 per firm, the most influential."""
+    from system_b.run import influence_rank
+    titles = ["Senior Accountant", "Partner", "Founder & CEO", "Controller", "Tax Manager"]
+    assert sorted(titles, key=influence_rank)[:3] == ["Founder & CEO", "Partner", "Controller"]
