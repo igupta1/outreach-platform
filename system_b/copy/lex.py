@@ -211,10 +211,12 @@ def _looks_acronym(word: str) -> bool:
     if low.startswith(("mc", "mac")) or any(f in _words() for f in (low, low.rstrip("s"))):
         return False
     vowels = sum(c in "aeiouy" for c in low)
-    run = re.search(r"[bcdfghjklmnpqrstvwxz]{3}", re.sub(r"(.)\1", r"\1", low))
-    common = ("str", "sch", "chr", "thr", "nds", "nts", "rst", "nst", "ngs", "ght", "rch", "tch",
-              "scr", "spr", "spl", "shr", "phr", "lds", "rds", "rts", "nch", "rth", "ndr", "ntr")
-    return vowels <= 1 and bool(run) and not any(c in low for c in common)
+    if vowels > 1:
+        return False
+    # Letter pairs no English word or surname has ("Mintz", "Phelps",
+    # "Probst" keep their case; "GECMS", "NWICDC", "WVCORR" do not).
+    return bool(re.search(r"^(?:nw|wv|ws|jb|gc|kc|tb|db|gb|vc|wc|sb)|cm|dp|bt|vc|cd|pm|dc[a-z]?$",
+                          low))
 
 
 def _undoubled(name: str) -> str:

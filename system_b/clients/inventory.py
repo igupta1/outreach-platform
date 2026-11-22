@@ -598,33 +598,13 @@ def _tidy_words(name: str) -> str:
     return " ".join(out)
 
 
-_OK_CLUSTERS = ("str", "sch", "chr", "thr", "nds", "nts", "rst", "nst", "ngs", "ght", "rch", "tch",
-                "scr", "spr", "spl", "shr", "phr", "lds", "rds", "rts", "nch", "mpt", "rth", "ndr",
-                "ntr", "mpl", "ckl", "nkl", "rtl", "ngl", "rdw", "ctr", "xpr", "mps", "lms", "rms")
-
-
 def _acronym_case(w: str) -> str:
-    """"Gecms" -> "GECMS", "Wscadv" -> "WSCADV", "Jbtech" -> "JBTECH": a
-    title-cased token with a consonant run no English word has (second read,
-    2026-11-21). Words a dictionary or a surname list knows are left alone."""
-    if not re.fullmatch(r"[A-Z][a-z]{3,6}", w):
-        return w
-    low = w.lower()
-    if low.startswith(("mc", "mac")) or _in(_dictionary(False), low) \
-            or low in _prospect_names("Last Name"):
-        return w
-    vowels = sum(c in "aeiouy" for c in low)
-    onset = low[:2]
-    bad_onset = all(c not in "aeiouy" for c in onset) and onset not in _ONSETS
-    if vowels <= 1 and (bad_onset or re.search(r"[bcdfghjklmnpqrstvwxz]{3}",
-                                                re.sub(r"(.)\1", r"\1", low))):
+    """"Gecms" -> "GECMS", "Wscadv" -> "WSCADV" (2026-11-21); surnames such
+    as "Mintz" keep their case. One rule with the page (copy.lex)."""
+    from system_b.copy.lex import _looks_acronym
+    if re.fullmatch(r"[A-Z][a-z]{3,6}", w) and _looks_acronym(w):
         return w.upper()
     return w
-
-
-# Two consonants an English word can start with.
-_ONSETS = frozenset("bl br cl cr dr fl fr gl gr pl pr sc sk sl sm sn sp st sw tr tw wh wr th sh "
-                    "ch ph kn gn qu ks dw sv kl kr kw ts zh".split())
 
 
 def _subsequence(short: str, long: str) -> bool:
