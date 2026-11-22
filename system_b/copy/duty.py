@@ -1985,7 +1985,7 @@ _PLAIN: dict[str, tuple[str | None, str | None, str | None, str | None]] = {
     'construction_first_prevailing_wage_intent': ('started their first government jobs', 'started its first government job', "so each must report its workers' pay to the state", "so it must report its workers' pay to the state"),
     'nonprofit_deficit_low_cash': ('spent more than they took in two years running and have under a month of cash left', 'spent more than it took in two years running and has under a month of cash left', '', ''),
     'nonprofit_990_missed_1yr': ('are behind on their irs returns', 'is behind on its irs return', 'so each needs to catch up on its filings', 'so it needs to catch up on its filings'),
-    'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so each is at risk of losing its tax exemption', 'so it is at risk of losing its tax exemption'),
+    'nonprofit_990_missed_2yr': ('are two years behind on their irs returns', 'is two years behind on its irs returns', 'so each needs to catch up on its filings', 'so it needs to catch up on its filings'),
     'nonprofit_exemption_revoked': ('lost their tax-exempt status after three years of no returns', 'lost its tax-exempt status after three years of no returns', 'so each must refile to get it back', 'so it must refile to get it back'),
     'cpa_firm_license_delinquent': ('let their cpa firm licenses lapse', 'let its cpa firm license lapse', '', ''),
     'h2b_seasonal_employer': ('applied to hire seasonal foreign workers', 'applied to hire seasonal foreign workers', 'so each must keep strict pay records', 'so it must keep strict pay records'),
